@@ -30,3 +30,12 @@
 .registration-valid strong{font-size:12px}
 .registration-valid p{margin:3px 0 0;font-size:12px;line-height:1.45;color:var(--muted)}
 @media(max-width:600px){.register-intro{flex-direction:column}.register-grid{grid-template-columns:1fr}}
+
+
+/* Dataset registry tags */
+.dataset-version-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dataset-tags{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.dataset-tag{display:inline-flex;align-items:center;min-height:20px;padding:2px 7px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:12px;line-height:1;font-weight:600;color:var(--muted);text-transform:lowercase}
+.dataset-tag--latest{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--accent) 10%,var(--bg))}
+.dataset-tag--prod{color:#34c759;border-color:color-mix(in srgb,#34c759 35%,var(--line));background:color-mix(in srgb,#34c759 9%,var(--bg))}
+.dataset-tag--candidate{color:#ff9f0a;border-color:color-mix(in srgb,#ff9f0a 35%,var(--line));background:color-mix(in srgb,#ff9f0a 9%,var(--bg))}
