@@ -3,11 +3,11 @@ import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDo
 import { CommandPalette } from './components/CommandPalette.jsx';
 import { Button, Modal } from './components/UI.jsx';
 import { groups, allPages, initialDatasets, initialRuns } from './data.js';
-import { Datasets, Explorer, ImportData, Mining, History, Training, Metrics, PAL, SettingsPage, SystemPage, Documentation } from './Pages.jsx';
+import { Datasets, Explorer, ImportData, Mining, History, PAL, SettingsPage, SystemPage, Documentation } from './Pages.jsx';
 
 function readState(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; } catch { return fallback; } }
 function useLocalState(key, initial) { const [value, setValue] = useState(() => readState(key, initial)); useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Demo still works without storage. */ } }, [key, value]); return [value, setValue]; }
-function currentPage() { const path = window.location.pathname.split('/')[1] || 'datasets'; return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'training', 'model-metrics': 'metrics', projects: 'history', lineage: 'datasets', labeling: 'datasets' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
+function currentPage() { const path = window.location.pathname.split('/')[1] || 'datasets'; return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'datasets', 'model-metrics': 'datasets', projects: 'history', lineage: 'datasets', labeling: 'datasets' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
 
 export default function App() {
   const [page, setPage] = useState(currentPage);
@@ -45,7 +45,7 @@ export default function App() {
   useEffect(() => { if (!mobileOpen) return; const previous = document.activeElement; const old = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.querySelector('.sidebar__close')?.focus(); return () => { document.body.style.overflow = old; previous?.focus?.(); }; }, [mobileOpen]);
   const notify = message => setToast({ message, id: Date.now() });
   const shared = { navigate, notify, datasets, setDatasets, runs, setRuns, contextDataset };
-  const pages = { datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, history: History, training: Training, metrics: Metrics, pal: PAL, system: SystemPage, documentation: Documentation };
+  const pages = { datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, history: History, pal: PAL, system: SystemPage, documentation: Documentation };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
     <a href="#main-content" className="skip-link">Skip to content</a>
