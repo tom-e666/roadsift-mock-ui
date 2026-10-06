@@ -38,7 +38,9 @@
         "deltaNight": 0.027,
         "rain": 0.516
       },
-      "description": "Urban perception corpus focused on dense traffic and mixed vulnerable road users."
+      "description": "Urban perception corpus focused on dense traffic and mixed vulnerable road users.",
+      "task": "Object Detection",
+      "format": "COCO Detection"
     },
     {
       "id": "huc-v2",
@@ -78,7 +80,9 @@
         "deltaNight": 0.018,
         "rain": 0.529
       },
-      "description": "Second curated urban iteration with additional uncertainty-selected frames."
+      "description": "Second curated urban iteration with additional uncertainty-selected frames.",
+      "task": "Object Detection",
+      "format": "COCO Detection"
     },
     {
       "id": "huc-v7",
@@ -119,7 +123,9 @@
         "deltaNight": 0.011,
         "rain": 0.592
       },
-      "description": "Current production-ready Hanoi urban corpus with seven traceable dataset versions."
+      "description": "Current production-ready Hanoi urban corpus with seven traceable dataset versions.",
+      "task": "Object Detection",
+      "format": "COCO Detection"
     },
     {
       "id": "nar-v1",
@@ -160,7 +166,9 @@
         "deltaNight": 0.058,
         "rain": 0.542
       },
-      "description": "Adverse-condition corpus emphasizing night, rain and degraded visibility."
+      "description": "Adverse-condition corpus emphasizing night, rain and degraded visibility.",
+      "task": "Object Detection",
+      "format": "YOLO Detection"
     },
     {
       "id": "nar-v2",
@@ -201,7 +209,9 @@
         "deltaNight": 0.029,
         "rain": 0.571
       },
-      "description": "Second active-learning iteration balancing uncertainty, safety and domain coverage."
+      "description": "Second active-learning iteration balancing uncertainty, safety and domain coverage.",
+      "task": "Object Detection",
+      "format": "YOLO Detection"
     },
     {
       "id": "nar-v5",
@@ -242,7 +252,9 @@
         "deltaNight": 0.018,
         "rain": 0.614
       },
-      "description": "Current adverse-weather candidate with stronger night and rain coverage."
+      "description": "Current adverse-weather candidate with stronger night and rain coverage.",
+      "task": "Object Detection",
+      "format": "YOLO Detection"
     },
     {
       "id": "nhc-v12",
@@ -283,7 +295,9 @@
         "deltaNight": 0.004,
         "rain": 0.568
       },
-      "description": "Mature highway corpus spanning twelve immutable versions."
+      "description": "Mature highway corpus spanning twelve immutable versions.",
+      "task": "Object Detection",
+      "format": "KITTI"
     },
     {
       "id": "vru-v3",
@@ -324,7 +338,9 @@
         "deltaNight": 0.009,
         "rain": 0.552
       },
-      "description": "Safety-focused corpus prioritizing vulnerable road-user interactions."
+      "description": "Safety-focused corpus prioritizing vulnerable road-user interactions.",
+      "task": "Object Detection",
+      "format": "COCO Detection"
     },
     {
       "id": "ilt-v9",
@@ -365,7 +381,9 @@
         "deltaNight": 0.007,
         "rain": 0.561
       },
-      "description": "Long-tail corpus for rare intersection geometry, occlusion and conflict patterns."
+      "description": "Long-tail corpus for rare intersection geometry, occlusion and conflict patterns.",
+      "task": "Object Detection",
+      "format": "BDD100K"
     },
     {
       "id": "fb-v4",
@@ -406,7 +424,9 @@
         "deltaNight": 0.003,
         "rain": 0.523
       },
-      "description": "Reference corpus maintained as a broad random-sampling baseline."
+      "description": "Reference corpus maintained as a broad random-sampling baseline.",
+      "task": "Object Detection",
+      "format": "COCO Detection"
     }
   ],
   "pools": [
