@@ -1502,5 +1502,151 @@
     "https://images.unsplash.com/photo-1541747277704-ef7fb8e1a31c?auto=format&fit=crop&w=900&q=82",
     "https://images.unsplash.com/photo-1708352548514-8a731e456e39?auto=format&fit=crop&w=900&q=82",
     "https://images.unsplash.com/photo-1569746133232-5ba1b89767d2?auto=format&fit=crop&w=900&q=82"
-  ]
+  ],
+  "seedDataset": {
+    "id": "seed_labeled_v0",
+    "name": "Initial Labeled Seed",
+    "version": 0,
+    "samples": 8000,
+    "createdAt": "2026-09-28T09:12:04"
+  },
+  "holdouts": [
+    {
+      "id": "holdout_v1",
+      "name": "Fixed Holdout v1",
+      "samples": 12000,
+      "policy": "Evaluation only · never used for selection"
+    }
+  ],
+  "strategies": [
+    {
+      "id": "hybrid",
+      "name": "Hybrid Sampling",
+      "weights": {
+        "uncertainty": 0.35,
+        "safety": 0.3,
+        "diversity": 0.25,
+        "redundancy": -0.1
+      },
+      "requiresEmbedding": true
+    },
+    {
+      "id": "entropy",
+      "name": "Entropy Sampling",
+      "requiresEmbedding": false
+    },
+    {
+      "id": "diversity",
+      "name": "Diversity Sampling",
+      "requiresEmbedding": true
+    },
+    {
+      "id": "random",
+      "name": "Random Sampling",
+      "requiresEmbedding": false
+    }
+  ],
+  "datasetRegistration": {
+    "defaultTask": "Object Detection",
+    "defaultFormat": "COCO Detection",
+    "defaultAddedSamples": 4000,
+    "taskFormats": {
+      "Object Detection": [
+        "COCO Detection",
+        "YOLO Detection",
+        "KITTI",
+        "BDD100K",
+        "Waymo Open Dataset",
+        "Custom"
+      ],
+      "Instance Segmentation": [
+        "COCO Instance Segmentation",
+        "YOLO Segmentation",
+        "BDD100K",
+        "Custom"
+      ],
+      "Semantic Segmentation": [
+        "COCO Panoptic / Semantic",
+        "Cityscapes",
+        "BDD100K",
+        "Custom"
+      ],
+      "Keypoints / Pose": [
+        "COCO Keypoints",
+        "YOLO Pose",
+        "Custom"
+      ],
+      "Multi-object Tracking": [
+        "MOTChallenge",
+        "BDD100K Tracking",
+        "Waymo Open Dataset",
+        "Custom"
+      ],
+      "Image Classification": [
+        "ImageFolder",
+        "CSV / JSONL Manifest",
+        "Custom"
+      ]
+    }
+  },
+  "importSimulation": {
+    "defaultPoolName": "Hanoi Fleet Pool",
+    "defaultMode": "videos",
+    "defaultFps": "2",
+    "fpsOptions": [
+      "1",
+      "2",
+      "5",
+      "10"
+    ],
+    "videoFrames": 38420,
+    "imageFramesFallback": 18420,
+    "duplicatesFlagged": 1284,
+    "qualityFlagged": 312,
+    "storageRoot": "r2://roadsift/pools/"
+  },
+  "miningConfig": {
+    "defaultStrategyId": "hybrid",
+    "budgets": [
+      1000,
+      2000,
+      4000,
+      8000,
+      12000
+    ],
+    "defaultBudget": 4000,
+    "defaultRunnerId": "runner_kaggle_t4",
+    "simulatedDuration": "47m 12s",
+    "exactN": true,
+    "artifacts": [
+      "job_spec.json",
+      "scores.parquet",
+      "selected.json",
+      "statistics.json",
+      "run_result.json"
+    ]
+  },
+  "runners": [
+    {
+      "id": "runner_kaggle_t4",
+      "name": "Kaggle GPU · T4",
+      "type": "Kaggle",
+      "status": "Ready",
+      "uri": "kaggle://roadsift/mining-t4"
+    },
+    {
+      "id": "runner_roadsift_gpu",
+      "name": "RoadSift Worker · GPU",
+      "type": "RoadSift Worker",
+      "status": "Ready",
+      "uri": "worker://roadsift/gpu-default"
+    }
+  ],
+  "systemServices": {
+    "artifactStorage": "Cloudflare R2 · connected",
+    "annotationHandoff": "CVAT / Label Studio · external",
+    "modelRegistry": "External artifacts · reference only",
+    "evaluation": "Fixed holdout results · registered",
+    "modelStorageRoot": "r2://roadsift/models/"
+  }
 }
