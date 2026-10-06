@@ -1648,5 +1648,26 @@
     "modelRegistry": "External artifacts · reference only",
     "evaluation": "Fixed holdout results · registered",
     "modelStorageRoot": "r2://roadsift/models/"
+  },
+  "strategyComparison": {
+    "armA": {
+      "label": "Entropy Sampling",
+      "datasetFamily": "Hanoi Urban Core"
+    },
+    "armB": {
+      "label": "Hybrid Sampling",
+      "datasetFamily": "Night & Adverse Weather"
+    },
+    "comparedVersions": [
+      1,
+      2
+    ],
+    "trainingRecipe": "YOLO11m · controlled",
+    "metric": "mAP50–95"
+  },
+  "systemRunnerRegistrationDefaults": {
+    "name": "Kaggle T4 Runner",
+    "type": "Kaggle",
+    "endpoint": "kaggle://roadsift/mining-t4"
   }
 }
