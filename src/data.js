@@ -1,8 +1,8 @@
-import { BookOpen, Database, ScanSearch, UploadCloud, Pickaxe, History, Sparkles, Settings, Monitor } from 'lucide-react';
+import { BookOpen, Database, ScanSearch, UploadCloud, Pickaxe, History, ChartNoAxesCombined, Sparkles, Settings, Monitor } from 'lucide-react';
 
 export const groups = [
   ['Library', [['datasets', 'Datasets', Database], ['data-explorer', 'Data Explorer', ScanSearch]]],
-  ['Workflow', [['import', 'Import Data', UploadCloud], ['mining', 'Mining', Pickaxe], ['history', 'Runs', History], ['pal', 'PAL Workbench', Sparkles]]],
+  ['Workflow', [['import', 'Import Data', UploadCloud], ['mining', 'Mining', Pickaxe], ['history', 'Runs', History], ['comparison', 'Strategy Comparison', ChartNoAxesCombined], ['pal', 'PAL Workbench', Sparkles]]],
   ['Workspace', [['settings', 'Settings', Settings], ['system', 'System Status', Monitor], ['documentation', 'Documentation', BookOpen]]],
 ];
 export const allPages = groups.flatMap(([, items]) => items);
