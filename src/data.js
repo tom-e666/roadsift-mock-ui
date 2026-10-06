@@ -9,6 +9,7 @@ export const groups = [
 export const allPages = groups.flatMap(([, items]) => items);
 
 export const initialDatasets = mockData.datasets;
+export const initialPools = mockData.pools;
 export const pools = mockData.pools;
 export const fleetPool = { ...mockData.pools[0], ...mockData.fleetPoolExtra };
 export const seedEvaluation = mockData.seedEvaluation;
