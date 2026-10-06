@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title desc">
+  <title id="title">RoadSift</title>
+  <desc id="desc">RoadSift curved road symbol.</desc>
+  <g fill="none" stroke="#F2A05B" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke-width="6.4" d="M8.8 29.2c0-11.1 7.6-19.1 17.5-19.1 8 0 13.1 5.1 13.1 12.5 0 8.1-5.1 15.2-13.2 19.1"/>
+    <path stroke-width="6.4" d="M17.1 33.5c.5-8.9 4.2-15 9.5-15 3.5 0 5.4 2.3 5.4 5.5 0 4.7-3.1 9-8.6 12.6"/>
+  </g>
+</svg>
