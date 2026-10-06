@@ -147,10 +147,16 @@ th .help-tip{margin-left:4px}
 
 
 /* Dataset detail section sizing and local scroll */
-.modal--sheet .detail-section{min-height:150px}
-.modal--sheet .detail-section[open] .detail-section__body{min-height:110px;max-height:320px;overflow:auto;overscroll-behavior:contain;padding-right:10px}
+.modal--sheet .detail-section{min-height:0}
+.modal--sheet .detail-section[open] .detail-section__body{min-height:0;max-height:320px;overflow:auto;overscroll-behavior:contain;padding-right:10px}
 .modal--sheet .detail-section:nth-of-type(2)[open] .detail-section__body{max-height:380px}
 .register-intro__actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 .registration-error{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding:10px 11px;border:1px solid color-mix(in srgb,#ff453a 35%,var(--line));border-radius:9px;background:color-mix(in srgb,#ff453a 8%,var(--bg));color:var(--text)}
 .registration-error>svg{flex:0 0 auto;color:#ff453a;margin-top:1px}.registration-error strong,.registration-error p{font-size:12px}.registration-error p{margin:3px 0 0;color:var(--muted);line-height:1.4}
+
+.version-gap{display:flex;align-items:center;gap:10px;padding:4px 0 8px 0;margin-left:3px;color:var(--tertiary)}
+.version-gap>span{width:1px;height:24px;background:repeating-linear-gradient(to bottom,var(--line) 0 3px,transparent 3px 6px)}
+.version-gap small{font-size:12px;font-style:italic}
+.detail-section:not([open]){min-height:0}
+.detail-section:not([open])>summary{padding-block:11px}
