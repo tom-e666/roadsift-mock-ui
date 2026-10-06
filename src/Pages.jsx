@@ -30,12 +30,46 @@ export function Pools({ navigate }) {
     const min=Math.min(...values),max=Math.max(...values),range=Math.max(1,max-min);
     return values.map((v,i)=>`${pad+(i*(width-pad*2))/Math.max(1,values.length-1)},${height-pad-((v-min)/range)*(height-pad*2)}`).join(' ');
   };
-  return <div className="page pools-page"><PageHeader eyebrow="Candidate registry" title="Pools" description="Versioned snapshots of unlabeled fleet data available for mining." actions={<Button variant="primary" icon={Upload} onClick={()=>navigate('import')}>New ingest</Button>} />
+  const barWidth=(value,total)=>`${Math.max(2,Math.round((Number(value||0)/Math.max(1,Number(total||1)))*100))}%`;
+  return <div className="page pools-page"><PageHeader eyebrow="Candidate registry" title="Pools" description="Versioned snapshots of unlabeled fleet data available for mining." />
     <section className="catalog"><div className="catalog__heading"><div><h2>Candidate pools</h2></div></div>
       <div className="catalog__filters"><div className="search-field"><Search size={16}/><input aria-label="Search pools" placeholder="Search pools…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button aria-label="Clear search" onClick={()=>setQuery('')}><X size={14}/></button>}</div></div>
       {results.length?<div className="table-scroll"><table className="dataset-table pool-registry-table"><thead><tr><th>Pool</th><th>Snapshot</th><th>Total</th><th>Eligible</th><th>Reserved</th><th>Eligible trend</th><th>Mining</th><th>Updated</th></tr></thead><tbody>{results.map(p=><tr key={p.id} tabIndex="0" role="button" onClick={()=>setSelected(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(p)}}}><td><div className="dataset-name-cell"><strong>{p.name}</strong><small>{p.source}</small></div></td><td><code className="artifact-ref">{p.slug || p.id}:p{p.version}</code></td><td className="tabular">{count(p.total)}</td><td className="tabular">{count(p.eligible)}</td><td className="tabular">{count(p.reserved)}</td><td><div className="pool-trend" title={(p.eligibleTrend||[]).map((v,i)=>`p${Math.max(1,p.version-(p.eligibleTrend.length-1)+i)}: ${count(v)} eligible`).join(' · ')}><svg viewBox="0 0 88 28" role="img" aria-label={`${p.name} eligible trend`}><polyline points={sparkline(p.eligibleTrend||[p.eligible])}/><circle cx="86" cy={(() => { const values=p.eligibleTrend||[p.eligible]; const min=Math.min(...values),max=Math.max(...values),range=Math.max(1,max-min); return 26-((values.at(-1)-min)/range)*24; })()} r="2"/></svg></div></td><td><div className="pool-activity"><strong>{p.miningRuns7d} runs</strong><small>last {date(p.lastMiningAt)}</small></div></td><td className="table-muted">{date(p.indexed)}</td></tr>)}</tbody></table></div>:<Empty title="No matching pools" detail="Try a different search."/>}
     </section>
-    {selected&&<Modal sheet title="Pool details" onClose={()=>setSelected(null)} footer={<><Button onClick={()=>setSelected(null)}>Close</Button><Button variant="primary" icon={Pickaxe} onClick={()=>navigate('mining')}>Start mining</Button></>}><div className="detail-heading"><Badge>{selected.status}</Badge><code className="artifact-ref">{selected.slug || selected.id}:p{selected.version}</code><h2>{selected.name}</h2><p>Immutable candidate snapshot for reproducible active-learning selection.</p></div><div className="detail-stats"><StatRow label="Snapshot ID" value={selected.snapshot}/><StatRow label="Total frames" value={count(selected.total)}/><StatRow label="Eligible for mining" value={count(selected.eligible)}/><StatRow label="Already labeled" value={count(selected.labeled)}/><StatRow label="Reserved / in review" value={count(selected.reserved)}/><StatRow label="Excluded" value={count(selected.excluded)}/><StatRow label="Mining runs · 7d" value={String(selected.miningRuns7d)}/><StatRow label="Storage" value={selected.storage}/><StatRow label="Updated" value={date(selected.indexed)}/></div><div className="insight insight--plain"><GitBranch size={20}/><h3>Snapshot semantics</h3><p>Mining references this exact snapshot. Later ingest, labeling, reservations, or exclusions create a newer pool snapshot without changing this one.</p></div></Modal>}
+
+    {selected&&<Modal sheet title="Pool explorer" onClose={()=>setSelected(null)} footer={<><Button onClick={()=>setSelected(null)}>Close</Button><Button variant="primary" icon={Pickaxe} onClick={()=>navigate('mining')}>Start mining</Button></>}>
+      <div className="detail-heading"><div className="detail-heading__meta"><Badge>{selected.status}</Badge><code className="artifact-ref">{selected.slug || selected.id}:p{selected.version}</code></div><h2>{selected.name}</h2><p>Inspect candidate composition, quality, snapshot history and sample frames before starting a mining run.</p></div>
+
+      <details className="detail-section" open>
+        <summary><div><strong>Overview</strong><span>Current snapshot and candidate availability.</span></div></summary>
+        <div className="detail-section__body"><div className="pool-kpi-grid"><div><span>Total</span><strong>{count(selected.total)}</strong></div><div><span>Eligible</span><strong>{count(selected.eligible)}</strong></div><div><span>Reserved</span><strong>{count(selected.reserved)}</strong></div><div><span>Labeled</span><strong>{count(selected.labeled)}</strong></div></div><div className="detail-stats"><StatRow label="Snapshot ID" value={selected.snapshot}/><StatRow label="Storage" value={selected.storage}/><StatRow label="Excluded" value={count(selected.excluded)}/><StatRow label="Mining runs · 7d" value={String(selected.miningRuns7d)}/><StatRow label="Last mining" value={date(selected.lastMiningAt)}/><StatRow label="Updated" value={date(selected.indexed)}/></div></div>
+      </details>
+
+      <details className="detail-section" open>
+        <summary><div><strong>Composition</strong><span>Domain mix inside the eligible candidate snapshot.</span></div></summary>
+        <div className="detail-section__body"><div className="pool-breakdown">{Object.entries(selected.composition||{}).map(([label,value])=><div className="pool-breakdown__row" key={label}><div><span>{label}</span><strong>{count(value)}</strong></div><div className="pool-breakdown__track"><i style={{width:barWidth(value,selected.eligible)}}/></div></div>)}</div></div>
+      </details>
+
+      <details className="detail-section">
+        <summary><div><strong>Quality & state</strong><span>Eligibility, reservations and quality flags.</span></div></summary>
+        <div className="detail-section__body"><div className="pool-inspector-grid"><div><h4>State</h4>{Object.entries(selected.stateBreakdown||{}).map(([label,value])=><StatRow key={label} label={label} value={count(value)}/>)}</div><div><h4>Quality signals</h4>{Object.entries(selected.quality||{}).map(([label,value])=><StatRow key={label} label={label.replace(/([A-Z])/g,' $1').trim()} value={count(value)}/>)}</div></div></div>
+      </details>
+
+      <details className="detail-section" open>
+        <summary><div><strong>Recent snapshots</strong><span>Why eligible membership changed across recent pool versions.</span></div></summary>
+        <div className="detail-section__body"><div className="snapshot-list">{(selected.recentSnapshots||[]).map(s=><div className="snapshot-row" key={s.version}><code>{selected.slug}:p{s.version}</code><div><strong>{count(s.eligible)} eligible</strong><span>{s.reason}</span></div><small>{date(s.at)}</small></div>)}</div></div>
+      </details>
+
+      <details className="detail-section">
+        <summary><div><strong>Mining activity</strong><span>Recent use of this pool as an acquisition source.</span></div></summary>
+        <div className="detail-section__body"><div className="detail-stats"><StatRow label="Runs · 7d" value={String(selected.miningRuns7d)}/><StatRow label="Last mining" value={date(selected.lastMiningAt)}/><StatRow label="Current reserved" value={count(selected.reserved)}/><StatRow label="Eligible now" value={count(selected.eligible)}/></div><div className="insight insight--plain"><Pickaxe size={20}/><h3>Mining uses an immutable snapshot</h3><p>Starting a run pins this exact pool snapshot. Later ingest, labeling or quarantine changes produce a newer snapshot without altering the run input.</p></div></div>
+      </details>
+
+      <details className="detail-section" open>
+        <summary><div><strong>Sample preview</strong><span>Representative frames from this pool.</span></div><Button onClick={(e)=>{e.preventDefault();navigate('data-explorer')}}>Open Data Explorer</Button></summary>
+        <div className="detail-section__body"><div className="pool-preview-grid">{(selected.sampleScenes||[0,1,2,3]).map((scene,i)=><button key={i} className="pool-preview-card" onClick={()=>navigate('data-explorer')}><Scene scene={scene} alt={`${selected.name} sample ${i+1}`}/><span>sample_{String(i+1).padStart(4,'0')}</span></button>)}</div></div>
+      </details>
+    </Modal>}
   </div>;
 }
 
