@@ -36,3 +36,15 @@
 .dataset-version-cell{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .artifact-ref{display:inline-flex;align-items:center;padding:3px 6px;border-radius:4px;background:var(--bg);border:1px solid var(--line);font:12px ui-monospace,"SF Mono",Consolas,monospace;color:var(--text);white-space:nowrap}
 .artifact-aliases{font-size:12px;color:var(--tertiary);white-space:nowrap}
+
+
+/* Language controls */
+.language-switch{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--grouped)}
+.language-switch button{min-width:30px;padding:5px 7px;border:0;border-radius:5px;background:transparent;color:var(--muted);font-size:12px;font-weight:600}
+.language-switch button[aria-pressed=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.language-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.language-card{display:flex;align-items:center;justify-content:space-between;min-height:54px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg);text-align:left}
+.language-card strong{font-size:12px}
+.language-card span{font:12px ui-monospace,"SF Mono",Consolas,monospace;color:var(--muted)}
+.language-card--active{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,transparent)}
+@media(max-width:600px){.language-options{grid-template-columns:1fr}.language-switch{display:none}}
