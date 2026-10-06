@@ -33,6 +33,14 @@ export const metrics = [
   { label: 'Truck', precision: .88, recall: .85, ap: .872, count: 320 },
   { label: 'Bus', precision: .9, recall: .86, ap: .895, count: 96 },
 ];
-export const sceneUrl = n => `/samples/scene-${n % 6}.svg`;
+const realDrivingScenes = [
+  'https://images.unsplash.com/photo-1708352548514-8a731e456e39?auto=format&fit=crop&w=900&q=82',
+  'https://images.unsplash.com/photo-1541747277704-ef7fb8e1a31c?auto=format&fit=crop&w=900&q=82',
+  'https://images.unsplash.com/photo-1569746133232-5ba1b89767d2?auto=format&fit=crop&w=900&q=82',
+  'https://images.unsplash.com/photo-1541747277704-ef7fb8e1a31c?auto=format&fit=crop&w=900&q=82',
+  'https://images.unsplash.com/photo-1708352548514-8a731e456e39?auto=format&fit=crop&w=900&q=82',
+  'https://images.unsplash.com/photo-1569746133232-5ba1b89767d2?auto=format&fit=crop&w=900&q=82',
+];
+export const sceneUrl = n => realDrivingScenes[n % realDrivingScenes.length];
 export const count = n => Number(n).toLocaleString();
 export const date = s => new Date(`${s}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
