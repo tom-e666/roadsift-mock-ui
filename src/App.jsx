@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDown, X, Check, Command, FlaskConical } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette.jsx';
 import { Button, Modal } from './components/UI.jsx';
-import { groups, allPages, initialDatasets, initialRuns, initialPools } from './data.js';
-import { Pools, Datasets, Explorer, ImportData, Mining, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
+import { groups, allPages, initialDatasets, initialRuns, initialPools, initialSelectionBatches } from './data.js';
+import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
 
 function readState(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; } catch { return fallback; } }
 function useLocalState(key, initial) { const [value, setValue] = useState(() => readState(key, initial)); useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Demo still works without storage. */ } }, [key, value]); return [value, setValue]; }
@@ -21,10 +21,11 @@ export default function App() {
   const [datasets, setDatasets] = useLocalState('roadsift-mock-datasets-v3', initialDatasets);
   const [runs, setRuns] = useLocalState('roadsift-mock-runs-v2', initialRuns);
   const [pools, setPools] = useLocalState('roadsift-mock-pools-v1', initialPools);
+  const [selectionBatches, setSelectionBatches] = useLocalState('roadsift-mock-batches-v1', initialSelectionBatches);
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
   const [contextDataset, setContextDataset] = useState(null);
-  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', 'Import Data':'Nhập dữ liệu', Ingest:'Nhập dữ liệu', Mining:'Mining', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
+  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', Ingest:'Nhập dữ liệu', Mining:'Mining', 'Selection Batches':'Selection Batches', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
   const rawTitle = allPages.find(([id]) => id === page)?.[1];
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
@@ -48,8 +49,8 @@ export default function App() {
   useEffect(() => { if (!accountOpen) return; const handler = e => { if (!e.target.closest('.account-anchor')) setAccountOpen(false); }; document.addEventListener('pointerdown', handler); return () => document.removeEventListener('pointerdown', handler); }, [accountOpen]);
   useEffect(() => { if (!mobileOpen) return; const previous = document.activeElement; const old = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.querySelector('.sidebar__close')?.focus(); return () => { document.body.style.overflow = old; previous?.focus?.(); }; }, [mobileOpen]);
   const notify = message => setToast({ message, id: Date.now() });
-  const shared = { navigate, notify, datasets, setDatasets, pools, setPools, runs, setRuns, contextDataset, language, setLanguage };
-  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
+  const shared = { navigate, notify, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, contextDataset, language, setLanguage };
+  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, batches: SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
     <a href="#main-content" className="skip-link">Skip to content</a>

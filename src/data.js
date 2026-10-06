@@ -1,9 +1,9 @@
-import { BookOpen, Database, ScanSearch, UploadCloud, Pickaxe, History, ChartNoAxesCombined, Settings, Monitor, Boxes } from 'lucide-react';
+import { BookOpen, Database, ScanSearch, UploadCloud, Pickaxe, History, ChartNoAxesCombined, Settings, Monitor, Boxes, Layers } from 'lucide-react';
 import mockData from './mock-data.json';
 
 export const groups = [
   ['Library', [['pools', 'Pools', Boxes], ['datasets', 'Datasets', Database], ['data-explorer', 'Data Explorer', ScanSearch]]],
-  ['Workflow', [['import', 'Ingest', UploadCloud], ['mining', 'Mining', Pickaxe], ['history', 'Runs', History], ['comparison', 'Strategy Comparison', ChartNoAxesCombined]]],
+  ['Workflow', [['import', 'Ingest', UploadCloud], ['mining', 'Mining', Pickaxe], ['batches', 'Selection Batches', Layers], ['history', 'Runs', History], ['comparison', 'Strategy Comparison', ChartNoAxesCombined]]],
   ['Workspace', [['settings', 'Settings', Settings], ['system', 'System', Monitor], ['onboarding', 'Onboarding', BookOpen]]],
 ];
 export const allPages = groups.flatMap(([, items]) => items);
@@ -25,7 +25,9 @@ export const strategyComparison = mockData.strategyComparison;
 export const systemRunnerRegistrationDefaults = mockData.systemRunnerRegistrationDefaults;
 export const poolRegistration = mockData.poolRegistration;
 export const frames = mockData.frames;
+export const initialSelectionBatches = mockData.selectionBatches;
 export const selectionBatches = mockData.selectionBatches;
+export const batchLifecycle = mockData.selectionBatchLifecycle;
 export const initialRuns = mockData.runs;
 export const metrics = mockData.metrics;
 export const sceneUrl = n => mockData.sceneUrls[n % mockData.sceneUrls.length];

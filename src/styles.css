@@ -249,3 +249,24 @@ th .help-tip{margin-left:4px}
 .submit-note{display:flex;flex-direction:column;gap:4px;margin:12px 0;padding:10px 11px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
 .submit-note strong,.submit-note span{font-size:12px}
 .submit-note span{color:var(--muted);line-height:1.45}
+
+
+/* Production curation registry */
+.batches-table{min-width:1260px}
+.batch-review-cell{display:flex;flex-direction:column;gap:2px}
+.batch-review-cell strong,.batch-review-cell span{font-size:12px}
+.batch-review-cell span{color:var(--tertiary)}
+.batch-progress{height:7px;border-radius:999px;background:var(--bg);overflow:hidden;margin-bottom:12px}
+.batch-progress i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.batch-review-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.batch-review-stats>div{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.batch-review-stats span{display:block;font-size:12px;color:var(--tertiary)}
+.batch-review-stats strong{display:block;margin-top:4px;font-size:14px;font-variant-numeric:tabular-nums}
+.section-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.audit-list{display:grid}
+.audit-list>div{display:grid;grid-template-columns:155px minmax(0,1fr) 180px;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.audit-list>div:first-child{border-top:0}
+.audit-list span,.audit-list strong,.audit-list small{font-size:12px}
+.audit-list span,.audit-list small{color:var(--tertiary)}
+.run-contract-details{margin:8px 0}
+@media(max-width:800px){.batch-review-stats{grid-template-columns:1fr 1fr}.audit-list>div{grid-template-columns:1fr}.section-actions{justify-content:flex-start;flex-wrap:wrap}}
