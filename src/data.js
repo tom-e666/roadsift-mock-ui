@@ -23,6 +23,7 @@ export const runners = mockData.runners;
 export const systemServices = mockData.systemServices;
 export const strategyComparison = mockData.strategyComparison;
 export const systemRunnerRegistrationDefaults = mockData.systemRunnerRegistrationDefaults;
+export const poolRegistration = mockData.poolRegistration;
 export const frames = mockData.frames;
 export const selectionBatches = mockData.selectionBatches;
 export const initialRuns = mockData.runs;
