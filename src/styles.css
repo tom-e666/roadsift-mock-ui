@@ -132,3 +132,15 @@
 .preflight-list .pass svg{color:var(--green)}
 .preflight-list .fail{color:#d14}
 @media(max-width:980px){.mining-context{grid-template-columns:1fr}.mining-context>svg{transform:rotate(90deg);justify-self:center}.mining-builder{grid-template-columns:1fr}.mining-builder__side{position:static}.mining-source-meta{grid-template-columns:1fr}}
+
+
+/* Contextual help */
+.field__label,.inline-label-help{display:inline-flex;align-items:center;gap:5px}
+.help-tip{position:relative;display:inline-flex;align-items:center;vertical-align:middle}
+.help-tip>button{display:grid;place-items:center;width:16px;height:16px;padding:0;border:1px solid var(--line);border-radius:50%;background:transparent;color:var(--tertiary);font-size:12px;font-weight:700;line-height:1}
+.help-tip>button:hover,.help-tip>button:focus-visible{color:var(--text);border-color:var(--muted);background:var(--bg);outline:none}
+.help-tip__content{position:absolute;left:50%;bottom:calc(100% + 8px);z-index:90;width:250px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--glass);backdrop-filter:blur(20px);box-shadow:var(--floating);color:var(--text);font-size:12px;font-weight:400;line-height:1.45;text-transform:none;letter-spacing:normal;white-space:normal;opacity:0;pointer-events:none;transform:translate(-50%,4px);transition:opacity .12s,transform .12s}
+.help-tip:hover .help-tip__content,.help-tip:focus-within .help-tip__content{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+th .help-tip{margin-left:4px}
+.release-gate__status .help-tip{margin-left:3px}
+@media(max-width:700px){.help-tip__content{left:0;transform:translate(0,4px)}.help-tip:hover .help-tip__content,.help-tip:focus-within .help-tip__content{transform:translate(0,0)}}
