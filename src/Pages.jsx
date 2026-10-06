@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
 import { Button, Badge, PageHeader, Metric, Segmented, Empty, Panel, DemoNote, Field, Toggle, Modal, TextLink, HelpTip } from './components/UI.jsx';
-import { frames, initialDatasets, initialRuns, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, systemServices } from './data.js';
+import { frames, initialDatasets, initialRuns, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, systemServices, strategyComparison, systemRunnerRegistrationDefaults } from './data.js';
 
 function useSimulation(onComplete) {
   const [progress, setProgress] = useState(0);
@@ -188,25 +188,6 @@ export function Explorer({ datasets, contextDataset, notify, navigate }) {
     </Modal>}</div>;
 }
 
-export function Lineage({ datasets, contextDataset, navigate }) {
-  const [datasetId,setDatasetId]=useState(contextDataset?.id||datasets.at(-1)?.id||''); const [selectedKey,setSelectedKey]=useState('dataset'); const [zoom,setZoom]=useState(1);
-  const dataset=datasets.find(d=>d.id===datasetId)||datasets[0]; const isRav=dataset?.strategy?.startsWith('Hybrid'); const branch=isRav?'Hybrid Sampling':'Entropy Sampling'; const v1=datasets.find(d=>(isRav?d.id==='rav-r1':d.id==='unc-r1')); const isV2=dataset?.version===2;
-  const nodes=[
-    {key:'ingest',type:'Source',title:'Fleet Ingest',count:184320,detail:'Extracted fleet frames',id:'ingest_fleet_20261006',time:'Oct 6 · 16:08'},
-    {key:'pool',type:'Pool',title:fleetPool.name,count:fleetPool.total,detail:`${count(fleetPool.eligible)} eligible · ${count(fleetPool.excluded)} excluded · ${count(fleetPool.holdout)} holdout`,id:fleetPool.id,time:'Oct 6 · 18:32'},
-    {key:'seed',type:'Dataset',title:'Initial Labeled Seed',count:fleetPool.seed,detail:'Shared starting point for both experiment arms',id:'seed_labeled_v0',time:'Sep 28 · 14:20'},
-    {key:'run1',type:'Selection Run',title:`${branch} · Round 1`,count:4000,detail:`Budget 4,000 · from ${count(v1?.eligible||fleetPool.eligible)} eligible`,id:v1?.run,time:'Oct 3 · 22:14'},
-    {key:'v1',type:'Dataset',title:`${branch} v1`,count:12000,detail:'8,000 seed + 4,000 newly labeled',id:v1?.id,time:'Oct 5 · 19:46'},
-    ...(isV2?[{key:'run2',type:'Selection Run',title:`${branch} · Round 2`,count:4000,detail:`Budget 4,000 · from ${count(dataset?.eligible)} eligible`,id:dataset?.run,time:'Oct 6 · 20:18'},{key:'dataset',type:'Dataset',title:`${branch} v2`,count:16000,detail:'12,000 inherited + 4,000 newly labeled',id:dataset?.id,time:'Oct 6 · 21:16'}]:[{key:'dataset',type:'Dataset',title:`${branch} v1`,count:12000,detail:'8,000 seed + 4,000 newly labeled',id:dataset?.id,time:'Oct 5 · 19:46'}])
-  ];
-  const selected=nodes.find(n=>n.key===selectedKey)||nodes.at(-1);
-  return <div className="page lineage-page"><PageHeader eyebrow="Data provenance" title="Lineage" description="Trace one dataset version back through its active-learning selections, shared seed, pool, and fleet source." actions={<Button icon={RotateCcw} onClick={()=>{setZoom(1);setSelectedKey('dataset')}}>Reset view</Button>}/>
-    <div className="lineage-picker"><div><GitBranch size={17}/><span>Trace dataset</span><select value={datasetId} onChange={e=>{setDatasetId(e.target.value);setSelectedKey('dataset')}}>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)} frames</option>)}</select></div><div className="lineage-picker__summary"><span>{branch}</span><strong>{count(dataset?.count)} frames</strong><small>AL round {dataset?.round}</small></div></div>
-    <div className="lineage-layout lineage-layout--trace"><div className="lineage-canvas"><div className="lineage-caption"><GitBranch size={15}/><span>{branch} ancestry</span><Badge>{dataset?.id}</Badge></div><div className="lineage-trace" style={{transform:`scale(${zoom})`}}>{nodes.map((n,i)=><React.Fragment key={n.key}><button className={`trace-node trace-node--${n.type.toLowerCase().replace(' ','-')} ${selected?.key===n.key?'trace-node--selected':''}`} onClick={()=>setSelectedKey(n.key)}><div className="trace-node__top"><span>{n.type}</span><small>{n.time}</small></div><h3>{n.title}</h3><strong>{count(n.count)} <small>{n.type==='Selection Run'?'selected':'frames'}</small></strong><p>{n.detail}</p><footer>{n.id}</footer></button>{i<nodes.length-1&&<div className="trace-edge"><span>{n.key==='pool'?'seed / eligibility':n.type==='Selection Run'?'label + merge':n.key==='seed'?'active learning':'materialize'}</span><i/><ArrowRight size={16}/></div>}</React.Fragment>)}</div><div className="graph-controls"><Button icon={ZoomOut} aria-label="Zoom out" onClick={()=>setZoom(v=>Math.max(.7,v-.1))}/><span>{Math.round(zoom*100)}%</span><Button icon={ZoomIn} aria-label="Zoom in" onClick={()=>setZoom(v=>Math.min(1.2,v+.1))}/></div></div>
-      <Panel title={selected?.title} description={selected?.type}><div className="lineage-inspector-id">{selected?.id}</div><StatRow label={selected?.type==='Selection Run'?'Selected':'Frames'} value={count(selected?.count)}/><StatRow label="Created" value={selected?.time}/>{selected?.key==='pool'&&<><StatRow label="Eligible" value={count(fleetPool.eligible)}/><StatRow label="Excluded" value={count(fleetPool.excluded)}/><StatRow label="Fixed holdout" value={count(fleetPool.holdout)}/></>}{selected?.type==='Selection Run'&&<><StatRow label="Strategy" value={dataset?.strategy}/><StatRow label="Budget" value={count(dataset?.budget)}/><StatRow label="Eligible at start" value={count(selected.key==='run1'?v1?.eligible:dataset?.eligible)}/></>}{selected?.type==='Dataset'&&<><StatRow label="Version" value={selected.key==='seed'?'v0':selected.key==='v1'?'v1':`v${dataset?.version}`}/><StatRow label="Parent" value={selected.key==='seed'?'Fleet Pool seed split':selected.key==='v1'?'Initial Labeled Seed':isV2?`${branch} v1`:'Initial Labeled Seed'}/></>}<p className="lineage-inspector-note">{selected?.detail}</p>{selected?.type==='Dataset'&&selected?.key!=='seed'&&<Button variant="primary" className="wide" icon={ArrowRight} onClick={()=>navigate('data-explorer',selected.key==='v1'?v1:dataset)}>Explore frames</Button>}</Panel>
-    </div></div>;
-}
-
 export function ImportData({ notify, navigate }) {
   const [mode,setMode]=useState(importSimulation.defaultMode), [files,setFiles]=useState([]), [fps,setFps]=useState(importSimulation.defaultFps), [name,setName]=useState(importSimulation.defaultPoolName), input=useRef(null);
   const [status,setStatus]=useState('idle'); const extracted=mode==='videos'?importSimulation.videoFrames:files.length||importSimulation.imageFramesFallback;
@@ -322,13 +303,13 @@ export function SettingsPage({ theme, setTheme, preferences, setPreferences, set
 
 export function SystemPage({ notify }) {
   const [runnerOpen,setRunnerOpen]=useState(false);
-  const [runnerName,setRunnerName]=useState('Kaggle T4 Runner');
-  const [runnerType,setRunnerType]=useState('Kaggle');
-  const [endpoint,setEndpoint]=useState('kaggle://roadsift/mining-t4');
+  const [runnerName,setRunnerName]=useState(systemRunnerRegistrationDefaults.name);
+  const [runnerType,setRunnerType]=useState(systemRunnerRegistrationDefaults.type);
+  const [endpoint,setEndpoint]=useState(systemRunnerRegistrationDefaults.endpoint);
   const registerRunner=()=>{ setRunnerOpen(false); notify?.(`${runnerName} registered for Mining`); };
   return <div className="page settings-page"><PageHeader eyebrow="Infrastructure" title="System" description="Register the execution and storage services RoadSift uses for mining and handoff." actions={<Button variant="primary" icon={Plus} onClick={()=>setRunnerOpen(true)}>Register runner</Button>} />
     <div className="two-column">
-      <Panel title="Mining runners" description="Execution backends available to Mining."><div className="system-resource"><div><strong>{runners[0]?.name}</strong><p>{runners[0]?.type} executor · active</p></div><Badge tone="complete">Ready</Badge></div><div className="system-resource"><div><strong>{runners[1]?.name}</strong><p>{runners[1]?.type} · {runners[1]?.status}</p></div><Badge>Offline</Badge></div></Panel>
+      <Panel title="Mining runners" description="Execution backends available to Mining."><div className="system-resource"><div><strong>{runners[0]?.name}</strong><p>{runners[0]?.type} executor · active</p></div><Badge tone="complete">{runners[0]?.status}</Badge></div><div className="system-resource"><div><strong>{runners[1]?.name}</strong><p>{runners[1]?.type} · {runners[1]?.status}</p></div><Badge>{runners[1]?.status}</Badge></div></Panel>
       <Panel title="Connected services" description="External systems referenced by RoadSift workflows."><StatRow label="Artifact storage" value={systemServices.artifactStorage}/><StatRow label="Annotation handoff" value={systemServices.annotationHandoff}/><StatRow label="Model registry" value={systemServices.modelRegistry}/><StatRow label="Evaluation" value={systemServices.evaluation}/></Panel>
     </div>
     <Panel title="Mining execution contract" description="A runner receives an immutable job spec and writes artifacts back to object storage."><div className="provenance-grid"><StatRow label="Input" value="Pool snapshot + Dataset version"/><StatRow label="Acquisition model" value="Registered model artifact"/><StatRow label="Job spec" value="strategy + budget + weights"/><StatRow label="Output" value="Selection Batch + run artifacts"/></div></Panel>
@@ -349,20 +330,34 @@ export function Onboarding({ navigate }) {
 }
 
 export function StrategyComparison({ datasets, navigate }) {
-  const entropy=datasets.filter(d=>d.strategy==='Entropy Sampling').sort((a,b)=>a.version-b.version);
-  const hybrid=datasets.filter(d=>d.strategy==='Hybrid Sampling').sort((a,b)=>a.version-b.version);
+  const armA=datasets.filter(d=>d.name===strategyComparison.armA.datasetFamily&&strategyComparison.comparedVersions.includes(d.version)).sort((a,b)=>a.version-b.version);
+  const armB=datasets.filter(d=>d.name===strategyComparison.armB.datasetFamily&&strategyComparison.comparedVersions.includes(d.version)).sort((a,b)=>a.version-b.version);
+  const roundBudget=miningConfig.defaultBudget;
   const points=[
-    {label:'Seed',samples:8000,entropy:.381,hybrid:.381},
-    {label:'Round 1',samples:12000,entropy:entropy[0]?.evaluation?.map??.409,hybrid:hybrid[0]?.evaluation?.map??.417},
-    {label:'Round 2',samples:16000,entropy:entropy[1]?.evaluation?.map??.425,hybrid:hybrid[1]?.evaluation?.map??.441},
+    {label:'Seed',samples:seedDataset.samples,armA:seedEvaluation.map,armB:seedEvaluation.map},
+    ...strategyComparison.comparedVersions.map((version,index)=>({
+      label:`Round ${index+1}`,
+      samples:seedDataset.samples+roundBudget*(index+1),
+      armA:armA.find(d=>d.version===version)?.evaluation?.map ?? seedEvaluation.map,
+      armB:armB.find(d=>d.version===version)?.evaluation?.map ?? seedEvaluation.map
+    }))
   ];
-  const max=.46,min=.36,xy=(p,i,key)=>({x:8+i*42,y:88-((p[key]-min)/(max-min))*70});
+  const allValues=points.flatMap(p=>[p.armA,p.armB]);
+  const minValue=Math.min(...allValues),maxValue=Math.max(...allValues),padding=Math.max(.01,(maxValue-minValue)*.2);
+  const chartMin=minValue-padding,chartMax=maxValue+padding;
+  const xy=(p,i,key)=>({x:8+i*(84/Math.max(1,points.length-1)),y:88-((p[key]-chartMin)/(chartMax-chartMin))*70});
   const path=key=>points.map((p,i)=>{const q=xy(p,i,key);return `${i?'L':'M'} ${q.x} ${q.y}`}).join(' ');
+  const last=points.at(-1), lastA=armA.at(-1), lastB=armB.at(-1);
+  const winner=last.armB>=last.armA?strategyComparison.armB.label:strategyComparison.armA.label;
+  const winnerEval=last.armB>=last.armA?lastB?.evaluation:lastA?.evaluation;
+  const loserEval=last.armB>=last.armA?lastA?.evaluation:lastB?.evaluation;
+  const delta=key=>(winnerEval?.[key]??0)-(loserEval?.[key]??0);
+  const holdout=holdouts[0];
   return <div className="page comparison-page"><PageHeader eyebrow="Active learning evaluation" title="Strategy Comparison" description="Compare acquisition strategies at the same labeled budget on the same fixed holdout." actions={<Button icon={Pickaxe} onClick={()=>navigate('mining')}>New mining run</Button>}/>
-    <div className="comparison-contract"><span><small>Initial labeled set</small><strong>8,000 frames</strong></span><span><small>Budget / round</small><strong>4,000 frames</strong></span><span><small>Training recipe</small><strong>YOLO11m · controlled</strong></span><span><small>Evaluation</small><strong>Fixed Holdout v1 · 12,000</strong></span></div>
-    <div className="comparison-grid"><Panel title="Learning curve" description="Higher mAP50–95 at the same cumulative annotation budget means greater data-selection efficiency."><div className="learning-chart"><div className="learning-chart__legend"><span><i/>Entropy Sampling</span><span><i/>Hybrid Sampling</span></div><svg viewBox="0 0 100 100" role="img" aria-label="Learning curve comparing Entropy and Hybrid Sampling"><line x1="8" y1="88" x2="92" y2="88"/><line x1="8" y1="18" x2="8" y2="88"/><path className="curve curve--entropy" d={path('entropy')}/><path className="curve curve--hybrid" d={path('hybrid')}/>{points.map((p,i)=>{const e=xy(p,i,'entropy'),h=xy(p,i,'hybrid');return <g key={p.label}><circle className="dot dot--entropy" cx={e.x} cy={e.y} r="2"/><circle className="dot dot--hybrid" cx={h.x} cy={h.y} r="2"/><text x={e.x} y="97" textAnchor="middle">{p.samples/1000}k</text></g>})}</svg><div className="learning-chart__axis">Cumulative labeled frames</div></div></Panel>
-      <Panel title="Round 2 result" description="Same 16,000 labeled-frame budget. Same evaluation set."><div className="winner-card"><small>Best observed strategy</small><h3>Hybrid Sampling</h3><strong>.441 <span>mAP50–95</span></strong><p>+0.016 vs Entropy at the same 16k labeled budget.</p></div><div className="comparison-deltas"><StatRow label="mAP50–95" value=".441 vs .425 · +.016"/><StatRow label="Recall" value=".731 vs .711 · +.020"/><StatRow label="VRU Recall" value=".674 vs .638 · +.036"/><StatRow label="Night Recall" value=".608 vs .566 · +.042"/><StatRow label="Rain/Fog Recall" value=".571 vs .529 · +.042"/></div></Panel></div>
-    <section className="comparison-table-card"><div><h3>Controlled comparison</h3><p>Each row represents a model trained from that strategy's cumulative labeled dataset, then evaluated on Fixed Holdout v1.</p></div><div className="table-scroll"><table><thead><tr><th>Budget</th><th>Entropy Sampling</th><th>Hybrid Sampling</th><th>Hybrid Δ</th></tr></thead><tbody>{points.map(p=><tr key={p.label}><td><strong>{count(p.samples)}</strong><small>{p.label}</small></td><td>{p.entropy.toFixed(3)}</td><td><strong>{p.hybrid.toFixed(3)}</strong></td><td>{p.samples===8000?'—':`+${(p.hybrid-p.entropy).toFixed(3)}`}</td></tr>)}</tbody></table></div></section>
+    <div className="comparison-contract"><span><small>Initial labeled set</small><strong>{count(seedDataset.samples)} frames</strong></span><span><small>Budget / round</small><strong>{count(roundBudget)} frames</strong></span><span><small>Training recipe</small><strong>{strategyComparison.trainingRecipe}</strong></span><span><small>Evaluation</small><strong>{holdout?.name} · {count(holdout?.samples)}</strong></span></div>
+    <div className="comparison-grid"><Panel title="Learning curve" description="Higher mAP50–95 at the same cumulative annotation budget means greater data-selection efficiency."><div className="learning-chart"><div className="learning-chart__legend"><span><i/>{strategyComparison.armA.label}</span><span><i/>{strategyComparison.armB.label}</span></div><svg viewBox="0 0 100 100" role="img" aria-label={`Learning curve comparing ${strategyComparison.armA.label} and ${strategyComparison.armB.label}`}><line x1="8" y1="88" x2="92" y2="88"/><line x1="8" y1="18" x2="8" y2="88"/><path className="curve curve--entropy" d={path('armA')}/><path className="curve curve--hybrid" d={path('armB')}/>{points.map((p,i)=>{const a=xy(p,i,'armA'),b=xy(p,i,'armB');return <g key={p.label}><circle className="dot dot--entropy" cx={a.x} cy={a.y} r="2"/><circle className="dot dot--hybrid" cx={b.x} cy={b.y} r="2"/><text x={a.x} y="97" textAnchor="middle">{Math.round(p.samples/1000)}k</text></g>})}</svg><div className="learning-chart__axis">Cumulative labeled frames</div></div></Panel>
+      <Panel title={`${points.at(-1)?.label} result`} description={`Same ${count(last.samples)} labeled-frame budget. Same evaluation set.`}><div className="winner-card"><small>Best observed strategy</small><h3>{winner}</h3><strong>{Math.max(last.armA,last.armB).toFixed(3)} <span>{strategyComparison.metric}</span></strong><p>+{Math.abs(last.armB-last.armA).toFixed(3)} at the same labeled budget.</p></div>{winnerEval&&loserEval&&<div className="comparison-deltas"><StatRow label="mAP50–95" value={`${winnerEval.map.toFixed(3)} vs ${loserEval.map.toFixed(3)} · +${delta('map').toFixed(3)}`}/><StatRow label="Recall" value={`${winnerEval.recall.toFixed(3)} vs ${loserEval.recall.toFixed(3)} · +${delta('recall').toFixed(3)}`}/><StatRow label="VRU Recall" value={`${winnerEval.vru.toFixed(3)} vs ${loserEval.vru.toFixed(3)} · +${delta('vru').toFixed(3)}`}/><StatRow label="Night Recall" value={`${winnerEval.night.toFixed(3)} vs ${loserEval.night.toFixed(3)} · +${delta('night').toFixed(3)}`}/><StatRow label="Rain/Fog Recall" value={`${winnerEval.rain.toFixed(3)} vs ${loserEval.rain.toFixed(3)} · +${delta('rain').toFixed(3)}`}/></div>}</Panel></div>
+    <section className="comparison-table-card"><div><h3>Controlled comparison</h3><p>Each row represents a model trained from that strategy's cumulative labeled dataset, then evaluated on {holdout?.name}.</p></div><div className="table-scroll"><table><thead><tr><th>Budget</th><th>{strategyComparison.armA.label}</th><th>{strategyComparison.armB.label}</th><th>Δ</th></tr></thead><tbody>{points.map(p=><tr key={p.label}><td><strong>{count(p.samples)}</strong><small>{p.label}</small></td><td>{p.armA.toFixed(3)}</td><td><strong>{p.armB.toFixed(3)}</strong></td><td>{p.label==='Seed'?'—':`${p.armB-p.armA>=0?'+':''}${(p.armB-p.armA).toFixed(3)}`}</td></tr>)}</tbody></table></div></section>
     <div className="comparison-note"><CheckCircle2 size={16}/><div><strong>What this comparison means</strong><p>RoadSift is comparing models, not datasets directly. Dataset quality is inferred from downstream model performance under controlled training and a shared fixed holdout.</p></div></div>
   </div>;
 }
