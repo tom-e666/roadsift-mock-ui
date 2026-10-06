@@ -144,3 +144,10 @@
 th .help-tip{margin-left:4px}
 .release-gate__status .help-tip{margin-left:3px}
 @media(max-width:700px){.help-tip__content{left:0;transform:translate(0,4px)}.help-tip:hover .help-tip__content,.help-tip:focus-within .help-tip__content{transform:translate(0,0)}}
+
+
+/* Dataset detail section sizing and local scroll */
+.modal--sheet .detail-section{min-height:150px}
+.modal--sheet .detail-section[open] .detail-section__body{min-height:110px;max-height:320px;overflow:auto;overscroll-behavior:contain;padding-right:10px}
+.modal--sheet .detail-section:nth-of-type(2)[open] .detail-section__body{max-height:380px}
+.register-intro__actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
