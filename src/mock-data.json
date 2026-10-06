@@ -446,16 +446,63 @@
       "status": "Active",
       "slug": "hanoi-fleet",
       "eligibleTrend": [
-        1498200,
-        1584400,
-        1663100,
-        1728400,
-        1697200,
-        1769100,
+        1421200,
+        1518400,
+        1602600,
+        1697400,
+        1669200,
+        1755800,
         1814640
       ],
       "miningRuns7d": 17,
-      "lastMiningAt": "2026-10-07T01:04:11"
+      "lastMiningAt": "2026-10-07T01:04:11",
+      "composition": {
+        "Urban": 1126400,
+        "Highway": 298420,
+        "Suburban": 251760,
+        "Rural": 138060
+      },
+      "quality": {
+        "Good": 1654820,
+        "Quarantined": 92340,
+        "LowLight": 43120,
+        "BlurRisk": 24360
+      },
+      "stateBreakdown": {
+        "Eligible": 1814640,
+        "Reserved": 36720,
+        "Labeled": 421780,
+        "Excluded": 145180
+      },
+      "recentSnapshots": [
+        {
+          "version": 12,
+          "eligible": 1814640,
+          "total": 2418320,
+          "reason": "October fleet ingest",
+          "at": "2026-10-07T01:42:18"
+        },
+        {
+          "version": 11,
+          "eligible": 1755800,
+          "total": 2326140,
+          "reason": "Reservation release + ingest",
+          "at": "2026-10-06T20:31:04"
+        },
+        {
+          "version": 10,
+          "eligible": 1669200,
+          "total": 2267880,
+          "reason": "Mining reservations",
+          "at": "2026-10-06T13:18:42"
+        }
+      ],
+      "sampleScenes": [
+        0,
+        1,
+        3,
+        4
+      ]
     },
     {
       "id": "pool_north_002",
@@ -473,14 +520,62 @@
       "status": "Active",
       "slug": "northern-highway",
       "eligibleTrend": [
-        548220,
-        571840,
-        603120,
-        598460,
+        584210,
+        607840,
+        626300,
+        619420,
+        603880,
         612480
       ],
       "miningRuns7d": 9,
-      "lastMiningAt": "2026-10-06T23:27:08"
+      "lastMiningAt": "2026-10-06T23:27:08",
+      "composition": {
+        "Highway": 489420,
+        "Tunnel": 42680,
+        "UrbanEntry": 50380,
+        "Rural": 30000
+      },
+      "quality": {
+        "Good": 548920,
+        "Quarantined": 28840,
+        "LowLight": 14210,
+        "BlurRisk": 20510
+      },
+      "stateBreakdown": {
+        "Eligible": 612480,
+        "Reserved": 12480,
+        "Labeled": 168320,
+        "Excluded": 70930
+      },
+      "recentSnapshots": [
+        {
+          "version": 8,
+          "eligible": 612480,
+          "total": 864210,
+          "reason": "Night highway ingest",
+          "at": "2026-10-06T23:14:07"
+        },
+        {
+          "version": 7,
+          "eligible": 603880,
+          "total": 851330,
+          "reason": "Annotation completion",
+          "at": "2026-10-06T16:08:29"
+        },
+        {
+          "version": 6,
+          "eligible": 619420,
+          "total": 847190,
+          "reason": "Mining reservation spike",
+          "at": "2026-10-06T09:42:13"
+        }
+      ],
+      "sampleScenes": [
+        2,
+        2,
+        4,
+        5
+      ]
     },
     {
       "id": "pool_adverse_003",
@@ -498,14 +593,62 @@
       "status": "Active",
       "slug": "adverse-weather",
       "eligibleTrend": [
-        176300,
-        188420,
-        203810,
-        211960,
+        192400,
+        227900,
+        205600,
+        238100,
+        211300,
         218750
       ],
       "miningRuns7d": 6,
-      "lastMiningAt": "2026-10-06T22:01:14"
+      "lastMiningAt": "2026-10-06T22:01:14",
+      "composition": {
+        "Rain": 112640,
+        "Night": 68420,
+        "Fog": 24110,
+        "Glare": 13580
+      },
+      "quality": {
+        "Good": 171420,
+        "Quarantined": 26430,
+        "LowLight": 14620,
+        "BlurRisk": 6280
+      },
+      "stateBreakdown": {
+        "Eligible": 218750,
+        "Reserved": 8400,
+        "Labeled": 64120,
+        "Excluded": 35570
+      },
+      "recentSnapshots": [
+        {
+          "version": 5,
+          "eligible": 218750,
+          "total": 326840,
+          "reason": "Rain ingest + quarantine review",
+          "at": "2026-10-06T18:49:33"
+        },
+        {
+          "version": 4,
+          "eligible": 211300,
+          "total": 314200,
+          "reason": "Low-quality quarantine",
+          "at": "2026-10-06T11:27:18"
+        },
+        {
+          "version": 3,
+          "eligible": 238100,
+          "total": 307440,
+          "reason": "Storm fleet ingest",
+          "at": "2026-10-05T23:52:07"
+        }
+      ],
+      "sampleScenes": [
+        4,
+        5,
+        1,
+        4
+      ]
     }
   ],
   "fleetPoolExtra": {
