@@ -99,3 +99,15 @@
 .detail-section[open]>summary:after{transform:rotate(270deg)}
 .detail-section__body{padding:0 13px 13px}
 @media(max-width:700px){.pool-kpi-grid{grid-template-columns:repeat(2,1fr)}.pool-inspector-grid,.pool-preview-grid{grid-template-columns:1fr}.snapshot-row{grid-template-columns:1fr}.snapshot-row small{margin-top:2px}}
+
+
+/* Data Explorer lifecycle help */
+.state-tabs-wrap{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.state-tabs-wrap .state-tabs{border-bottom:0}
+.lifecycle-help{position:relative;display:flex;align-items:center}
+.lifecycle-help>button{display:grid;place-items:center;width:22px;height:22px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:12px;font-weight:700}
+.lifecycle-help__popover{position:absolute;left:0;top:calc(100% + 8px);z-index:60;width:310px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--glass);backdrop-filter:blur(20px);box-shadow:var(--floating);opacity:0;pointer-events:none;transform:translateY(-4px);transition:opacity .15s,transform .15s}
+.lifecycle-help:hover .lifecycle-help__popover,.lifecycle-help:focus-within .lifecycle-help__popover{opacity:1;pointer-events:auto;transform:translateY(0)}
+.lifecycle-help__popover strong{display:block;font-size:12px;margin-bottom:7px}
+.lifecycle-help__popover p{font-size:12px;line-height:1.45;color:var(--muted);margin:5px 0}
+.lifecycle-help__popover b{color:var(--text)}
