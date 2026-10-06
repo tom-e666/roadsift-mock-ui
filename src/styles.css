@@ -211,3 +211,8 @@ th .help-tip{margin-left:4px}
 .onboarding-next strong{font-size:12px}
 .onboarding-next p{margin:4px 0 0;color:var(--muted);font-size:12px}
 @media(max-width:800px){.settings-shell{grid-template-columns:1fr}.settings-nav{position:static;display:flex;overflow:auto}.system-service-list>div{grid-template-columns:1fr}.onboarding-grid,.onboarding-economics{grid-template-columns:1fr}.onboarding-grid>div+div,.onboarding-economics>div+div{padding-left:0;border-left:0;border-top:1px solid var(--line)}.onboarding-intro,.onboarding-next{align-items:flex-start;flex-direction:column}}
+
+.inspector-tabs{display:flex;gap:4px;overflow:auto;border-bottom:1px solid var(--line);margin-top:12px}
+.inspector-tabs button{padding:9px 10px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted);font-size:12px;white-space:nowrap}
+.inspector-tabs button.active{color:var(--text);border-bottom-color:var(--accent)}
+.inspector-tab-body{min-height:180px;max-height:320px;overflow:auto;padding:14px 0}
