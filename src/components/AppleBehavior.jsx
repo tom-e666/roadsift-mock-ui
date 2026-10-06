@@ -5,9 +5,10 @@ const interactive = 'button, a, input, select, textarea, [role="button"]';
 export function AppleBehavior() {
   useEffect(() => {
     const cleanups = [];
-    const tables = [...document.querySelectorAll('table')];
-
-    tables.forEach(table => {
+    const enhanced = new WeakSet();
+    const enhanceTables = () => [...document.querySelectorAll('table')].forEach(table => {
+      if (enhanced.has(table)) return;
+      enhanced.add(table);
       const headers = [...table.querySelectorAll('thead th')];
       const rows = () => [...table.querySelectorAll('tbody tr')];
 
@@ -64,6 +65,10 @@ export function AppleBehavior() {
       };
       table.addEventListener('keydown', keydown); cleanups.push(() => table.removeEventListener('keydown', keydown));
     });
+    enhanceTables();
+    const observer = new MutationObserver(enhanceTables);
+    observer.observe(document.body, { childList: true, subtree: true });
+    cleanups.push(() => observer.disconnect());
 
     const pointerDown = e => {
       const control = e.target.closest('button, .dataset-card, .run-card, .lineage-node');
