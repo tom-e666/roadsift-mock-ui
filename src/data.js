@@ -33,6 +33,11 @@ export const metrics = mockData.metrics;
 export const sceneUrl = n => mockData.sceneUrls[n % mockData.sceneUrls.length];
 export const count = n => Number(n).toLocaleString();
 export const date = s => {
-  const value = String(s).includes('T') ? s : `${s}T12:00:00`;
-  return new Date(value).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+  if (!s) return '—';
+  const raw = String(s);
+  if (!raw.includes('T')) {
+    const parsed = new Date(`${raw}T00:00:00`);
+    return parsed.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  }
+  return new Date(raw).toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
 };
