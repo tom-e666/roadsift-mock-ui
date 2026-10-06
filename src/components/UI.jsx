@@ -10,7 +10,8 @@ export function Segmented({ options, value, onChange, label }) { return <div cla
 export function Empty({ title, detail, action }) { return <div className="empty"><span><Inbox size={26} /></span><h3>{title}</h3><p>{detail}</p>{action}</div>; }
 export function Panel({ title, description, actions, children, className = '' }) { return <section className={`panel ${className}`}><header className="panel__header"><div><h2>{title}</h2>{description && <p>{description}</p>}</div>{actions}</header><div className="panel__body">{children}</div></section>; }
 export function DemoNote({ children = 'Sample data · for interface exploration only' }) { return <p className="demo-note"><span />{children}</p>; }
-export function Field({ label, hint, children }) { return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
+export function HelpTip({ children, label = 'More information' }) { return <span className="help-tip"><button type="button" aria-label={label}>?</button><span className="help-tip__content" role="tooltip">{children}</span></span>; }
+export function Field({ label, hint, help, children }) { return <label className="field"><span className="field__label">{label}{help && <HelpTip>{help}</HelpTip>}</span>{children}{hint && <small>{hint}</small>}</label>; }
 export function Toggle({ checked, onChange, label }) { return <button className={`toggle ${checked ? 'toggle--on' : ''}`} role="switch" aria-label={label} aria-checked={checked} onClick={() => onChange(!checked)}><i /></button>; }
 export function Modal({ title, children, footer, onClose, sheet = false }) {
   const ref = useRef(null);
