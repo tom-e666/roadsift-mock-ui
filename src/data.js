@@ -2,7 +2,7 @@ import { BookOpen, Database, ScanSearch, GitBranch, UploadCloud, Pickaxe, Histor
 
 export const groups = [
   ['Library', [['datasets', 'Datasets', Database], ['data-explorer', 'Data Explorer', ScanSearch], ['lineage', 'Lineage', GitBranch]]],
-  ['Workflow', [['import', 'Import Data', UploadCloud], ['mining', 'Mining', Pickaxe], ['history', 'Run History', History], ['labeling', 'Label Editor', ScanLine], ['training', 'Training', Play], ['metrics', 'Model Metrics', ChartNoAxesCombined], ['pal', 'PAL Workbench', Sparkles]]],
+  ['Workflow', [['import', 'Import Data', UploadCloud], ['mining', 'Mining', Pickaxe], ['history', 'Runs', History], ['labeling', 'Label Editor', ScanLine], ['training', 'Training', Play], ['metrics', 'Model Metrics', ChartNoAxesCombined], ['pal', 'PAL Workbench', Sparkles]]],
   ['Workspace', [['settings', 'Settings', Settings], ['system', 'System Status', Monitor], ['documentation', 'Documentation', BookOpen]]],
 ];
 export const allPages = groups.flatMap(([, items]) => items);
@@ -17,9 +17,10 @@ export const seedEvaluation = { map:.381, recall:.668, vru:.574, night:.521, rai
 
 export const frames = Array.from({ length: 36 }, (_, index) => { const states=['Raw','Raw','Selected','Labeled','Labeled','Excluded']; const domains=['Urban','Urban','Night','Rain','Highway','Urban']; const weather=['Clear','Clear','Clear','Rain','Clear','Fog']; const score=Number((.31+((index*13)%61)/100).toFixed(2)); return { id:`frame_${String(18321+index).padStart(6,'0')}`, scene:index%6, domain:domains[index%6], weather:weather[index%6], state:states[index%6], score, uncertainty:Number(Math.min(.96,score+.04).toFixed(2)), safety:Number((.52+((index*11)%42)/100).toFixed(2)), diversity:Number((.45+((index*7)%48)/100).toFixed(2)), redundancy:Number((.08+((index*5)%31)/100).toFixed(2)), quality:index%6===5?'Quarantined':'Good', blur:Number((.08+((index*3)%24)/100).toFixed(2)), brightness:Number((.28+((index*9)%57)/100).toFixed(2)), objects:3+index%9, video:`drive_${String(21+Math.floor(index/6)).padStart(4,'0')}.mp4`, time:`00:${String(12+index).padStart(2,'0')}:40.${String((index*37)%1000).padStart(3,'0')}`, reviewed:index%6===3||index%6===4 }; });
 export const initialRuns = [
-  { id: 'M-012', name: 'Downtown morning drive', status: 'Complete', frames: 480, selected: 64, date: 'Oct 6, 10:42 AM', scene: 0 },
-  { id: 'M-011', name: 'Night commute', status: 'Complete', frames: 360, selected: 48, date: 'Oct 5, 8:15 PM', scene: 3 },
-  { id: 'M-010', name: 'Rainy afternoon', status: 'Complete', frames: 240, selected: 36, date: 'Oct 4, 3:30 PM', scene: 4 },
+  { id:'mine_20261006_2018_a7f3', type:'Mining', name:'Hybrid Sampling · Fleet Pool v1 · Round 2', status:'Complete', source:'Fleet Pool v1', dataset:'Hybrid Sampling v1', output:'Hybrid Sampling v2', frames:142680, selected:4000, budget:4000, executor:'Kaggle GPU · T4', duration:'47m 12s', date:'Oct 6, 2026 · 8:18 PM', scene:4 },
+  { id:'mine_20261006_1734_d91b', type:'Mining', name:'Entropy Sampling · Fleet Pool v1 · Round 2', status:'Complete', source:'Fleet Pool v1', dataset:'Entropy Sampling v1', output:'Entropy Sampling v2', frames:138680, selected:4000, budget:4000, executor:'Kaggle GPU · T4', duration:'39m 08s', date:'Oct 6, 2026 · 5:34 PM', scene:3 },
+  { id:'mine_20261005_2142_b4e8', type:'Mining', name:'Hybrid Sampling · Fleet Pool v1 · Round 1', status:'Complete', source:'Fleet Pool v1', dataset:'Initial Labeled Seed', output:'Hybrid Sampling v1', frames:142680, selected:4000, budget:4000, executor:'Kaggle GPU · T4', duration:'44m 36s', date:'Oct 5, 2026 · 9:42 PM', scene:1 },
+  { id:'ingest_20261005_0942_c21d', type:'Import', name:'Hanoi Fleet · October Import', status:'Complete', source:'12 MP4 files', output:'Fleet Pool v1', frames:38420, selected:0, extraction:'2 FPS', executor:'Import Worker', duration:'12m 31s', date:'Oct 5, 2026 · 9:42 AM', scene:0 },
 ];
 export const metrics = [
   { label: 'Car', precision: .92, recall: .89, ap: .913, count: 1820 },
