@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
 import { Button, Badge, PageHeader, Metric, Segmented, Empty, Panel, DemoNote, Field, Toggle, Modal, TextLink } from './components/UI.jsx';
-import { frames, initialDatasets, initialRuns, metrics, count, date, sceneUrl, fleetPool } from './data.js';
+import { frames, initialDatasets, initialRuns, metrics, count, date, sceneUrl, fleetPool, pools } from './data.js';
 
 function useSimulation(onComplete) {
   const [progress, setProgress] = useState(0);
@@ -20,6 +20,19 @@ function StatRow({ label, value }) { return <div className="stat-row"><span>{lab
 function ScoreBar({ label, value = 0 }) { const safe=Math.max(0,Math.min(1,Number(value)||0)); return <div className="score-bar"><div><span>{label}</span><strong>{safe.toFixed(2)}</strong></div><div className="score-bar__track"><i style={{width:`${safe*100}%`}} /></div></div>; }
 function Scene({ scene, alt, className = '' }) { return <img className={`scene ${className}`} src={sceneUrl(scene)} alt={alt || 'Illustrated demo driving scene'} loading="lazy" />; }
 function downloadJSON(name, data) { const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+
+export function Pools({ navigate }) {
+  const [query,setQuery]=useState('');
+  const [selected,setSelected]=useState(null);
+  const results=pools.filter(p=>`${p.name} ${p.snapshot} ${p.source}`.toLowerCase().includes(query.toLowerCase()));
+  return <div className="page pools-page"><PageHeader eyebrow="Candidate registry" title="Pools" description="Versioned snapshots of unlabeled fleet data available for mining." actions={<Button variant="primary" icon={Upload} onClick={()=>navigate('import')}>Import data</Button>} />
+    <section className="catalog"><div className="catalog__heading"><div><h2>Candidate pools</h2></div></div>
+      <div className="catalog__filters"><div className="search-field"><Search size={16}/><input aria-label="Search pools" placeholder="Search pools…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button aria-label="Clear search" onClick={()=>setQuery('')}><X size={14}/></button>}</div></div>
+      {results.length?<div className="table-scroll"><table className="dataset-table dataset-registry-table"><thead><tr><th>Pool</th><th>Snapshot</th><th>Total</th><th>Eligible</th><th>Reserved</th><th>Updated</th></tr></thead><tbody>{results.map(p=><tr key={p.id} tabIndex="0" role="button" onClick={()=>setSelected(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(p)}}}><td><div className="dataset-name-cell"><strong>{p.name}</strong><small>{p.source}</small></div></td><td><span className="version-tag">p{p.version}</span></td><td className="tabular">{count(p.total)}</td><td className="tabular">{count(p.eligible)}</td><td className="tabular">{count(p.reserved)}</td><td className="table-muted">{date(p.indexed)}</td></tr>)}</tbody></table></div>:<Empty title="No matching pools" detail="Try a different search."/>}
+    </section>
+    {selected&&<Modal sheet title="Pool details" onClose={()=>setSelected(null)} footer={<><Button onClick={()=>setSelected(null)}>Close</Button><Button variant="primary" icon={Pickaxe} onClick={()=>navigate('mining')}>Start mining</Button></>}><div className="detail-heading"><Badge>{selected.status}</Badge><span className="version-tag">p{selected.version}</span><h2>{selected.name}</h2><p>Immutable candidate snapshot for reproducible active-learning selection.</p></div><div className="detail-stats"><StatRow label="Snapshot ID" value={selected.snapshot}/><StatRow label="Total frames" value={count(selected.total)}/><StatRow label="Eligible for mining" value={count(selected.eligible)}/><StatRow label="Already labeled" value={count(selected.labeled)}/><StatRow label="Reserved / in review" value={count(selected.reserved)}/><StatRow label="Excluded" value={count(selected.excluded)}/><StatRow label="Storage" value={selected.storage}/><StatRow label="Updated" value={date(selected.indexed)}/></div><div className="insight insight--plain"><GitBranch size={20}/><h3>Snapshot semantics</h3><p>Mining references this exact snapshot. Later ingest, labeling, reservations, or exclusions create a newer pool snapshot without changing this one.</p></div></Modal>}
+  </div>;
+}
 
 export function Datasets({ datasets, setDatasets, navigate, notify }) {
   const [query, setQuery] = useState('');
