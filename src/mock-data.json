@@ -1669,5 +1669,16 @@
     "name": "Kaggle T4 Runner",
     "type": "Kaggle",
     "endpoint": "kaggle://roadsift/mining-t4"
+  },
+  "poolRegistration": {
+    "defaultName": "Central Vietnam Fleet Pool",
+    "defaultSource": "Existing R2 collection",
+    "storageRoot": "r2://roadsift/pools/",
+    "manifestName": "manifest.parquet",
+    "defaultTotal": 128400,
+    "defaultEligible": 117920,
+    "defaultReserved": 0,
+    "defaultLabeled": 0,
+    "defaultExcluded": 10480
   }
 }
