@@ -3487,7 +3487,46 @@
     "imageFramesFallback": 18420,
     "duplicatesFlagged": 1284,
     "qualityFlagged": 312,
-    "storageRoot": "r2://roadsift/pools/"
+    "storageRoot": "r2://roadsift/pools/",
+    "stagingRoot": "r2://roadsift/raw/",
+    "manifestRoot": "r2://roadsift/manifests/",
+    "sourceAdapters": [
+      {
+        "id": "upload",
+        "label": "Upload to R2",
+        "description": "Stage local videos or images directly to R2 using presigned upload URLs."
+      },
+      {
+        "id": "existing",
+        "label": "Existing R2 prefix",
+        "description": "Reference media that already exists in object storage. No copy required."
+      },
+      {
+        "id": "manifest",
+        "label": "Manifest",
+        "description": "Register sample URIs and metadata from CSV, JSONL, or Parquet."
+      }
+    ],
+    "manifestFormats": [
+      "Parquet",
+      "JSONL",
+      "CSV"
+    ],
+    "defaultManifestFormat": "Parquet",
+    "workerPolicy": {
+      "queue": "ingest-default",
+      "worker": "Ingest Worker",
+      "extractFrames": true,
+      "qualityChecks": true,
+      "deduplication": true,
+      "metadataIndex": true
+    },
+    "lifecycle": [
+      "Queued",
+      "Processing",
+      "Validating",
+      "Complete"
+    ]
   },
   "miningConfig": {
     "defaultStrategyId": "hybrid",

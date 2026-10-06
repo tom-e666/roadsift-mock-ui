@@ -310,39 +310,65 @@ export function Explorer({ datasets, pools, contextDataset, notify, navigate }) 
 }
 
 export function ImportData({ notify, navigate, setPools }) {
-  const [sourceMode,setSourceMode]=useState('upload');
+  const [sourceMode,setSourceMode]=useState(importSimulation.sourceAdapters?.[0]?.id||'upload');
   const [mode,setMode]=useState(importSimulation.defaultMode);
   const [files,setFiles]=useState([]);
   const [fps,setFps]=useState(importSimulation.defaultFps);
   const [name,setName]=useState(importSimulation.defaultPoolName);
   const [prefix,setPrefix]=useState('r2://roadsift/incoming/hanoi-october/');
+  const [manifestUri,setManifestUri]=useState('r2://roadsift/manifests/hanoi-october.parquet');
+  const [manifestFormat,setManifestFormat]=useState(importSimulation.defaultManifestFormat);
   const [validated,setValidated]=useState(false);
   const [status,setStatus]=useState('idle');
+  const [jobId,setJobId]=useState('');
   const input=useRef(null);
   const extracted=mode==='videos'?importSimulation.videoFrames:(files.length||importSimulation.imageFramesFallback);
-  const sourceReady=sourceMode==='existing'?Boolean(prefix.trim()):files.length>0;
+  const sourceReady=sourceMode==='existing'?Boolean(prefix.trim()):sourceMode==='manifest'?Boolean(manifestUri.trim()):files.length>0;
+  const poolSlug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const stagedUri=`${importSimulation.stagingRoot}${poolSlug||'new-pool'}/`;
+  const poolStorage=`${importSimulation.storageRoot}${poolSlug||'new-pool'}/`;
+  const sourceLabel=sourceMode==='upload'?`${files.length} local file${files.length===1?'':'s'} → direct R2 upload`:sourceMode==='existing'?prefix:manifestUri;
   const validate=()=>{
     const ok=Boolean(name.trim()&&sourceReady);
     setValidated(ok);
     notify(ok?'Ingest preflight passed':'Ingest preflight blocked · resolve source and Pool identity');
   };
+  useEffect(()=>{
+    if(!['queued','processing','validating'].includes(status)) return;
+    const next={queued:'processing',processing:'validating',validating:'complete'}[status];
+    const timer=setTimeout(()=>setStatus(next),650);
+    return()=>clearTimeout(timer);
+  },[status]);
+  useEffect(()=>{
+    if(status!=='complete'||!jobId) return;
+    const now=new Date().toISOString();
+    const eligible=Math.max(0,extracted-importSimulation.duplicatesFlagged-importSimulation.qualityFlagged);
+    const record={id:`pool_${poolSlug}_${jobId.slice(-4)}`,name,slug:poolSlug,version:1,snapshot:`pool_snap_${jobId.slice(-8)}`,total:extracted,eligible,labeled:0,reserved:0,excluded:extracted-eligible,indexed:now,storage:poolStorage,source:sourceLabel,status:'Active',eligibleTrend:[eligible],miningRuns7d:0,lastMiningAt:now,composition:{Unclassified:eligible},quality:{Good:eligible},stateBreakdown:{Eligible:eligible,Reserved:0,Labeled:0,Excluded:extracted-eligible},recentSnapshots:[{version:1,eligible,total:extracted,reason:'Ingest job complete',at:now}],sampleScenes:[0,1,2,3],schemaVersion:'roadsift.pool-snapshot.v1',manifestUri:`${importSimulation.manifestRoot}${poolSlug}/manifest.parquet`,owner:'Fleet Data Ops',createdBy:'ingest-worker',updatedAt:now};
+    setPools?.(list=>list.some(p=>p.id===record.id)?list:[record,...list]);
+    notify('Ingest Worker completed · Pool snapshot registered');
+  },[status,jobId]);
   const submit=()=>{
     if(!validated){validate();return;}
-    const now=new Date().toISOString(),stamp=Date.now().toString(36);
-    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-    const eligible=Math.max(0,extracted-importSimulation.duplicatesFlagged-importSimulation.qualityFlagged);
-    const record={id:`pool_${slug}_${stamp.slice(-4)}`,name,slug,version:1,snapshot:`pool_snap_${stamp}`,total:extracted,eligible,labeled:0,reserved:0,excluded:extracted-eligible,indexed:now,storage:`${importSimulation.storageRoot}${slug}/`,source:sourceMode==='upload'?`${files.length} staged files`:prefix,status:'Active',eligibleTrend:[eligible],miningRuns7d:0,lastMiningAt:now,composition:{Unclassified:eligible},quality:{Good:eligible},stateBreakdown:{Eligible:eligible,Reserved:0,Labeled:0,Excluded:extracted-eligible},recentSnapshots:[{version:1,eligible,total:extracted,reason:'Ingest job complete',at:now}],sampleScenes:[0,1,2,3]};
-    setPools?.(list=>[record,...list]);
-    setStatus('complete');
-    notify('Ingest job completed · Pool snapshot registered');
+    const id=`ingest_${new Date().toISOString().replace(/[-:T]/g,'').slice(0,12)}_${Date.now().toString(36).slice(-4)}`;
+    setJobId(id);setStatus('queued');notify('Ingest job queued');
   };
-  return <div className="page import-enterprise"><PageHeader eyebrow="Data operations" title="Ingest Jobs" description="Bring new unlabeled media into object storage and register a reproducible Pool snapshot." actions={<Button icon={Database} onClick={()=>navigate('pools')}>Pool registry</Button>}/>
-    <div className="enterprise-stepper"><span className="active">1 · Source</span><i/><span className={validated?'active':''}>2 · Validate</span><i/><span className={status==='complete'?'active':''}>3 · Register snapshot</span></div>
+  const worker=importSimulation.workerPolicy;
+  const lifecycle=importSimulation.lifecycle||['Queued','Processing','Validating','Complete'];
+  return <div className="page import-enterprise"><PageHeader eyebrow="Data operations" title="Create Ingest Job" description="Stage or reference source media, then let an Ingest Worker materialize a reproducible Pool snapshot." actions={<Button icon={Database} onClick={()=>navigate('pools')}>Pool registry</Button>}/>
+    <div className="control-plane-note"><div><strong>Control plane</strong><span>RoadSift API creates the job, issues presigned upload access, validates references and enqueues work.</span></div><ArrowRight size={16}/><div><strong>Data plane</strong><span>Ingest Worker reads/writes R2, extracts frames, validates metadata and creates the Pool snapshot.</span></div></div>
+    <div className="enterprise-stepper"><span className="active">1 · Source</span><i/><span className="active">2 · Worker policy</span><i/><span className={validated?'active':''}>3 · Preflight</span><i/><span className={status!=='idle'?'active':''}>4 · Execute</span><i/><span className={status==='complete'?'active':''}>5 · Pool snapshot</span></div>
     <div className="enterprise-form-grid"><section>
-      <Panel title="Source" description="Stage local media or reference an existing object-storage prefix."><div className="segmented"><button className={sourceMode==='upload'?'active':''} onClick={()=>{setSourceMode('upload');setValidated(false)}}>Upload files</button><button className={sourceMode==='existing'?'active':''} onClick={()=>{setSourceMode('existing');setValidated(false)}}>Existing storage</button></div>{sourceMode==='upload'?<><div className="segmented compact"><button className={mode==='videos'?'active':''} onClick={()=>setMode('videos')}>MP4 videos</button><button className={mode==='images'?'active':''} onClick={()=>setMode('images')}>Images</button></div><input ref={input} className="sr-only" type="file" multiple accept={mode==='videos'?'video/mp4':'image/*'} onChange={e=>{setFiles([...e.target.files]);setValidated(false)}}/><button className="import-dropzone" onClick={()=>input.current?.click()}><Upload size={24}/><strong>{files.length?`${files.length} files staged`:'Choose source files'}</strong><small>Files are staged before the ingest job is submitted.</small></button>{mode==='videos'&&<Field label="Frame extraction"><select value={fps} onChange={e=>{setFps(e.target.value);setValidated(false)}}>{importSimulation.fpsOptions.map(v=><option key={v} value={v}>{v} FPS</option>)}</select></Field>}</>:<Field label="Object-storage prefix" help="Reference existing media without copying it first."><input value={prefix} onChange={e=>{setPrefix(e.target.value);setValidated(false)}}/></Field>}</Panel>
-      <Panel title="Destination" description="Define the Pool identity materialized by this job."><Field label="Pool name"><input value={name} onChange={e=>{setName(e.target.value);setValidated(false)}}/></Field><div className="detail-stats"><StatRow label="Storage root" value={`${importSimulation.storageRoot}${name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}/`}/><StatRow label="Manifest" value="manifest.parquet"/><StatRow label="Membership" value="Immutable snapshot"/></div></Panel>
-    </section><aside><Panel title="Preflight" description="Submission is blocked until source and destination resolve."><div className="preflight-list"><div className={name.trim()?'pass':'fail'}><Check size={13}/>Pool identity</div><div className={sourceReady?'pass':'fail'}><Check size={13}/>Source resolved</div><div className="pass"><Check size={13}/>R2 destination available</div><div className="pass"><Check size={13}/>Manifest schema configured</div></div><div className="job-spec-preview"><div><span>Ingest contract</span><Badge>{validated?'Ready':'Draft'}</Badge></div><code>source={sourceMode}</code><code>media={mode}</code><code>fps={mode==='videos'?fps:'n/a'}</code><code>pool={name}</code></div><div className="button-row"><Button className="wide" onClick={validate}>Validate</Button><Button variant="primary" className="wide" icon={Upload} onClick={submit}>Submit ingest job</Button></div></Panel></aside></div>
-    {status==='complete'&&<div className="completion-card"><span className="completion-card__icon"><Check size={20}/></span><div><small>Ingest job complete</small><h3>{name}</h3><p>{count(extracted)} samples processed · Pool snapshot registered</p></div><Button icon={ArrowRight} onClick={()=>navigate('pools')}>Open Pool</Button></div>}
+      <Panel title="Source adapter" description="Choose how the worker resolves input media. Local files are uploaded directly to R2; they do not pass through the application server."><div className="source-adapter-grid">{importSimulation.sourceAdapters.map(adapter=><button key={adapter.id} className={sourceMode===adapter.id?'source-adapter source-adapter--active':'source-adapter'} onClick={()=>{setSourceMode(adapter.id);setValidated(false)}}><strong>{adapter.label}</strong><span>{adapter.description}</span></button>)}</div>
+        {sourceMode==='upload'&&<><div className="segmented compact"><button className={mode==='videos'?'active':''} onClick={()=>{setMode('videos');setValidated(false)}}>Videos</button><button className={mode==='images'?'active':''} onClick={()=>{setMode('images');setValidated(false)}}>Images</button></div><input ref={input} className="sr-only" type="file" multiple accept={mode==='videos'?'video/*':'image/*'} onChange={e=>{setFiles([...e.target.files]);setValidated(false)}}/><button className="import-dropzone" onClick={()=>input.current?.click()}><Cloud size={24}/><strong>{files.length?`${files.length} files ready for direct R2 staging`:'Choose local media'}</strong><small>Browser → presigned upload → {stagedUri}</small></button></>}
+        {sourceMode==='existing'&&<Field label="Existing R2 prefix" help="Worker scans this prefix in place; media is not copied through the API server."><input value={prefix} onChange={e=>{setPrefix(e.target.value);setValidated(false)}}/></Field>}
+        {sourceMode==='manifest'&&<div className="register-grid"><Field label="Manifest URI"><input value={manifestUri} onChange={e=>{setManifestUri(e.target.value);setValidated(false)}}/></Field><Field label="Manifest format"><select value={manifestFormat} onChange={e=>{setManifestFormat(e.target.value);setValidated(false)}}>{importSimulation.manifestFormats.map(v=><option key={v}>{v}</option>)}</select></Field></div>}
+      </Panel>
+      <Panel title="Worker processing policy" description="These settings are executed asynchronously by the Ingest Worker after the job enters the queue.">{mode==='videos'&&sourceMode!=='manifest'&&<Field label="Frame extraction rate" help="Worker-side FFmpeg extraction policy."><select value={fps} onChange={e=>{setFps(e.target.value);setValidated(false)}}>{importSimulation.fpsOptions.map(v=><option key={v} value={v}>{v} FPS</option>)}</select></Field>}<div className="worker-policy-list"><div><Check size={14}/><span>Quality checks</span><strong>{worker.qualityChecks?'Enabled':'Disabled'}</strong></div><div><Check size={14}/><span>Deduplication</span><strong>{worker.deduplication?'Enabled':'Disabled'}</strong></div><div><Check size={14}/><span>Metadata index</span><strong>{worker.metadataIndex?'Enabled':'Disabled'}</strong></div><div><Cpu size={14}/><span>Execution</span><strong>{worker.worker} · {worker.queue}</strong></div></div></Panel>
+      <Panel title="Pool destination" description="The worker writes normalized artifacts and registers one immutable Pool snapshot."><Field label="Pool name"><input value={name} onChange={e=>{setName(e.target.value);setValidated(false)}}/></Field><div className="detail-stats"><StatRow label="Raw staging" value={sourceMode==='upload'?stagedUri:'No staging copy'}/><StatRow label="Pool storage" value={poolStorage}/><StatRow label="Manifest" value={`${importSimulation.manifestRoot}${poolSlug||'new-pool'}/manifest.parquet`}/><StatRow label="Membership" value="Immutable snapshot"/></div></Panel>
+    </section>
+    <aside><Panel title="Preflight & submit" description="The API validates the job contract and enqueues it. Heavy media processing never runs in the web server."><div className="preflight-list"><div className={name.trim()?'pass':'fail'}><Check size={13}/>Pool identity resolved</div><div className={sourceReady?'pass':'fail'}><Check size={13}/>Source reference resolved</div><div className="pass"><Check size={13}/>R2 access available</div><div className="pass"><Check size={13}/>Worker queue available</div><div className="pass"><Check size={13}/>Manifest schema configured</div></div><div className="job-spec-preview"><div><span>Ingest job contract</span><Badge>{validated?'Ready':'Draft'}</Badge></div><code>source_adapter={sourceMode}</code><code>worker={worker.worker}</code><code>queue={worker.queue}</code><code>media={sourceMode==='manifest'?'manifest':mode}</code><code>extract_fps={mode==='videos'&&sourceMode!=='manifest'?fps:'n/a'}</code><code>destination={poolStorage}</code></div><div className="button-row"><Button className="wide" onClick={validate}>Validate contract</Button><Button variant="primary" className="wide" icon={Play} disabled={['queued','processing','validating'].includes(status)} onClick={submit}>Create ingest job</Button></div></Panel>
+      {status!=='idle'&&<Panel title={jobId||'Ingest job'} description="Asynchronous worker execution status."><div className="job-lifecycle">{lifecycle.map((step,index)=>{const current={queued:0,processing:1,validating:2,complete:3}[status]??-1;return <div key={step} className={index<current?'done':index===current?'current':''}><span>{index<current?<Check size={12}/>:index+1}</span><strong>{step}</strong></div>})}</div>{status==='processing'&&<p className="job-status-note">Worker is reading source objects and writing normalized artifacts to R2.</p>}{status==='validating'&&<p className="job-status-note">Worker is validating manifest integrity, quality flags and deduplication results.</p>}{status==='complete'&&<div className="section-actions"><Button icon={ArrowRight} onClick={()=>navigate('pools')}>Open Pool snapshot</Button></div>}</Panel>}
+    </aside></div>
   </div>;
 }
 
