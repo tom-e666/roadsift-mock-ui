@@ -1,0 +1,30 @@
+/* macOS/iPadOS interaction layer: behavior first, decoration second */
+button,.dataset-card,.run-card,.lineage-node{transition:background-color .14s ease,border-color .14s ease,box-shadow .14s ease,transform .08s ease,opacity .14s ease}
+.apple-pressed{transform:scale(.985);opacity:.82}
+table[role="grid"]{outline:none}
+table[role="grid"]:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:10px}
+.apple-sortable{cursor:default;user-select:none;position:relative;padding-right:30px}
+.apple-sortable::after{content:"↕";position:absolute;right:12px;opacity:0;transition:opacity .14s;color:var(--tertiary)}
+.apple-sortable:hover::after,.apple-sortable:focus-visible::after{opacity:.65}
+.apple-sortable[aria-sort="ascending"]::after{content:"↑";opacity:1;color:var(--accent)}
+.apple-sortable[aria-sort="descending"]::after{content:"↓";opacity:1;color:var(--accent)}
+tbody tr.apple-row-selected{background:var(--accent-soft)}
+tbody tr.apple-row-selected:hover{background:var(--accent-soft)}
+tbody tr.apple-row-selected td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.icon-control:active,.button:active,.nav-item:active,.segmented button:active{transform:scale(.96)}
+.nav-item--active{box-shadow:none;background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.topbar,.sidebar,.selection-bar,.apple-command,.account-popover{backdrop-filter:saturate(180%) blur(28px);-webkit-backdrop-filter:saturate(180%) blur(28px)}
+@media (hover:hover){.row-action{opacity:.45} tr:hover .row-action,.row-action:focus-visible{opacity:1}}
+@media (pointer:coarse){
+  .button,.nav-item,.icon-control,.theme-switch button,.segmented button,.row-action{min-height:44px}
+  .icon-control,.row-action{min-width:44px}
+  select,.field input,.field textarea,.search-field{min-height:44px}
+  .nav-item{font-size:13px}
+  .sidebar__search{min-height:44px}
+}
+@media(max-width:767px){
+  .topbar{padding-top:max(9px,env(safe-area-inset-top));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .selection-bar{bottom:max(18px,env(safe-area-inset-bottom))}
+  .modal-layer--sheet{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+}
+@media(prefers-reduced-transparency:reduce){.topbar,.sidebar,.selection-bar,.apple-command,.account-popover{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--surface)}}
