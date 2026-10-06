@@ -18,8 +18,8 @@ export default function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [datasets, setDatasets] = useLocalState('roadsift-mock-datasets-v2', initialDatasets);
-  const [runs, setRuns] = useLocalState('roadsift-mock-runs-v1', initialRuns);
+  const [datasets, setDatasets] = useLocalState('roadsift-mock-datasets-v3', initialDatasets);
+  const [runs, setRuns] = useLocalState('roadsift-mock-runs-v2', initialRuns);
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [contextDataset, setContextDataset] = useState(null);
   const title = allPages.find(([id]) => id === page)?.[1];
