@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDown, X, Check, Command, FlaskConical } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette.jsx';
 import { Button, Modal } from './components/UI.jsx';
-import { groups, allPages, initialDatasets, initialRuns } from './data.js';
+import { groups, allPages, initialDatasets, initialRuns, initialPools } from './data.js';
 import { Pools, Datasets, Explorer, ImportData, Mining, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
 
 function readState(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; } catch { return fallback; } }
@@ -20,6 +20,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [datasets, setDatasets] = useLocalState('roadsift-mock-datasets-v3', initialDatasets);
   const [runs, setRuns] = useLocalState('roadsift-mock-runs-v2', initialRuns);
+  const [pools, setPools] = useLocalState('roadsift-mock-pools-v1', initialPools);
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
   const [contextDataset, setContextDataset] = useState(null);
@@ -47,7 +48,7 @@ export default function App() {
   useEffect(() => { if (!accountOpen) return; const handler = e => { if (!e.target.closest('.account-anchor')) setAccountOpen(false); }; document.addEventListener('pointerdown', handler); return () => document.removeEventListener('pointerdown', handler); }, [accountOpen]);
   useEffect(() => { if (!mobileOpen) return; const previous = document.activeElement; const old = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.querySelector('.sidebar__close')?.focus(); return () => { document.body.style.overflow = old; previous?.focus?.(); }; }, [mobileOpen]);
   const notify = message => setToast({ message, id: Date.now() });
-  const shared = { navigate, notify, datasets, setDatasets, runs, setRuns, contextDataset, language, setLanguage };
+  const shared = { navigate, notify, datasets, setDatasets, pools, setPools, runs, setRuns, contextDataset, language, setLanguage };
   const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
