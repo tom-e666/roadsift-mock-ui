@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
 import { Button, Badge, PageHeader, Metric, Segmented, Empty, Panel, DemoNote, Field, Toggle, Modal, TextLink, HelpTip } from './components/UI.jsx';
-import { frames, initialDatasets, initialRuns, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, systemServices, strategyComparison, systemRunnerRegistrationDefaults } from './data.js';
+import { frames, initialDatasets, initialRuns, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, systemServices, strategyComparison, systemRunnerRegistrationDefaults, poolRegistration } from './data.js';
 
 function useSimulation(onComplete) {
   const [progress, setProgress] = useState(0);
@@ -21,9 +21,53 @@ function ScoreBar({ label, value = 0 }) { const safe=Math.max(0,Math.min(1,Numbe
 function Scene({ scene, alt, className = '' }) { return <img className={`scene ${className}`} src={sceneUrl(scene)} alt={alt || 'Illustrated demo driving scene'} loading="lazy" />; }
 function downloadJSON(name, data) { const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
-export function Pools({ navigate }) {
+export function Pools({ navigate, pools, setPools, notify }) {
   const [query,setQuery]=useState('');
   const [selected,setSelected]=useState(null);
+  const [createOpen,setCreateOpen]=useState(false);
+  const [poolDraft,setPoolDraft]=useState({name:'',source:'',storageUri:'',manifestUri:'',total:'',eligible:'',validated:false});
+  const [poolValidation,setPoolValidation]=useState(null);
+  const patchPoolDraft=patch=>{setPoolDraft(v=>({...v,...patch,validated:false}));setPoolValidation(null);};
+  const autofillPool=()=>{
+    const nonce=Date.now().toString(36);
+    const name=poolRegistration.defaultName;
+    const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    setPoolDraft({
+      name,
+      source:poolRegistration.defaultSource,
+      storageUri:`${poolRegistration.storageRoot}${slug}/`,
+      manifestUri:`${poolRegistration.storageRoot}${slug}/${poolRegistration.manifestName.replace('.',`-${nonce}.`)}`,
+      total:String(poolRegistration.defaultTotal),
+      eligible:String(poolRegistration.defaultEligible),
+      validated:false
+    });
+    setPoolValidation(null);
+    notify('Pool registration fields autofilled');
+  };
+  const poolDraftError=()=>{
+    const total=Number(poolDraft.total),eligible=Number(poolDraft.eligible);
+    if(!poolDraft.name.trim()||!poolDraft.source.trim()||!poolDraft.storageUri.trim()||!poolDraft.manifestUri.trim()) return 'Complete all required pool registration fields.';
+    if(!Number.isFinite(total)||total<=0||!Number.isFinite(eligible)||eligible<0||eligible>total) return 'Total and eligible counts are invalid.';
+    if(pools.some(p=>p.storage===poolDraft.storageUri||p.manifestUri===poolDraft.manifestUri||p.name===poolDraft.name.trim())) return 'A Pool with the same name or storage reference already exists.';
+    return '';
+  };
+  const validatePool=()=>{
+    const error=poolDraftError();
+    if(error){setPoolValidation({tone:'error',message:error});notify(error);return false;}
+    setPoolDraft(v=>({...v,validated:true}));
+    setPoolValidation({tone:'success',message:'Validation passed · Pool identity, storage reference and counts are ready.'});
+    return true;
+  };
+  const createPool=()=>{
+    const error=poolDraftError();
+    if(error){setPoolDraft(v=>({...v,validated:false}));setPoolValidation({tone:'error',message:error});notify(error);return;}
+    const now=new Date().toISOString(),stamp=Date.now().toString(36);
+    const slug=poolDraft.name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const total=Number(poolDraft.total),eligible=Number(poolDraft.eligible);
+    const excluded=Math.max(0,total-eligible);
+    const record={id:`pool_${slug.replace(/-/g,'_')}_${stamp.slice(-4)}`,name:poolDraft.name.trim(),slug,version:1,snapshot:`pool_snap_${stamp}`,total,eligible,labeled:poolRegistration.defaultLabeled,reserved:poolRegistration.defaultReserved,excluded,indexed:now,storage:poolDraft.storageUri.trim(),manifestUri:poolDraft.manifestUri.trim(),source:poolDraft.source.trim(),status:'Active',eligibleTrend:[eligible],miningRuns7d:0,lastMiningAt:now,composition:{Unclassified:eligible},quality:{Good:eligible},stateBreakdown:{Eligible:eligible,Reserved:0,Labeled:0,Excluded:excluded},recentSnapshots:[{version:1,eligible,total,reason:'Pool registered',at:now}],sampleScenes:[0,1,2,3]};
+    setPools(list=>[record,...list]); setCreateOpen(false); setPoolValidation(null); notify(`${record.name} created`);
+  };
   const results=pools.filter(p=>`${p.name} ${p.snapshot} ${p.source}`.toLowerCase().includes(query.toLowerCase()));
   const sparkline = values => {
     const width=88,height=28,pad=2;
@@ -31,7 +75,7 @@ export function Pools({ navigate }) {
     return values.map((v,i)=>`${pad+(i*(width-pad*2))/Math.max(1,values.length-1)},${height-pad-((v-min)/range)*(height-pad*2)}`).join(' ');
   };
   const barWidth=(value,total)=>`${Math.max(2,Math.round((Number(value||0)/Math.max(1,Number(total||1)))*100))}%`;
-  return <div className="page pools-page"><PageHeader eyebrow="Candidate registry" title="Pools" description="Versioned snapshots of unlabeled fleet data available for mining." />
+  return <div className="page pools-page"><PageHeader eyebrow="Candidate registry" title="Pools" description="Versioned snapshots of unlabeled fleet data available for mining." actions={<Button variant="primary" icon={Plus} onClick={()=>{setPoolDraft({name:'',source:'',storageUri:'',manifestUri:'',total:'',eligible:'',validated:false});setPoolValidation(null);setCreateOpen(true)}}>Create pool</Button>} />
     <section className="catalog"><div className="catalog__heading"><div><h2>Candidate pools</h2></div></div>
       <div className="catalog__filters"><div className="search-field"><Search size={16}/><input aria-label="Search pools" placeholder="Search pools…" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button aria-label="Clear search" onClick={()=>setQuery('')}><X size={14}/></button>}</div></div>
       {results.length?<div className="table-scroll"><table className="dataset-table pool-registry-table"><thead><tr><th>Pool</th><th>Snapshot <HelpTip>An immutable version of Pool membership used to reproduce a Mining run.</HelpTip></th><th>Total</th><th>Eligible <HelpTip>Samples currently allowed to be selected by Mining.</HelpTip></th><th>Reserved <HelpTip>Samples already selected into a Selection Batch or under review, so they are temporarily unavailable.</HelpTip></th><th>Eligible trend <HelpTip>How the number of eligible candidates changed across recent Pool snapshots.</HelpTip></th><th>Mining <HelpTip>Recent Mining activity using this Pool as the candidate source.</HelpTip></th><th>Updated</th></tr></thead><tbody>{results.map(p=><tr key={p.id} tabIndex="0" role="button" onClick={()=>setSelected(p)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(p)}}}><td><div className="dataset-name-cell"><strong>{p.name}</strong><small>{p.source}</small></div></td><td><code className="artifact-ref">{p.slug || p.id}:p{p.version}</code></td><td className="tabular">{count(p.total)}</td><td className="tabular">{count(p.eligible)}</td><td className="tabular">{count(p.reserved)}</td><td><div className="pool-trend" title={(p.eligibleTrend||[]).map((v,i)=>`p${Math.max(1,p.version-(p.eligibleTrend.length-1)+i)}: ${count(v)} eligible`).join(' · ')}><svg viewBox="0 0 88 28" role="img" aria-label={`${p.name} eligible trend`}><polyline points={sparkline(p.eligibleTrend||[p.eligible])}/><circle cx="86" cy={(() => { const values=p.eligibleTrend||[p.eligible]; const min=Math.min(...values),max=Math.max(...values),range=Math.max(1,max-min); return 26-((values.at(-1)-min)/range)*24; })()} r="2"/></svg></div></td><td><div className="pool-activity"><strong>{p.miningRuns7d} runs</strong><small>last {date(p.lastMiningAt)}</small></div></td><td className="table-muted">{date(p.indexed)}</td></tr>)}</tbody></table></div>:<Empty title="No matching pools" detail="Try a different search."/>}
@@ -70,10 +114,12 @@ export function Pools({ navigate }) {
         <div className="detail-section__body"><div className="pool-preview-grid">{(selected.sampleScenes||[0,1,2,3]).map((scene,i)=><button key={i} className="pool-preview-card" onClick={()=>navigate('data-explorer')}><Scene scene={scene} alt={`${selected.name} sample ${i+1}`}/><span>sample_{String(i+1).padStart(4,'0')}</span></button>)}</div></div>
       </details>
     </Modal>}
+    {createOpen&&<Modal title="Create pool" onClose={()=>setCreateOpen(false)} footer={<><Button onClick={()=>setCreateOpen(false)}>Cancel</Button><Button onClick={validatePool}>Validate</Button><Button variant="primary" onClick={createPool}>Create pool</Button></>}><div className="register-intro"><div><p className="modal-intro">Register an existing unlabeled candidate collection as a versioned Pool. Use Import Data when you still need to upload or extract media first.</p></div><Button icon={Sparkles} onClick={autofillPool}>Autofill</Button></div><Field label="Pool name"><input value={poolDraft.name} onChange={e=>patchPoolDraft({name:e.target.value})} placeholder="Central Vietnam Fleet Pool"/></Field><Field label="Source description"><input value={poolDraft.source} onChange={e=>patchPoolDraft({source:e.target.value})} placeholder="Existing R2 collection"/></Field><Field label="Storage URI"><input value={poolDraft.storageUri} onChange={e=>patchPoolDraft({storageUri:e.target.value})} placeholder="r2://roadsift/pools/central-vietnam/"/></Field><Field label="Manifest URI" help="Canonical membership reference for this Pool snapshot."><input value={poolDraft.manifestUri} onChange={e=>patchPoolDraft({manifestUri:e.target.value})} placeholder="r2://roadsift/pools/central-vietnam/manifest.parquet"/></Field><div className="register-grid"><Field label="Total samples"><input inputMode="numeric" value={poolDraft.total} onChange={e=>patchPoolDraft({total:e.target.value})}/></Field><Field label="Eligible samples" help="Samples currently allowed to enter Mining."><input inputMode="numeric" value={poolDraft.eligible} onChange={e=>patchPoolDraft({eligible:e.target.value})}/></Field></div>{poolValidation&&<div className={poolValidation.tone==='success'?'registration-valid':'registration-error'}>{poolValidation.tone==='success'?<CheckCircle2 size={18}/>:<X size={18}/>}<div><strong>{poolValidation.tone==='success'?'Validation passed':'Validation failed'}</strong><p>{poolValidation.message}</p></div></div>}</Modal>}
+
   </div>;
 }
 
-export function Datasets({ datasets, setDatasets, navigate, notify }) {
+export function Datasets({ datasets, setDatasets, pools, navigate, notify }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(null); const [importOpen, setImportOpen] = useState(false);
   const metadataInputRef=useRef(null);
@@ -83,14 +129,15 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
   const taskFormats = datasetRegistration.taskFormats;
   const emptyRegistration = { name:'', manifestUri:'', annotationUri:'', task:datasetRegistration.defaultTask, format:datasetRegistration.defaultFormat, parentId:'', sourceBatch:'', validated:false };
   const [registration,setRegistration]=useState(emptyRegistration);
+  const [registrationValidation,setRegistrationValidation]=useState(null);
   const latestDatasets = Object.values(datasets.reduce((acc,d) => {
     const key=d.name;
     if (!acc[key] || d.version > acc[key].version) acc[key]=d;
     return acc;
   }, {}));
   const results = latestDatasets.filter(d => `${d.name} ${d.strategy || ''} ${d.id}`.toLowerCase().includes(query.toLowerCase()));
-  const openImport = () => { setRegistration(emptyRegistration); setImportOpen(true); };
-  const patchRegistration = patch => setRegistration(value => ({ ...value, ...patch, validated:false }));
+  const openImport = () => { setRegistration(emptyRegistration); setRegistrationValidation(null); setImportOpen(true); };
+  const patchRegistration = patch => { setRegistration(value => ({ ...value, ...patch, validated:false })); setRegistrationValidation(null); };
   const autofillRegistration = () => {
     const importedParent=datasets.find(d=>d.id===registration.parentId);
     const matchingFamily=[...datasets].filter(d=>d.name===registration.name).sort((a,b)=>(b.version||0)-(a.version||0))[0];
@@ -121,20 +168,29 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
     });
     notify(`Autofilled ${parent?.name || 'dataset'} v${nextVersion} with unique artifact paths`);
   };
-  const validateRegistration = () => {
+  const registrationError = () => {
     const required = registration.name.trim() && registration.manifestUri.trim() && registration.annotationUri.trim() && registration.format && registration.parentId;
-    if (!required) { notify('Complete the required registration fields first'); return; }
+    if (!required) return 'Complete all required registration fields.';
     const uriConflict = datasets.some(d => d.manifestUri === registration.manifestUri || d.annotationUri === registration.annotationUri);
     const batchConflict = registration.sourceBatch && datasets.some(d => d.sourceBatch === registration.sourceBatch);
-    if (uriConflict || batchConflict) { notify('Registration reference already exists · use Autofill to generate a unique value'); return; }
-    setRegistration(value => ({...value,validated:true})); notify('Validation passed · references and schema are ready to register');
+    if (uriConflict || batchConflict) return 'A manifest, annotation URI, or Selection Batch reference already exists. Use Autofill to generate a unique next version.';
+    return '';
+  };
+  const validateRegistration = () => {
+    const error=registrationError();
+    if(error){setRegistration(value=>({...value,validated:false}));setRegistrationValidation({tone:'error',message:error});notify(error);return false;}
+    setRegistration(value => ({...value,validated:true}));
+    setRegistrationValidation({tone:'success',message:'References are complete, unique, and ready to register.'});
+    notify('Validation passed');
+    return true;
   };
   const registerDataset = () => {
-    if (!registration.validated) return;
+    const error=registrationError();
+    if(error){setRegistration(value=>({...value,validated:false}));setRegistrationValidation({tone:'error',message:error});notify(error);return;}
     const parent=datasets.find(d=>d.id===registration.parentId); const version=(parent?.version||0)+1; const stamp=Date.now().toString(36);
     const slug=parent?.slug || registration.name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
     const record={...parent,id:`${slug}-v${version}-${stamp.slice(-4)}`,slug,name:registration.name.trim(),subtitle:`${registration.task} · ${registration.format}`,task:registration.task,format:registration.format,aliases:['latest','candidate'],count:(parent?.count||0)+datasetRegistration.defaultAddedSamples,added:datasetRegistration.defaultAddedSamples,stage:'Labeled',version,round:version,date:new Date().toISOString(),parent:parent?.id||null,manifestUri:registration.manifestUri,annotationUri:registration.annotationUri,format:registration.format,sourceBatch:registration.sourceBatch,description:`Registered dataset version from ${registration.sourceBatch || 'external annotation return'}.`};
-    setDatasets(value=>[record,...value]); setImportOpen(false); notify(`${record.name} v${version} registered`);
+    setDatasets(value=>[record,...value]); setImportOpen(false); setRegistrationValidation(null); notify(`${record.name} v${version} registered`);
   };
   const exportDatasetMetadata = dataset => {
     downloadJSON(`${dataset.slug||dataset.id}-v${dataset.version}.metadata.json`, {
@@ -229,23 +285,23 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
         <div className="detail-section__body"><div className="provenance-grid"><StatRow label="Candidate pool" value={selectedPool ? `${selectedPool.name} p${selectedPool.version}` : selected.pool || '—'}/><StatRow label="Pool snapshot" value={selectedPool?.snapshot || '—'}/><StatRow label="Base dataset version" value={selectedParent ? `${selectedParent.name} v${selectedParent.version} · ${count(selectedParent.count)}` : `${seedDataset.name} · ${count(seedDataset.samples)}`}/><StatRow label="Selection strategy" value={selected.strategy || 'External registration'}/><StatRow label="Selection model" value={selected.model || '—'}/><StatRow label="Budget / added" value={`${count(selected.budget||0)} / ${count(selected.added||0)}`}/><StatRow label="Mining run" value={selected.run || '—'}/><StatRow label="Source selection batch" value={selected.sourceBatch || '—'}/><StatRow label="Evaluation" value={selected.evalId || '—'}/></div></div>
       </details>
     </Modal>}
-    {importOpen && <Modal title="Register dataset" onClose={() => setImportOpen(false)} footer={<><Button onClick={() => setImportOpen(false)}>Cancel</Button><Button onClick={validateRegistration}>Validate</Button><Button variant="primary" disabled={!registration.validated} onClick={registerDataset}>Register dataset</Button></>}><div className="register-intro"><div><p className="modal-intro">Register an existing labeled dataset by reference. RoadSift keeps its identity, version, membership and annotation lineage without copying the underlying media.</p></div><div className="register-intro__actions"><input ref={metadataInputRef} className="sr-only" type="file" accept="application/json,.json" onChange={importDatasetMetadata}/><Button icon={Upload} onClick={()=>metadataInputRef.current?.click()}>Import metadata</Button><Button icon={Sparkles} onClick={autofillRegistration}>Autofill</Button></div></div><Field label="Dataset name"><input value={registration.name} onChange={e=>patchRegistration({name:e.target.value})} placeholder="Night & Rain Fleet" /></Field><Field label="Manifest URI" hint="Canonical sample membership; Parquet or JSONL."><input value={registration.manifestUri} onChange={e=>patchRegistration({manifestUri:e.target.value})} placeholder="r2://roadsift/datasets/night-rain/v3/manifest.parquet" /></Field><Field label="Annotation URI"><input value={registration.annotationUri} onChange={e=>patchRegistration({annotationUri:e.target.value})} placeholder="r2://roadsift/annotations/night-rain/v3/annotations.json" /></Field><div className="register-grid"><Field label="Task"><select value={registration.task} onChange={e=>{const task=e.target.value;patchRegistration({task,format:taskFormats[task][0]})}}>{Object.keys(taskFormats).map(task=><option key={task}>{task}</option>)}</select></Field><Field label="Dataset / annotation format" help="The external annotation schema RoadSift will validate and map into its internal dataset contract."><select value={registration.format} onChange={e=>patchRegistration({format:e.target.value})}>{taskFormats[registration.task].map(format=><option key={format}>{format}</option>)}</select></Field></div><Field label="Base dataset version" help="The previous labeled dataset version. The new version inherits its membership before adding newly labeled samples." hint="The new version inherits all samples from the base dataset."><select value={registration.parentId} onChange={e=>patchRegistration({parentId:e.target.value})}><option value="">Select base version…</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)} samples</option>)}</select></Field><Field label="Source selection batch (optional)" help="The reviewed Selection Batch whose samples were externally annotated and are now being added to this dataset version." hint="Links the newly labeled samples back to the Mining batch that selected them."><input value={registration.sourceBatch} onChange={e=>patchRegistration({sourceBatch:e.target.value})} placeholder="batch_northern_highway_corridor_r13_ab12c" /></Field>{registration.validated&&<div className="registration-valid"><CheckCircle2 size={18}/><div><strong>Validation passed</strong><p>Required references are present, artifact URIs are unique in this registry, and the dataset is ready to register.</p></div></div>}</Modal>}
+    {importOpen && <Modal title="Register dataset" onClose={() => setImportOpen(false)} footer={<><Button onClick={() => setImportOpen(false)}>Cancel</Button><Button onClick={validateRegistration}>Validate</Button><Button variant="primary" onClick={registerDataset}>Register dataset</Button></>}><div className="register-intro"><div><p className="modal-intro">Register an existing labeled dataset by reference. RoadSift keeps its identity, version, membership and annotation lineage without copying the underlying media.</p></div><div className="register-intro__actions"><input ref={metadataInputRef} className="sr-only" type="file" accept="application/json,.json" onChange={importDatasetMetadata}/><Button icon={Upload} onClick={()=>metadataInputRef.current?.click()}>Import metadata</Button><Button icon={Sparkles} onClick={autofillRegistration}>Autofill</Button></div></div><Field label="Dataset name"><input value={registration.name} onChange={e=>patchRegistration({name:e.target.value})} placeholder="Night & Rain Fleet" /></Field><Field label="Manifest URI" hint="Canonical sample membership; Parquet or JSONL."><input value={registration.manifestUri} onChange={e=>patchRegistration({manifestUri:e.target.value})} placeholder="r2://roadsift/datasets/night-rain/v3/manifest.parquet" /></Field><Field label="Annotation URI"><input value={registration.annotationUri} onChange={e=>patchRegistration({annotationUri:e.target.value})} placeholder="r2://roadsift/annotations/night-rain/v3/annotations.json" /></Field><div className="register-grid"><Field label="Task"><select value={registration.task} onChange={e=>{const task=e.target.value;patchRegistration({task,format:taskFormats[task][0]})}}>{Object.keys(taskFormats).map(task=><option key={task}>{task}</option>)}</select></Field><Field label="Dataset / annotation format" help="The external annotation schema RoadSift will validate and map into its internal dataset contract."><select value={registration.format} onChange={e=>patchRegistration({format:e.target.value})}>{taskFormats[registration.task].map(format=><option key={format}>{format}</option>)}</select></Field></div><Field label="Base dataset version" help="The previous labeled dataset version. The new version inherits its membership before adding newly labeled samples." hint="The new version inherits all samples from the base dataset."><select value={registration.parentId} onChange={e=>patchRegistration({parentId:e.target.value})}><option value="">Select base version…</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)} samples</option>)}</select></Field><Field label="Source selection batch (optional)" help="The reviewed Selection Batch whose samples were externally annotated and are now being added to this dataset version." hint="Links the newly labeled samples back to the Mining batch that selected them."><input value={registration.sourceBatch} onChange={e=>patchRegistration({sourceBatch:e.target.value})} placeholder="batch_northern_highway_corridor_r13_ab12c" /></Field>{registrationValidation&&<div className={registrationValidation.tone==='success'?'registration-valid':'registration-error'}>{registrationValidation.tone==='success'?<CheckCircle2 size={18}/>:<X size={18}/>}<div><strong>{registrationValidation.tone==='success'?'Validation passed':'Validation failed'}</strong><p>{registrationValidation.message}</p></div></div>}</Modal>}
     {modelImportOpen&&<Modal title="Import model artifact" onClose={()=>setModelImportOpen(false)} footer={<><Button onClick={()=>setModelImportOpen(false)}>Cancel</Button><Button variant="primary" onClick={saveModelImport}>Import model</Button></>}><div className="register-intro"><p className="modal-intro">Reference an externally trained model artifact. RoadSift stores the model identity and URI; it does not train the model here.</p><Button icon={Sparkles} onClick={()=>setModelDraft({name:`YOLO11m · ${selected?.slug||selected?.id}-v${selected?.version}`,uri:`r2://roadsift/models/${selected?.slug||selected?.id}/v${selected?.version}/model.pt`})}>Autofill</Button></div><Field label="Model name"><input value={modelDraft.name} onChange={e=>setModelDraft(v=>({...v,name:e.target.value}))}/></Field><Field label="Artifact URI"><input value={modelDraft.uri} onChange={e=>setModelDraft(v=>({...v,uri:e.target.value}))}/></Field></Modal>}
     {evalImportOpen&&<Modal title="Import evaluation result" onClose={()=>setEvalImportOpen(false)} footer={<><Button onClick={()=>setEvalImportOpen(false)}>Cancel</Button><Button variant="primary" onClick={saveEvalImport}>Import evaluation</Button></>}><div className="register-intro"><p className="modal-intro">Register externally computed metrics against the fixed holdout. These metrics are evaluation-only and never feed sample selection.</p><Button icon={Sparkles} onClick={()=>setEvalDraft({id:`eval_${selected?.slug||selected?.id}_v${selected?.version}_${Date.now().toString(36).slice(-4)}`,holdoutId:holdouts[0]?.id||'',map:String(selected?.evaluation?.map??seedEvaluation.map),recall:String(selected?.evaluation?.recall??seedEvaluation.recall),vru:String(selected?.evaluation?.vru??seedEvaluation.vru),night:String(selected?.evaluation?.night??seedEvaluation.night),rain:String(selected?.evaluation?.rain??seedEvaluation.rain)})}>Autofill</Button></div><Field label="Evaluation ID"><input value={evalDraft.id} onChange={e=>setEvalDraft(v=>({...v,id:e.target.value}))}/></Field><Field label="Fixed holdout"><select value={evalDraft.holdoutId} onChange={e=>setEvalDraft(v=>({...v,holdoutId:e.target.value}))}>{holdouts.map(h=><option key={h.id} value={h.id}>{h.name} · {count(h.samples)} frames</option>)}</select></Field><div className="register-grid"><Field label="mAP50–95"><input value={evalDraft.map} onChange={e=>setEvalDraft(v=>({...v,map:e.target.value}))}/></Field><Field label="Recall"><input value={evalDraft.recall} onChange={e=>setEvalDraft(v=>({...v,recall:e.target.value}))}/></Field><Field label="VRU Recall"><input value={evalDraft.vru} onChange={e=>setEvalDraft(v=>({...v,vru:e.target.value}))}/></Field><Field label="Night Recall"><input value={evalDraft.night} onChange={e=>setEvalDraft(v=>({...v,night:e.target.value}))}/></Field><Field label="Rain/Fog Recall"><input value={evalDraft.rain} onChange={e=>setEvalDraft(v=>({...v,rain:e.target.value}))}/></Field></div></Modal>}
 
   </div>;
 }
 
-export function Explorer({ datasets, contextDataset, notify, navigate }) {
+export function Explorer({ datasets, pools, contextDataset, notify, navigate }) {
   const [sourceId,setSourceId]=useState(contextDataset?.id||'pool_fleet_001'); const [state,setState]=useState('All'); const [query,setQuery]=useState(''); const [domain,setDomain]=useState('All domains'); const [active,setActive]=useState(null); const [detections,setDetections]=useState(true); const [view,setView]=useState('grid');
-  const source=sourceId==='pool_fleet_001'?null:datasets.find(d=>d.id===sourceId); const sourceName=source? `${source.name} · v${source.version}`:fleetPool.name;
+  const sourcePool=pools.find(p=>p.id===sourceId); const source=sourcePool?null:datasets.find(d=>d.id===sourceId); const sourceName=source? `${source.name} · v${source.version}`:(sourcePool?.name||fleetPool.name);
   const stateLabels={ All:'All', Raw:'Eligible', Selected:'Reserved', Labeled:'Labeled', Excluded:'Excluded' };
   const availableStates=source?['All','Labeled']:['All','Raw','Selected','Labeled','Excluded'];
   const sourceFrames=source?frames.filter(f=>f.state==='Labeled'):frames;
   const visible=sourceFrames.filter(f=>(state==='All'||f.state===state)&&(domain==='All domains'||f.domain===domain)&&`${f.id} ${f.domain} ${f.video}`.toLowerCase().includes(query.toLowerCase()));
   const stateCount=s=>s==='All'?sourceFrames.length:sourceFrames.filter(f=>f.state===s).length;
   return <div className="page data-browser"><PageHeader eyebrow="Library" title="Data Explorer" description="Browse the frames inside a fleet pool or dataset. Inspect sample state, provenance, quality, predictions, and acquisition signals." actions={<><Segmented value={view} onChange={setView} options={[['grid','Grid'],['list','List']]} /><Button icon={SlidersHorizontal} onClick={()=>setDetections(v=>!v)}>{detections?'Hide detections':'Show detections'}</Button></>} />
-    <div className="browser-sourcebar"><div className="browser-source"><Database size={17}/><div><span>Browse source</span><select value={sourceId} onChange={e=>{setSourceId(e.target.value);setState('All');setActive(null)}}><option value="pool_fleet_001">{fleetPool.name} · {count(fleetPool.total)} frames</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)}</option>)}</select></div></div><div className="browser-source-meta"><span>{source?'Dataset':'Fleet pool'}</span><strong>{source?count(source.count):count(fleetPool.total)} frames</strong><small>{source?source.id:fleetPool.id}</small></div></div>
+    <div className="browser-sourcebar"><div className="browser-source"><Database size={17}/><div><span>Browse source</span><select value={sourceId} onChange={e=>{setSourceId(e.target.value);setState('All');setActive(null)}}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.total)} frames</option>)}{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)}</option>)}</select></div></div><div className="browser-source-meta"><span>{source?'Dataset':'Pool'}</span><strong>{source?count(source.count):count(sourcePool?.total||fleetPool.total)} frames</strong><small>{source?source.id:(sourcePool?.id||fleetPool.id)}</small></div></div>
     <div className="state-tabs-wrap"><div className="state-tabs">{availableStates.map(s=><button key={s} className={state===s?'state-tab state-tab--active':'state-tab'} onClick={()=>setState(s)}><span>{stateLabels[s]}</span><b>{source&&s==='All'?count(source.count):s==='All'?count(fleetPool.total):count(stateCount(s))}</b></button>)}</div>{!source&&<div className="lifecycle-help"><button type="button" aria-label="Explain pool lifecycle states">?</button><div className="lifecycle-help__popover" role="tooltip"><strong>Pool lifecycle</strong><p><b>Eligible</b> · candidate can be selected by Mining.</p><p><b>Reserved</b> · already selected into a Selection Batch or under review; temporarily unavailable for another run.</p><p><b>Labeled</b> · annotation has returned; excluded from the candidate set.</p><p><b>Excluded</b> · blocked by corrupt, deduplication, or eligibility policy.</p></div></div>}</div>
     <div className="explorer-toolbar browser-filters"><div className="search-field"><Search size={15}/><input aria-label="Search frames" placeholder="Search frame ID or source video…" value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={domain} onChange={e=>setDomain(e.target.value)}>{['All domains','Urban','Night','Rain','Highway'].map(d=><option key={d}>{d}</option>)}</select><select aria-label="Weather"><option>All weather</option><option>Clear</option><option>Rain</option><option>Fog</option></select><select aria-label="Quality"><option>All quality</option><option>Good</option><option>Quarantined</option></select></div>
     <div className="section-caption"><span>{visible.length} preview samples <i>·</i> {sourceName}</span><span>Click a frame to inspect</span></div>
@@ -270,7 +326,7 @@ export function ImportData({ notify, navigate }) {
   </div>;
 }
 
-export function Mining({ notify, setRuns, navigate, datasets }) {
+export function Mining({ notify, setRuns, navigate, datasets, pools }) {
   const latestDatasets=Object.values(datasets.reduce((acc,d)=>{ if(!acc[d.name]||d.version>acc[d.name].version) acc[d.name]=d; return acc; },{}));
   const [poolId,setPoolId]=useState(pools[0]?.id||'');
   const [datasetId,setDatasetId]=useState(latestDatasets[0]?.id||'');
