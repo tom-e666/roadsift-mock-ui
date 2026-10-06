@@ -76,6 +76,10 @@ export function Pools({ navigate }) {
 export function Datasets({ datasets, setDatasets, navigate, notify }) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(null); const [importOpen, setImportOpen] = useState(false);
+  const metadataInputRef=useRef(null);
+  const [modelImportOpen,setModelImportOpen]=useState(false), [evalImportOpen,setEvalImportOpen]=useState(false);
+  const [modelDraft,setModelDraft]=useState({name:'',uri:''});
+  const [evalDraft,setEvalDraft]=useState({id:'',holdoutId:holdouts[0]?.id||'',map:'',recall:'',vru:'',night:'',rain:''});
   const taskFormats = datasetRegistration.taskFormats;
   const emptyRegistration = { name:'', manifestUri:'', annotationUri:'', task:datasetRegistration.defaultTask, format:datasetRegistration.defaultFormat, parentId:'', sourceBatch:'', validated:false };
   const [registration,setRegistration]=useState(emptyRegistration);
@@ -88,7 +92,9 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
   const openImport = () => { setRegistration(emptyRegistration); setImportOpen(true); };
   const patchRegistration = patch => setRegistration(value => ({ ...value, ...patch, validated:false }));
   const autofillRegistration = () => {
-    const parent = [...datasets].sort((a,b)=>(b.version||0)-(a.version||0))[0] || datasets.at(-1);
+    const importedParent=datasets.find(d=>d.id===registration.parentId);
+    const matchingFamily=[...datasets].filter(d=>d.name===registration.name).sort((a,b)=>(b.version||0)-(a.version||0))[0];
+    const parent = importedParent || matchingFamily || [...datasets].sort((a,b)=>(b.version||0)-(a.version||0))[0] || datasets.at(-1);
     const nextVersion = (parent?.version || 0) + 1;
     const slug = parent?.slug || (parent?.name || 'fleet-dataset').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
     let nonce = Date.now().toString(36);
@@ -130,6 +136,67 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
     const record={...parent,id:`${slug}-v${version}-${stamp.slice(-4)}`,slug,name:registration.name.trim(),subtitle:`${registration.task} · ${registration.format}`,task:registration.task,format:registration.format,aliases:['latest','candidate'],count:(parent?.count||0)+datasetRegistration.defaultAddedSamples,added:datasetRegistration.defaultAddedSamples,stage:'Labeled',version,round:version,date:new Date().toISOString(),parent:parent?.id||null,manifestUri:registration.manifestUri,annotationUri:registration.annotationUri,format:registration.format,sourceBatch:registration.sourceBatch,description:`Registered dataset version from ${registration.sourceBatch || 'external annotation return'}.`};
     setDatasets(value=>[record,...value]); setImportOpen(false); notify(`${record.name} v${version} registered`);
   };
+  const exportDatasetMetadata = dataset => {
+    downloadJSON(`${dataset.slug||dataset.id}-v${dataset.version}.metadata.json`, {
+      schemaVersion:'roadsift.dataset.v1',
+      kind:'DatasetVersion',
+      exportedAt:new Date().toISOString(),
+      dataset
+    });
+    notify('Dataset metadata exported');
+  };
+  const importDatasetMetadata = async event => {
+    const file=event.target.files?.[0];
+    event.target.value='';
+    if(!file) return;
+    try{
+      const parsed=JSON.parse(await file.text());
+      const meta=parsed.dataset||parsed;
+      const task=taskFormats[meta.task]?meta.task:datasetRegistration.defaultTask;
+      const format=taskFormats[task]?.includes(meta.format)?meta.format:taskFormats[task][0];
+      setRegistration({
+        name:meta.name||'',
+        manifestUri:meta.manifestUri||'',
+        annotationUri:meta.annotationUri||'',
+        task,format,
+        parentId:datasets.some(d=>d.id===meta.parent)?meta.parent:(datasets.some(d=>d.id===meta.id)?meta.id:''),
+        sourceBatch:meta.sourceBatch||'',
+        validated:false
+      });
+      setImportOpen(true);
+      notify('Metadata imported · review fields or use Autofill for a unique next version');
+    }catch{
+      notify('Metadata import failed · expected valid RoadSift JSON metadata');
+    }
+  };
+  const openModelImport=()=>{
+    setModelDraft({name:selected?.model||'',uri:selected?.modelUri||`r2://roadsift/models/${selected?.id||'dataset'}/model.pt`});
+    setModelImportOpen(true);
+  };
+  const openEvalImport=()=>{
+    const e=selected?.evaluation||{};
+    setEvalDraft({id:selected?.evalId||'',holdoutId:holdouts[0]?.id||'',map:e.map??'',recall:e.recall??'',vru:e.vru??'',night:e.night??'',rain:e.rain??''});
+    setEvalImportOpen(true);
+  };
+  const saveModelImport=()=>{
+    if(!selected||!modelDraft.name.trim()||!modelDraft.uri.trim()){notify('Model name and artifact URI are required');return;}
+    const updated={...selected,model:modelDraft.name.trim(),modelUri:modelDraft.uri.trim()};
+    setDatasets(list=>list.map(d=>d.id===selected.id?updated:d)); setSelected(updated); setModelImportOpen(false); notify('Model artifact imported');
+  };
+  const saveEvalImport=()=>{
+    if(!selected||!evalDraft.id.trim()){notify('Evaluation ID is required');return;}
+    const values=['map','recall','vru','night','rain'].reduce((o,k)=>({...o,[k]:Number(evalDraft[k])}),{});
+    if(Object.values(values).some(v=>!Number.isFinite(v))){notify('All evaluation metrics must be numeric');return;}
+    const previous=selected.evaluation||{};
+    const evaluation={...previous,...values,
+      deltaMap:values.map-(previous.map??seedEvaluation.map),
+      deltaRecall:values.recall-(previous.recall??seedEvaluation.recall),
+      deltaVru:values.vru-(previous.vru??seedEvaluation.vru),
+      deltaNight:values.night-(previous.night??seedEvaluation.night)
+    };
+    const updated={...selected,evalId:evalDraft.id.trim(),holdoutId:evalDraft.holdoutId,evaluation};
+    setDatasets(list=>list.map(d=>d.id===selected.id?updated:d)); setSelected(updated); setEvalImportOpen(false); notify('Evaluation result imported');
+  };
   const selectedFamily = selected ? datasets.filter(d => d.name === selected.name).sort((a,b)=>(b.version||0)-(a.version||0)) : [];
   const selectedPool = selected ? pools.find(p => p.id === selected.pool) : null;
   const selectedParent = selected ? datasets.find(d => d.id === selected.parent) : null;
@@ -139,7 +206,7 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
       <div className="catalog__filters"><div className="search-field"><Search size={16} /><input aria-label="Search datasets" placeholder="Search datasets…" value={query} onChange={e => setQuery(e.target.value)} />{query && <button aria-label="Clear search" onClick={() => setQuery('')}><X size={14} /></button>}</div></div>
       {results.length ? <div className="table-scroll"><table className="dataset-table dataset-registry-table"><thead><tr><th>Dataset</th><th>Current version</th><th>Samples</th><th>Strategy</th><th>Updated</th></tr></thead><tbody>{results.map(d => <tr key={d.id} tabIndex="0" role="button" onClick={() => setSelected(d)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setSelected(d)}}}><td><div className="dataset-name-cell"><strong>{d.name}</strong><small>{d.domain || 'Mixed driving domain'}</small></div></td><td><div className="dataset-version-cell"><code className="artifact-ref">{d.slug || d.id}:v{d.version}</code>{(d.aliases||[]).length>0&&<small className="artifact-aliases">aliases: {(d.aliases||[]).join(', ')}</small>}</div></td><td className="tabular">{count(d.count)}</td><td>{d.strategy || 'External registration'}</td><td className="table-muted">{date(d.date)}</td></tr>)}</tbody></table></div> : <Empty title="No matching datasets" detail="Try a different search." action={<Button onClick={() => setQuery('')}>Clear search</Button>} />}
     </section>
-    {selected && <Modal sheet title="Dataset details" onClose={() => setSelected(null)} footer={<><Button icon={Download} onClick={() => { downloadJSON(`${selected.id}.json`, selected); notify('Dataset metadata exported'); }}>Export metadata</Button><Button variant="primary" icon={ArrowRight} onClick={() => navigate('data-explorer', selected)}>Explore dataset</Button></>}>
+    {selected && <Modal sheet title="Dataset details" onClose={() => setSelected(null)} footer={<><Button icon={Download} onClick={() => exportDatasetMetadata(selected)}>Export metadata</Button><Button variant="primary" icon={ArrowRight} onClick={() => navigate('data-explorer', selected)}>Explore dataset</Button></>}>
       <div className="detail-heading"><div className="detail-heading__meta"><code className="artifact-ref">{selected.slug || selected.id}:v{selected.version}</code>{(selected.aliases||[]).length>0&&<small>aliases: {(selected.aliases||[]).join(', ')}</small>}</div><h2>{selected.name}</h2><p>{selected.description}</p></div>
 
       <details className="detail-section" open>
@@ -149,7 +216,7 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
 
       <details className="detail-section" open>
         <summary><div><strong>Model & Evaluation</strong><span>External model feedback registered against this dataset version.</span></div></summary>
-        <div className="detail-section__body"><div className="model-eval-card model-eval-card--embedded"><div className="model-registry"><div><span>Registered model</span><strong>{selected.model || 'Not registered'}</strong><code>r2://roadsift/models/{selected.id}/model.pt</code></div><div><span className="inline-label-help">Evaluation <HelpTip>Fixed Holdout is never used for sample selection. It is reserved for comparing model performance across dataset versions.</HelpTip></span><strong>{holdouts[0]?.name} · {count(holdouts[0]?.samples)} frames</strong><code>{selected.evalId || 'Not registered'}</code></div></div>{selected.evaluation&&<div className="eval-metrics"><div><span>mAP50–95</span><strong>{selected.evaluation.map.toFixed(3)}</strong><em>+{selected.evaluation.deltaMap.toFixed(3)}</em></div><div><span>Recall</span><strong>{selected.evaluation.recall.toFixed(3)}</strong><em>+{selected.evaluation.deltaRecall.toFixed(3)}</em></div><div><span>VRU Recall</span><strong>{selected.evaluation.vru.toFixed(3)}</strong><em>+{selected.evaluation.deltaVru.toFixed(3)}</em></div><div><span>Night Recall</span><strong>{selected.evaluation.night.toFixed(3)}</strong><em>+{selected.evaluation.deltaNight.toFixed(3)}</em></div><div><span>Rain/Fog</span><strong>{selected.evaluation.rain.toFixed(3)}</strong><em>Fixed holdout</em></div></div>}<div className="release-gate"><span className="release-gate__status"><i/>Release gate passed <HelpTip>The registered evaluation satisfied the configured promotion criteria, so this model may be used for the next Mining round.</HelpTip></span><span>Eligible as acquisition model for the next mining round.</span></div><div className="model-eval-actions"><Button onClick={()=>notify('Model registry opened · external artifact')}>Register model</Button><Button variant="primary" icon={Upload} onClick={()=>notify('Evaluation updated · fixed holdout results registered')}>Update evaluation</Button></div></div></div>
+        <div className="detail-section__body"><div className="model-eval-card model-eval-card--embedded"><div className="model-registry"><div><span>Registered model</span><strong>{selected.model || 'Not registered'}</strong><code>{selected.modelUri || `r2://roadsift/models/${selected.id}/model.pt`}</code></div><div><span className="inline-label-help">Evaluation <HelpTip>Fixed Holdout is never used for sample selection. It is reserved for comparing model performance across dataset versions.</HelpTip></span><strong>{holdouts[0]?.name} · {count(holdouts[0]?.samples)} frames</strong><code>{selected.evalId || 'Not registered'}</code></div></div>{selected.evaluation&&<div className="eval-metrics"><div><span>mAP50–95</span><strong>{selected.evaluation.map.toFixed(3)}</strong><em>+{selected.evaluation.deltaMap.toFixed(3)}</em></div><div><span>Recall</span><strong>{selected.evaluation.recall.toFixed(3)}</strong><em>+{selected.evaluation.deltaRecall.toFixed(3)}</em></div><div><span>VRU Recall</span><strong>{selected.evaluation.vru.toFixed(3)}</strong><em>+{selected.evaluation.deltaVru.toFixed(3)}</em></div><div><span>Night Recall</span><strong>{selected.evaluation.night.toFixed(3)}</strong><em>+{selected.evaluation.deltaNight.toFixed(3)}</em></div><div><span>Rain/Fog</span><strong>{selected.evaluation.rain.toFixed(3)}</strong><em>Fixed holdout</em></div></div>}<div className="release-gate"><span className="release-gate__status"><i/>Release gate passed <HelpTip>The registered evaluation satisfied the configured promotion criteria, so this model may be used for the next Mining round.</HelpTip></span><span>Eligible as acquisition model for the next mining round.</span></div><div className="model-eval-actions"><Button variant={selected.model?'secondary':'primary'} icon={Upload} onClick={openModelImport}>Import model</Button><Button variant={!selected.model&&selected.evalId?'primary':'secondary'} icon={Upload} onClick={openEvalImport}>Import evaluation</Button></div></div></div>
       </details>
 
       <details className="detail-section" open>
@@ -162,7 +229,10 @@ export function Datasets({ datasets, setDatasets, navigate, notify }) {
         <div className="detail-section__body"><div className="provenance-grid"><StatRow label="Candidate pool" value={selectedPool ? `${selectedPool.name} p${selectedPool.version}` : selected.pool || '—'}/><StatRow label="Pool snapshot" value={selectedPool?.snapshot || '—'}/><StatRow label="Base dataset version" value={selectedParent ? `${selectedParent.name} v${selectedParent.version} · ${count(selectedParent.count)}` : `${seedDataset.name} · ${count(seedDataset.samples)}`}/><StatRow label="Selection strategy" value={selected.strategy || 'External registration'}/><StatRow label="Selection model" value={selected.model || '—'}/><StatRow label="Budget / added" value={`${count(selected.budget||0)} / ${count(selected.added||0)}`}/><StatRow label="Mining run" value={selected.run || '—'}/><StatRow label="Source selection batch" value={selected.sourceBatch || '—'}/><StatRow label="Evaluation" value={selected.evalId || '—'}/></div></div>
       </details>
     </Modal>}
-    {importOpen && <Modal title="Register dataset" onClose={() => setImportOpen(false)} footer={<><Button onClick={() => setImportOpen(false)}>Cancel</Button><Button onClick={validateRegistration}>Validate</Button><Button variant="primary" disabled={!registration.validated} onClick={registerDataset}>Register dataset</Button></>}><div className="register-intro"><div><p className="modal-intro">Register an existing labeled dataset by reference. RoadSift keeps its identity, version, membership and annotation lineage without copying the underlying media.</p></div><Button icon={Sparkles} onClick={autofillRegistration}>Autofill</Button></div><Field label="Dataset name"><input value={registration.name} onChange={e=>patchRegistration({name:e.target.value})} placeholder="Night & Rain Fleet" /></Field><Field label="Manifest URI" hint="Canonical sample membership; Parquet or JSONL."><input value={registration.manifestUri} onChange={e=>patchRegistration({manifestUri:e.target.value})} placeholder="r2://roadsift/datasets/night-rain/v3/manifest.parquet" /></Field><Field label="Annotation URI"><input value={registration.annotationUri} onChange={e=>patchRegistration({annotationUri:e.target.value})} placeholder="r2://roadsift/annotations/night-rain/v3/annotations.json" /></Field><div className="register-grid"><Field label="Task"><select value={registration.task} onChange={e=>{const task=e.target.value;patchRegistration({task,format:taskFormats[task][0]})}}>{Object.keys(taskFormats).map(task=><option key={task}>{task}</option>)}</select></Field><Field label="Dataset / annotation format" help="The external annotation schema RoadSift will validate and map into its internal dataset contract."><select value={registration.format} onChange={e=>patchRegistration({format:e.target.value})}>{taskFormats[registration.task].map(format=><option key={format}>{format}</option>)}</select></Field></div><Field label="Base dataset version" help="The previous labeled dataset version. The new version inherits its membership before adding newly labeled samples." hint="The new version inherits all samples from the base dataset."><select value={registration.parentId} onChange={e=>patchRegistration({parentId:e.target.value})}><option value="">Select base version…</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)} samples</option>)}</select></Field><Field label="Source selection batch (optional)" help="The reviewed Selection Batch whose samples were externally annotated and are now being added to this dataset version." hint="Links the newly labeled samples back to the Mining batch that selected them."><input value={registration.sourceBatch} onChange={e=>patchRegistration({sourceBatch:e.target.value})} placeholder="batch_northern_highway_corridor_r13_ab12c" /></Field>{registration.validated&&<div className="registration-valid"><CheckCircle2 size={18}/><div><strong>Validation passed</strong><p>Required references are present, artifact URIs are unique in this registry, and the dataset is ready to register.</p></div></div>}</Modal>}
+    {importOpen && <Modal title="Register dataset" onClose={() => setImportOpen(false)} footer={<><Button onClick={() => setImportOpen(false)}>Cancel</Button><Button onClick={validateRegistration}>Validate</Button><Button variant="primary" disabled={!registration.validated} onClick={registerDataset}>Register dataset</Button></>}><div className="register-intro"><div><p className="modal-intro">Register an existing labeled dataset by reference. RoadSift keeps its identity, version, membership and annotation lineage without copying the underlying media.</p></div><div className="register-intro__actions"><input ref={metadataInputRef} className="sr-only" type="file" accept="application/json,.json" onChange={importDatasetMetadata}/><Button icon={Upload} onClick={()=>metadataInputRef.current?.click()}>Import metadata</Button><Button icon={Sparkles} onClick={autofillRegistration}>Autofill</Button></div></div><Field label="Dataset name"><input value={registration.name} onChange={e=>patchRegistration({name:e.target.value})} placeholder="Night & Rain Fleet" /></Field><Field label="Manifest URI" hint="Canonical sample membership; Parquet or JSONL."><input value={registration.manifestUri} onChange={e=>patchRegistration({manifestUri:e.target.value})} placeholder="r2://roadsift/datasets/night-rain/v3/manifest.parquet" /></Field><Field label="Annotation URI"><input value={registration.annotationUri} onChange={e=>patchRegistration({annotationUri:e.target.value})} placeholder="r2://roadsift/annotations/night-rain/v3/annotations.json" /></Field><div className="register-grid"><Field label="Task"><select value={registration.task} onChange={e=>{const task=e.target.value;patchRegistration({task,format:taskFormats[task][0]})}}>{Object.keys(taskFormats).map(task=><option key={task}>{task}</option>)}</select></Field><Field label="Dataset / annotation format" help="The external annotation schema RoadSift will validate and map into its internal dataset contract."><select value={registration.format} onChange={e=>patchRegistration({format:e.target.value})}>{taskFormats[registration.task].map(format=><option key={format}>{format}</option>)}</select></Field></div><Field label="Base dataset version" help="The previous labeled dataset version. The new version inherits its membership before adding newly labeled samples." hint="The new version inherits all samples from the base dataset."><select value={registration.parentId} onChange={e=>patchRegistration({parentId:e.target.value})}><option value="">Select base version…</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)} samples</option>)}</select></Field><Field label="Source selection batch (optional)" help="The reviewed Selection Batch whose samples were externally annotated and are now being added to this dataset version." hint="Links the newly labeled samples back to the Mining batch that selected them."><input value={registration.sourceBatch} onChange={e=>patchRegistration({sourceBatch:e.target.value})} placeholder="batch_northern_highway_corridor_r13_ab12c" /></Field>{registration.validated&&<div className="registration-valid"><CheckCircle2 size={18}/><div><strong>Validation passed</strong><p>Required references are present, artifact URIs are unique in this registry, and the dataset is ready to register.</p></div></div>}</Modal>}
+    {modelImportOpen&&<Modal title="Import model artifact" onClose={()=>setModelImportOpen(false)} footer={<><Button onClick={()=>setModelImportOpen(false)}>Cancel</Button><Button variant="primary" onClick={saveModelImport}>Import model</Button></>}><div className="register-intro"><p className="modal-intro">Reference an externally trained model artifact. RoadSift stores the model identity and URI; it does not train the model here.</p><Button icon={Sparkles} onClick={()=>setModelDraft({name:`YOLO11m · ${selected?.slug||selected?.id}-v${selected?.version}`,uri:`r2://roadsift/models/${selected?.slug||selected?.id}/v${selected?.version}/model.pt`})}>Autofill</Button></div><Field label="Model name"><input value={modelDraft.name} onChange={e=>setModelDraft(v=>({...v,name:e.target.value}))}/></Field><Field label="Artifact URI"><input value={modelDraft.uri} onChange={e=>setModelDraft(v=>({...v,uri:e.target.value}))}/></Field></Modal>}
+    {evalImportOpen&&<Modal title="Import evaluation result" onClose={()=>setEvalImportOpen(false)} footer={<><Button onClick={()=>setEvalImportOpen(false)}>Cancel</Button><Button variant="primary" onClick={saveEvalImport}>Import evaluation</Button></>}><div className="register-intro"><p className="modal-intro">Register externally computed metrics against the fixed holdout. These metrics are evaluation-only and never feed sample selection.</p><Button icon={Sparkles} onClick={()=>setEvalDraft({id:`eval_${selected?.slug||selected?.id}_v${selected?.version}_${Date.now().toString(36).slice(-4)}`,holdoutId:holdouts[0]?.id||'',map:String(selected?.evaluation?.map??seedEvaluation.map),recall:String(selected?.evaluation?.recall??seedEvaluation.recall),vru:String(selected?.evaluation?.vru??seedEvaluation.vru),night:String(selected?.evaluation?.night??seedEvaluation.night),rain:String(selected?.evaluation?.rain??seedEvaluation.rain)})}>Autofill</Button></div><Field label="Evaluation ID"><input value={evalDraft.id} onChange={e=>setEvalDraft(v=>({...v,id:e.target.value}))}/></Field><Field label="Fixed holdout"><select value={evalDraft.holdoutId} onChange={e=>setEvalDraft(v=>({...v,holdoutId:e.target.value}))}>{holdouts.map(h=><option key={h.id} value={h.id}>{h.name} · {count(h.samples)} frames</option>)}</select></Field><div className="register-grid"><Field label="mAP50–95"><input value={evalDraft.map} onChange={e=>setEvalDraft(v=>({...v,map:e.target.value}))}/></Field><Field label="Recall"><input value={evalDraft.recall} onChange={e=>setEvalDraft(v=>({...v,recall:e.target.value}))}/></Field><Field label="VRU Recall"><input value={evalDraft.vru} onChange={e=>setEvalDraft(v=>({...v,vru:e.target.value}))}/></Field><Field label="Night Recall"><input value={evalDraft.night} onChange={e=>setEvalDraft(v=>({...v,night:e.target.value}))}/></Field><Field label="Rain/Fog Recall"><input value={evalDraft.rain} onChange={e=>setEvalDraft(v=>({...v,rain:e.target.value}))}/></Field></div></Modal>}
+
   </div>;
 }
 
