@@ -24,7 +24,7 @@ export default function App() {
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
   const [contextDataset, setContextDataset] = useState(null);
-  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', 'Import Data':'Nhập dữ liệu', Mining:'Mining', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
+  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', 'Import Data':'Nhập dữ liệu', Ingest:'Nhập dữ liệu', Mining:'Mining', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
   const rawTitle = allPages.find(([id]) => id === page)?.[1];
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
