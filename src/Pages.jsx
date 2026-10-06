@@ -66,7 +66,7 @@ export function Explorer({ datasets, contextDataset, notify, navigate }) {
 
 export function Lineage({ datasets, contextDataset, navigate }) {
   const [datasetId,setDatasetId]=useState(contextDataset?.id||datasets.at(-1)?.id||''); const [selectedKey,setSelectedKey]=useState('dataset'); const [zoom,setZoom]=useState(1);
-  const dataset=datasets.find(d=>d.id===datasetId)||datasets[0]; const isRav=dataset?.strategy?.startsWith('RAV'); const branch=isRav?'RAV Composite':'Uncertainty'; const v1=datasets.find(d=>(isRav?d.id==='rav-r1':d.id==='unc-r1')); const isV2=dataset?.version===2;
+  const dataset=datasets.find(d=>d.id===datasetId)||datasets[0]; const isRav=dataset?.strategy?.startsWith('Hybrid'); const branch=isRav?'Hybrid Sampling':'Entropy Sampling'; const v1=datasets.find(d=>(isRav?d.id==='rav-r1':d.id==='unc-r1')); const isV2=dataset?.version===2;
   const nodes=[
     {key:'ingest',type:'Source',title:'Fleet Ingest',count:184320,detail:'Extracted fleet frames',id:'ingest_fleet_20261006',time:'Oct 6 · 16:08'},
     {key:'pool',type:'Pool',title:fleetPool.name,count:fleetPool.total,detail:`${count(fleetPool.eligible)} eligible · ${count(fleetPool.excluded)} excluded · ${count(fleetPool.holdout)} holdout`,id:fleetPool.id,time:'Oct 6 · 18:32'},
