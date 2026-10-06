@@ -17,6 +17,7 @@ function useSimulation(onComplete) {
 }
 function Progress({ value, label }) { return <div className="progress"><div><span>{label}</span><strong>{value}%</strong></div><div className="progress__track"><i style={{ width: `${value}%` }} /></div></div>; }
 function StatRow({ label, value }) { return <div className="stat-row"><span>{label}</span><strong>{value}</strong></div>; }
+function ScoreBar({ label, value = 0 }) { const safe=Math.max(0,Math.min(1,Number(value)||0)); return <div className="score-bar"><div><span>{label}</span><strong>{safe.toFixed(2)}</strong></div><div className="score-bar__track"><i style={{width:`${safe*100}%`}} /></div></div>; }
 function Scene({ scene, alt, className = '' }) { return <img className={`scene ${className}`} src={sceneUrl(scene)} alt={alt || 'Illustrated demo driving scene'} loading="lazy" />; }
 function downloadJSON(name, data) { const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
