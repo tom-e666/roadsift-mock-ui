@@ -109,7 +109,10 @@ export function Pools({ navigate, pools, setPools, notify, routePath }) {
           <p className="pool-hint">Flags can overlap. Usable hard cases remain in the Pool.</p>
         </Panel>
       </div>
-      <Panel title="Snapshot history" description="Each version captures Pool membership after a recorded change.">
+      <Panel title="Sample preview">
+        <div className="pool-overview-previews">{(selected.sampleScenes||[0,1,2,3]).slice(0,4).map((scene,index)=><div key={index} className="pool-overview-preview"><Scene scene={scene} alt={`Sample preview ${index+1}`}/></div>)}</div>
+      </Panel>
+      <Panel title="Recent snapshots">
         <div className="pool-snapshot-timeline">{(selected.recentSnapshots||[]).map((snapshot,index,array)=>{
           const previous=array[index+1];
           const current=snapshot.version===selected.version;
@@ -122,14 +125,11 @@ export function Pools({ navigate, pools, setPools, notify, routePath }) {
               <div className="pool-snapshot-event-top"><div><strong>{selected.slug||selected.id}:p{snapshot.version}</strong>{current&&<Badge>Current</Badge>}</div><time dateTime={snapshot.at}>{date(snapshot.at)}</time></div>
               <p>{snapshot.reason||'Change reason not registered'}</p>
               <div className="pool-snapshot-numbers"><span><b>{count(snapshot.eligible||0)}</b> eligible</span>{previous&&<><span>Δ eligible <b className={eligibleDelta>0?'pool-positive':eligibleDelta<0?'pool-negative':''}>{deltaText(eligibleDelta)}</b></span><span>Δ total <b>{deltaText(totalDelta)}</b></span></>}</div>
-              {previous&&<small>Compared with p{previous.version}. Net changes do not identify individual ingested or reserved samples.</small>}
+
             </div>
           </div>
         })}</div>
-        <p className="pool-hint">Trigger job IDs and membership transitions are not recorded for these historical snapshots.</p>
-      </Panel>
-      <Panel title="Sample preview" description="Browse the available image collection in Data Explorer.">
-        <div className="pool-overview-previews">{(selected.sampleScenes||[0,1,2,3]).slice(0,4).map((scene,index)=><div key={index} className="pool-overview-preview"><Scene scene={scene} alt={`Sample preview ${index+1}`}/></div>)}</div>
+        <details className="advanced-config"><summary>Snapshot provenance</summary><p className="pool-hint">Net deltas are not ingest counts. Job IDs and membership transitions are not registered for these versions.</p></details>
       </Panel>
       <details className="panel mining-accordion pool-technical-section"><summary className="mining-accordion__summary"><strong>Technical metadata</strong><small>Snapshot references · activity</small></summary>
         <div className="panel__body"><div className="detail-stats"><StatRow label="Current version" value={`${selected.slug||selected.id}:p${selected.version}`}/><StatRow label="Snapshot ID" value={selected.snapshot}/>{selected.manifestUri&&<StatRow label="Manifest URI" value={selected.manifestUri}/>}
