@@ -16,6 +16,7 @@ try {
   const modelRegistryState = fixtures.modelRegistry;
   const algorithmRegistry = fixtures.strategies;
   const noop = () => {};
+  globalThis.window = { location: { search: '', pathname: '/history' } };
   const common = {
     datasets, setDatasets: noop, pools, setPools: noop,
     runs, setRuns: noop, selectionBatches, setSelectionBatches: noop,
@@ -23,6 +24,7 @@ try {
     modelRegistryState, setModelRegistryState: noop,
     algorithmRegistry, setAlgorithmRegistry: noop,
     notify: noop, navigate: noop, setLanguage: noop,
+    theme: 'light', setTheme: noop, preferences: {compact:false,animations:true}, setPreferences: noop,
     routePath: '/', contextDataset: null, language: 'en',
   };
   const cases = [
@@ -49,6 +51,8 @@ try {
   const failures = [];
   for (const [label, id, path] of cases) {
     try {
+      window.location.pathname = path.split('?')[0];
+      window.location.search = path.includes('?')?'?'+path.split('?')[1]:'';
       const html = renderToStaticMarkup(React.createElement(components[id], { ...common, routePath: path }));
       if (!html || html.length < 50) throw new Error('Empty HTML');
       console.log('PASS', label, html.length, 'chars');
