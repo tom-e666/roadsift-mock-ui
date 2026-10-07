@@ -707,3 +707,18 @@ th .help-tip{margin-left:4px}
 .mining-page--production .mining-code-panel .mining-code-actions{flex-wrap:wrap}
 @media(max-width:1100px){.mining-page--production .mining-builder{grid-template-columns:minmax(0,1fr)}.mining-page--production .mining-builder__side{position:static}.mining-page--production .mining-privacy-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:680px){.mining-page--production .mining-privacy-fields{grid-template-columns:1fr}.mining-page--production .mining-preview-file{flex-direction:column;align-items:flex-start}}
+
+/* Shared Data Explorer batch-review mode */
+.batch-review-banner{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);gap:18px;align-items:center;padding:14px 16px;margin-bottom:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.batch-review-banner>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.batch-review-banner small,.batch-review-banner span{color:var(--secondary);font-size:11px}
+.batch-review-banner strong{font-size:14px}
+.batch-review-banner__progress{display:grid;gap:6px}
+.batch-review-banner__progress>span{font-size:11px;color:var(--secondary)}
+.batch-review-banner__progress>strong{font-size:16px}
+.explorer-source-lock{display:flex;align-items:center;gap:8px;min-width:220px}
+.explorer-source-lock>span{font-size:11px;color:var(--secondary)}
+.review-decision-actions{display:flex;gap:8px;margin-right:auto}
+.data-browser .sample-state{max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batches-table td:last-child{white-space:nowrap}
+@media(max-width:820px){.batch-review-banner{grid-template-columns:1fr}.explorer-source-lock{min-width:0}.review-decision-actions{width:100%;flex-wrap:wrap}}
