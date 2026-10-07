@@ -465,8 +465,7 @@ export function Explorer({datasets,pools,contextDataset,notify,navigate}) {
 }
 
 export function ImportData({notify,navigate,pools,contextDataset}) {
-  const [workflow,setWorkflow]=useState('register');
-  const [adapter,setAdapter]=useState('manifest');
+  const [adapter,setAdapter]=useState('local');
   const [storageUri,setStorageUri]=useState('');
   const [manifestFormat,setManifestFormat]=useState('Parquet');
   const [mediaKind,setMediaKind]=useState('video');
@@ -486,8 +485,7 @@ export function ImportData({notify,navigate,pools,contextDataset}) {
   const filesOk=files.length>0&&files.every(f=>mediaKind==='video'?f.type.startsWith('video/')||/\.(mp4|mov|mkv|webm)$/i.test(f.name):f.type.startsWith('image/')||/\.(jpe?g|png|webp)$/i.test(f.name));
   const sourceOk=adapter==='local'?filesOk:uriOk&&extensionOk;
   const destinationOk=destination==='existing'?!!currentPool:poolName.trim().length>=2;
-  const sourceName=workflow==='register'?'Existing frames':'Raw media';
-  const isVideo=workflow==='process'&&mediaKind==='video';
+  const isVideo=adapter!=='manifest'&&mediaKind==='video';
   const markEdited=()=>{setValidation(false);setDraftSubmitted(false)};
   const chooseFiles=list=>{
     const picked=Array.from(list||[]);
@@ -503,9 +501,9 @@ export function ImportData({notify,navigate,pools,contextDataset}) {
   };
   const spec={
     schemaVersion:'roadsift.ingest-job.v1',
-    operation:workflow==='register'?'register-existing-frames':'process-raw-media',
+    operation:isVideo?'process-raw-media':'register-existing-frames',
     sampleUnit:'frame',
-    source:{adapter,kind:workflow==='register'?'frames':mediaKind,
+    source:{adapter,kind:adapter==='manifest'?'frames':mediaKind,
       ...(adapter==='local'?{localFiles:files.map(f=>({name:f.name,sizeBytes:f.size,mimeType:f.type}))}:{uri:storageUri.trim()}),
       ...(adapter==='manifest'?{manifestFormat}: {})},
     processing:{extractFrames:isVideo, ...(isVideo?{fps:Number(fps)}:{}),qualityChecks:worker.qualityChecks,deduplication:worker.deduplication,metadataIndex:worker.metadataIndex},
@@ -520,37 +518,33 @@ export function ImportData({notify,navigate,pools,contextDataset}) {
   };
   const storageCheck=adapter==='local'?'Local files selected · not staged to R2':'Source URI entered · access not verified';
   return <div className="page ingest-simple">
-    <PageHeader eyebrow="Data operations" title="Ingest" description="Register frame samples into a versioned Candidate Pool." actions={<Button icon={Database} onClick={()=>navigate('pools')}>Pool registry</Button>}/>
+    <PageHeader eyebrow="Data operations" title="Import data" description="Add videos or images to a Candidate Pool." actions={<Button icon={Database} onClick={()=>navigate('pools')}>Pool registry</Button>}/>
     <div className="ingest-single-column ingest-workflow">
-      <Panel title="1. Input">
-        <div className="ingest-mode-picker" role="group" aria-label="Ingest workflow">
-          <button className={workflow==='register'?'ingest-mode active':'ingest-mode'} aria-pressed={workflow==='register'} onClick={()=>{setWorkflow('register');setAdapter('manifest');setFiles([]);setStorageUri('');markEdited()}}>
-            <strong>Register existing frames</strong><span>Images already extracted · recommended</span>
-          </button>
-          <button className={workflow==='process'?'ingest-mode active':'ingest-mode'} aria-pressed={workflow==='process'} onClick={()=>{setWorkflow('process');setAdapter('storage');setStorageUri('');setFiles([]);markEdited()}}>
-            <strong>Process raw media</strong><span>Video or photos · worker preprocessing</span>
-          </button>
+      <Panel title="1. Where is your data?" description="Choose a source and the type of media to import.">
+        <div className="ingest-source-cards" role="group" aria-label="Data source">
+          {[['local','Upload files','Media on your computer',Upload],['storage','Cloud storage','R2 / S3 bucket or prefix',Cloud],['manifest','Import manifest','Advanced · CSV / JSONL / Parquet',FileText]].map(([id,label,description,Icon])=>
+            <button type="button" key={id} aria-pressed={adapter===id} className={adapter===id?'ingest-source-card active':'ingest-source-card'} onClick={()=>{setAdapter(id);setFiles([]);setStorageUri('');setFileError('');markEdited()}}>
+              <Icon size={19} strokeWidth={1.7}/><strong>{label}</strong><span>{description}</span>
+            </button>)}
         </div>
-        {workflow==='process'&&<div className="ingest-inline-choice"><span>Media type</span><div className="segmented compact"><button className={mediaKind==='video'?'active':''} onClick={()=>{configure(setMediaKind,'video');setFiles([])}}>Video → frames</button><button className={mediaKind==='images'?'active':''} onClick={()=>{configure(setMediaKind,'images');setFiles([])}}>Images</button></div></div>}
-        <div className="ingest-inline-choice"><span>Source</span><div className="segmented compact">
-          {workflow==='register'&&<button className={adapter==='manifest'?'active':''} onClick={()=>configure(setAdapter,'manifest')}>Manifest</button>}
-          <button className={adapter==='storage'?'active':''} onClick={()=>configure(setAdapter,'storage')}>R2 / S3</button>
-          {workflow==='process'&&<button className={adapter==='local'?'active':''} onClick={()=>configure(setAdapter,'local')}>Local files</button>}
-        </div></div>
+        {adapter!=='manifest'&&<div className="ingest-inline-choice ingest-media-kind"><span>What are you importing?</span><div className="segmented compact" role="group" aria-label="Media type">
+          <button aria-pressed={mediaKind==='video'} className={mediaKind==='video'?'active':''} onClick={()=>{configure(setMediaKind,'video');setFiles([]);setFileError('')}}>Videos</button>
+          <button aria-pressed={mediaKind==='images'} className={mediaKind==='images'?'active':''} onClick={()=>{configure(setMediaKind,'images');setFiles([]);setFileError('')}}>Images / frames</button>
+        </div></div>}
         {adapter==='local'?<div className="ingest-file-manager">
           <input ref={picker} type="file" className="sr-only" multiple accept={mediaKind==='video'?'video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm':'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'} onChange={e=>{chooseFiles(e.target.files);e.target.value=''}}/>
-          <button type="button" className="ingest-dropzone-new" onClick={()=>picker.current?.click()}><Upload size={20}/><strong>Add {mediaKind==='video'?'videos':'images'}</strong><span>{mediaKind==='video'?'MP4 · MOV · MKV · WebM':'JPG · PNG · WebP'}</span></button>
-          {fileError&&<p className="mining-inline-error">{fileError}</p>}
-          {!!files.length&&<div className="ingest-files">{files.map((file,i)=><div key={`${file.name}-${i}`}><FileText size={16}/><span title={file.name}>{file.name}</span><small>{(file.size/1024/1024).toFixed(1)} MB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={()=>{setFiles(old=>old.filter((_,j)=>i!==j));markEdited()}}><X size={14}/></button></div>)}</div>}
+          <button type="button" className="ingest-dropzone-new" onClick={()=>picker.current?.click()}><Upload size={20}/><strong>Choose {mediaKind==='video'?'videos':'images'}</strong><span>{mediaKind==='video'?'MP4 · MOV · MKV · WebM':'JPG · PNG · WebP'}</span></button>
+          {fileError&&<p className="mining-inline-error" role="alert">{fileError}</p>}
+          {!!files.length&&<><p className="ingest-file-count">{files.length} {files.length===1?'file':'files'} selected · Not uploaded</p><div className="ingest-files">{files.map((file,i)=><div key={`${file.name}-${i}`}><FileText size={16}/><span title={file.name}>{file.name}</span><small>{(file.size/1024/1024).toFixed(1)} MB</small><button type="button" aria-label={`Remove ${file.name}`} onClick={()=>{setFiles(old=>old.filter((_,j)=>i!==j));markEdited()}}><X size={14}/></button></div>)}</div></>}
+          <p className="ingest-disclaimer">Files are selected locally, not uploaded. Production requires R2 staging.</p>
         </div>:<div className="ingest-source-fields">
-          <Field label={adapter==='manifest'?'Frame manifest URI *':workflow==='register'?'Frame storage prefix *':mediaKind==='video'?'Video storage prefix *':'Image storage prefix *'}>
-            <input value={storageUri} onChange={e=>configure(setStorageUri,e.target.value)} placeholder={adapter==='manifest'?'r2://fleet/manifests/frames.parquet':workflow==='register'?'r2://fleet/frames/oct-07/':mediaKind==='video'?'r2://fleet/raw/videos/':'r2://fleet/raw/images/'}/>
-          </Field>
+          <Field label={adapter==='manifest'?'Frame manifest URI *':'Storage prefix *'}><input value={storageUri} onChange={e=>configure(setStorageUri,e.target.value)} placeholder={adapter==='manifest'?'r2://fleet/manifests/frames.parquet':mediaKind==='video'?'r2://fleet/raw/videos/':'r2://fleet/frames/oct-07/'}/></Field>
           {adapter==='manifest'&&<Field label="Format"><select value={manifestFormat} onChange={e=>configure(setManifestFormat,e.target.value)}>{importSimulation.manifestFormats.map(format=><option key={format}>{format}</option>)}</select></Field>}
-          {storageUri.trim()&&!sourceOk&&<p className="mining-inline-error">Enter a valid R2/S3 {adapter==='manifest'?'manifest URI (.csv, .jsonl or .parquet)':'prefix'}.</p>}
+          {storageUri.trim()&&!sourceOk&&<p className="mining-inline-error" role="alert">Enter a valid R2/S3 {adapter==='manifest'?'manifest URI (.csv, .jsonl or .parquet)':'prefix'}.</p>}
+          {adapter==='manifest'&&<p className="ingest-disclaimer">References existing frames; no video extraction needed.</p>}
         </div>}
       </Panel>
-      <Panel title="2. Destination">
+      <Panel title="2. Add to Pool">
         <div className="ingest-inline-choice"><span>Candidate Pool</span><div className="segmented compact"><button className={destination==='existing'?'active':''} onClick={()=>configure(setDestination,'existing')}>Existing Pool</button><button className={destination==='new'?'active':''} onClick={()=>configure(setDestination,'new')}>New Pool</button></div></div>
         {destination==='existing'?<Field label="Select Pool"><select value={poolId} onChange={e=>configure(setPoolId,e.target.value)}>{pools.map(pool=><option key={pool.id} value={pool.id}>{pool.name} · p{pool.version}</option>)}</select></Field>:<Field label="New Pool name"><input value={poolName} onChange={e=>configure(setPoolName,e.target.value)} placeholder="Northern Fleet Pool"/></Field>}
         <div className="ingest-destination-note"><Database size={16}/><span>{destination==='existing'&&currentPool?`Worker publishes ${currentPool.slug}:p${currentPool.version+1} after validation`:'Worker publishes the first Pool Snapshot (p1) after validation'}</span></div>
@@ -560,8 +554,8 @@ export function ImportData({notify,navigate,pools,contextDataset}) {
           <div className="worker-policy-list">{[['Quality checks',worker.qualityChecks],['Deduplication',worker.deduplication],['Metadata indexing',worker.metadataIndex]].map(([name,enabled])=><div key={name}><Check size={14}/><span>{name}</span><strong>{enabled?'On':'Off'}</strong></div>)}</div>
         </div>
       </details>
-      <Panel title="Output">
-        <div className="ingest-output-steps"><div><FileText size={16}/><strong>Frame manifest</strong></div><ArrowRight size={14}/><div><Database size={16}/><strong>{destination==='existing'&&currentPool?`${currentPool.slug}:p${currentPool.version+1}`:'New Pool · p1'}</strong></div></div>
+      <Panel title="3. What will happen">
+        <div className="ingest-output-steps"><div><FileText size={16}/><strong>{isVideo?`Extract frames · ${fps} FPS`:adapter==='manifest'?'Register frame references':'Validate images'}</strong></div><ArrowRight size={14}/><div><Database size={16}/><strong>{destination==='existing'&&currentPool?`${currentPool.slug}:p${currentPool.version+1}`:'New Pool · p1'}</strong></div></div>
         <p className="ingest-disclaimer">Raw videos remain Source Assets. Only frame samples become Pool members. A new snapshot is published after worker success.</p>
       </Panel>
       <details className="panel mining-accordion"><summary className="mining-accordion__summary"><strong>Job specification</strong><small>JSON · read-only</small></summary><div className="panel__body"><Button icon={Download} onClick={()=>downloadJSON('roadsift-ingest-job.json',spec)}>Download JSON</Button><pre className="mining-code-block"><code>{JSON.stringify(spec,null,2)}</code></pre></div></details>
