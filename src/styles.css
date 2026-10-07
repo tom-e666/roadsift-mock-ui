@@ -299,3 +299,37 @@ th .help-tip{margin-left:4px}
 .mining-accordion[open]>.panel__body{border-top:1px solid var(--line)}
 .mining-page--production .mining-builder__side{position:sticky;top:82px;align-self:start}
 @media(max-width:900px){.mining-page--production .mining-builder__side{position:static}.mining-accordion__summary{align-items:flex-start}.mining-accordion__summary small{max-width:48%}}
+
+/* Comparison workspace: provenance first, charts second */
+.comparison-experiment-picker{display:grid;grid-template-columns:minmax(280px,480px) 1fr;gap:16px;align-items:center;margin:14px 0}
+.comparison-experiment-picker p{font-size:12px;color:var(--muted);line-height:1.5;margin:6px 0}
+.comparison-contract--new strong{overflow-wrap:anywhere;font-size:12px}
+.comparison-validity,.comparison-curve-panel,.comparison-efficiency,.comparison-blocked{padding:18px;background:var(--surface);border:1px solid var(--line);border-radius:11px;margin:14px 0}
+.comparison-validity{display:grid;grid-template-columns:1fr auto;gap:12px}
+.comparison-validity h2,.comparison-curve-panel h2,.comparison-efficiency h2{font-size:15px;margin:0}
+.comparison-validity p,.comparison-curve-panel p,.comparison-efficiency p{font-size:12px;color:var(--muted);line-height:1.5;margin:5px 0}
+.comparison-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-column:1/-1;gap:7px}
+.comparison-checks>div{font-size:12px;display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--bg);border-radius:7px}
+.comparison-checks .pass span{color:#14804a}.comparison-checks .fail span{color:#c53631}
+.comparison-line-legend{display:flex;gap:18px;align-items:center;font-size:12px;flex-wrap:wrap;margin:12px 0}
+.comparison-line-legend>span{display:flex;gap:7px;align-items:center}
+.comparison-line-legend i{display:inline-block;width:17px;height:3px;border-radius:3px}
+.comparison-key-a{background:#0071e3}.comparison-key-b{background:#c17835}
+.comparison-svg-wrap{width:100%;overflow-x:auto}
+.comparison-svg-wrap svg{display:block;width:100%;min-width:620px;max-height:360px;color:var(--text)}
+.comparison-round-selector{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:12px}
+.comparison-round-selector>span{color:var(--muted);margin-right:8px}
+.comparison-round-selector button{padding:6px 11px;border-radius:7px;border:1px solid var(--line);color:var(--text);background:var(--bg);font-size:12px}
+.comparison-round-selector button.active{border-color:var(--accent);color:var(--accent);background:var(--surface)}
+.comparison-checkpoint{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.comparison-checkpoint>div{padding:13px;border:1px solid var(--line);border-radius:9px;display:grid;gap:7px;min-width:0}
+.comparison-checkpoint small,.comparison-checkpoint span{font-size:12px;color:var(--muted)}
+.comparison-checkpoint strong{font-size:20px;font-variant-numeric:tabular-nums}
+.comparison-slice-row{display:grid;grid-template-columns:1fr 80px 80px;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12px}
+.comparison-slice-row strong{font-variant-numeric:tabular-nums}
+.comparison-efficiency .comparison-checkpoint{grid-template-columns:repeat(2,minmax(0,1fr))}
+.comparison-blocked{text-align:center;padding:44px 20px}
+.comparison-blocked svg{color:#c53631;margin:0 auto}
+.comparison-blocked h2{font-size:16px;margin:12px 0 4px}
+.comparison-blocked p{font-size:12px;color:var(--muted)}
+@media(max-width:760px){.comparison-experiment-picker,.comparison-checks,.comparison-checkpoint,.comparison-efficiency .comparison-checkpoint{grid-template-columns:1fr}.comparison-validity{grid-template-columns:1fr}}
