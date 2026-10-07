@@ -144,7 +144,7 @@ export function Pools({ navigate, pools, setPools, notify, routePath }) {
 
 export function Datasets({ datasets, setDatasets, pools, navigate, notify, routePath }) {
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState(null); const [tab,setTab] = useState('overview'); const [importOpen, setImportOpen] = useState(false);
+  const [selected, setSelected] = useState(null); const [importOpen, setImportOpen] = useState(false);
   const metadataInputRef=useRef(null);
   const [modelImportOpen,setModelImportOpen]=useState(false), [evalImportOpen,setEvalImportOpen]=useState(false);
   const [modelDraft,setModelDraft]=useState({name:'',uri:''});
@@ -280,7 +280,6 @@ export function Datasets({ datasets, setDatasets, pools, navigate, notify, route
     const routeId=routePath?.startsWith('/datasets/')?decodeURIComponent(routePath.slice('/datasets/'.length)):null;
     const next=routeId?datasets.find(d=>d.id===routeId)||null:null;
     setSelected(next);
-    setTab('overview');
   },[routePath,datasets]);
   const openDetails=dataset=>navigate(`/datasets/${encodeURIComponent(dataset.id)}`);
   const closeDetails=()=>navigate('datasets');
@@ -299,7 +298,13 @@ export function Datasets({ datasets, setDatasets, pools, navigate, notify, route
       <div className="dataset-detail-top"><Button icon={ArrowLeft} onClick={closeDetails}>All datasets</Button><Button icon={Download} onClick={()=>exportDatasetMetadata(selected)}>Export metadata</Button></div>
       <div className="dataset-detail-heading">
         <div><p className="eyebrow">Dataset · <span className="pool-current-version">{selected.slug||selected.id}:v{selected.version}</span></p><h2>{selected.name}</h2><p>{selected.domain||'Mixed'} · {selected.task||datasetRegistration.defaultTask} · Updated {date(selected.updatedAt||selected.date)}</p></div>
-        <div className="dataset-detail-hero-metrics"><div><small>Labeled samples</small><strong>{count(selected.count||0)}</strong></div><div><small>Current version</small><strong>v{selected.version}</strong></div></div>
+        <div className="dataset-version-control">
+          <label htmlFor="dataset-version-select">Dataset version</label>
+          <select id="dataset-version-select" aria-label="Select dataset version" value={selected.id} onChange={event=>{const version=selectedFamily.find(item=>item.id===event.target.value);if(version)openDetails(version)}}>
+            {selectedFamily.map(version=><option key={version.id} value={version.id}>v{version.version} · {count(version.count)} samples</option>)}
+          </select>
+          <span>{count(selected.count||0)} labeled samples</span>
+        </div>
       </div>
       <Panel title="Evaluation & release status">
         <div className="dataset-evaluation-overview">
