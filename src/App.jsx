@@ -7,7 +7,8 @@ import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, Histor
 
 function readState(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; } catch { return fallback; } }
 function useLocalState(key, initial) { const [value, setValue] = useState(() => readState(key, initial)); useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Continue without persistence if storage is unavailable. */ } }, [key, value]); return [value, setValue]; }
-function currentPage() { const path = window.location.pathname.split('/')[1] || 'datasets'; return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'datasets', 'model-metrics': 'datasets', projects: 'history', lineage: 'datasets', labeling: 'datasets', pal: 'mining', documentation: 'onboarding' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
+function currentPage() { const path = window.location.pathname.split('/')[1] || 'datasets'; if (path === 'pools' && window.location.pathname.split('/')[2]) return 'pools';
+  return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'datasets', 'model-metrics': 'datasets', projects: 'history', lineage: 'datasets', labeling: 'datasets', pal: 'mining', documentation: 'onboarding' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
 
 export default function App() {
   const [page, setPage] = useState(currentPage);
@@ -34,9 +35,9 @@ export default function App() {
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
     const next = target.startsWith('/') ? target.slice(1).split('?')[0] : target;
-    if (!allPages.some(([id]) => id === next) && !/^datasets\/[^/]+$/.test(next)) return;
+    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools)\/[^/]+$/.test(next)) return;
     if (dataset) setContextDataset(dataset);
-    window.history.pushState({}, '', `/${next}`); setRoutePath(`/${next}`); setPage(next.startsWith('datasets/')?'datasets':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
+    window.history.pushState({}, '', `/${next}`); setRoutePath(`/${next}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
   useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
   useEffect(() => { document.title = `RoadSift · ${title}`; }, [title]);
