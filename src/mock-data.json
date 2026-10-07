@@ -3787,6 +3787,25 @@
       ],
       "createdAt": "2026-10-05T17:23:41",
       "fixture": true
+    },
+    {
+      "id": "model_privacy_demo_v1",
+      "name": "Face & Plate Detector (demo)",
+      "version": "1.0.0",
+      "artifactUri": "r2://roadsift/demo-models/privacy/face-plate-v1.pt",
+      "datasetVersionId": null,
+      "status": "Registered",
+      "task": "Privacy Detection",
+      "capabilities": [
+        "privacy"
+      ],
+      "classes": [
+        "face",
+        "license_plate"
+      ],
+      "createdAt": "2026-10-07T03:00:00Z",
+      "fixture": true,
+      "description": "UI-only registration fixture; artifact is not deployed."
     }
   ],
   "evaluationRegistry": [
