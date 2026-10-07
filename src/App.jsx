@@ -54,6 +54,15 @@ export default function App() {
   const [selectionBatches, setSelectionBatches] = useLocalState('roadsift-mock-batches-v1', initialSelectionBatches);
   const [runnerRegistry, setRunnerRegistry] = useLocalState('roadsift-mock-runners-v1', initialRunners);
   const [modelRegistryState, setModelRegistryState] = useLocalState('roadsift-mock-models-v1', initialModels);
+  // Add new built-in fixtures to older browsers that already persisted registry state.
+  useEffect(() => {
+    const builtInPrivacyModels=initialModels.filter(m=>m.capabilities?.includes('privacy')&&m.fixture);
+    if(!builtInPrivacyModels.length)return;
+    setModelRegistryState(previous=>{
+      const missing=builtInPrivacyModels.filter(m=>!previous.some(existing=>existing.id===m.id));
+      return missing.length?[...previous,...missing]:previous;
+    });
+  }, []);
   const [algorithmRegistry, setAlgorithmRegistry] = useLocalState('roadsift-mock-algorithms-v1', initialAlgorithms);
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
