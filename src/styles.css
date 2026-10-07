@@ -287,3 +287,15 @@ th .help-tip{margin-left:4px}
 .mining-inline-error{font-size:12px;line-height:1.45;margin:10px 0;color:#c53631}
 .mining-model-ref{border:1px solid var(--line);border-radius:8px;padding:10px}
 .mining-page--production .advanced-config .strategy-params{margin-top:10px}
+
+/* Mining resource accordion; collapse summary retains live configuration */
+.mining-accordion{overflow:hidden}
+.mining-accordion__summary{display:flex;justify-content:space-between;gap:12px;align-items:center;cursor:pointer;list-style:none;padding:16px 18px}
+.mining-accordion__summary::-webkit-details-marker{display:none}
+.mining-accordion__summary:after{content:"⌄";font-size:18px;color:var(--muted);margin-left:6px;transition:transform .15s}
+.mining-accordion[open]>.mining-accordion__summary:after{transform:rotate(180deg)}
+.mining-accordion__summary strong{font-size:13px}
+.mining-accordion__summary small{color:var(--muted);font-size:12px;line-height:1.4;text-align:right;max-width:57%;overflow:hidden;text-overflow:ellipsis}
+.mining-accordion[open]>.panel__body{border-top:1px solid var(--line)}
+.mining-page--production .mining-builder__side{position:sticky;top:82px;align-self:start}
+@media(max-width:900px){.mining-page--production .mining-builder__side{position:static}.mining-accordion__summary{align-items:flex-start}.mining-accordion__summary small{max-width:48%}}

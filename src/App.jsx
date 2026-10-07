@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDown, X, Check, Command, FlaskConical } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette.jsx';
 import { Button, Modal } from './components/UI.jsx';
-import { groups, allPages, initialDatasets, initialRuns, initialPools, initialSelectionBatches } from './data.js';
+import { groups, allPages, initialDatasets, initialRuns, initialPools, initialSelectionBatches, runners as initialRunners, modelRegistry as initialModels, strategies as initialAlgorithms } from './data.js';
 import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
 
 function readState(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; } catch { return fallback; } }
@@ -22,6 +22,9 @@ export default function App() {
   const [runs, setRuns] = useLocalState('roadsift-mock-runs-v2', initialRuns);
   const [pools, setPools] = useLocalState('roadsift-mock-pools-v1', initialPools);
   const [selectionBatches, setSelectionBatches] = useLocalState('roadsift-mock-batches-v1', initialSelectionBatches);
+  const [runnerRegistry, setRunnerRegistry] = useLocalState('roadsift-mock-runners-v1', initialRunners);
+  const [modelRegistryState, setModelRegistryState] = useLocalState('roadsift-mock-models-v1', initialModels);
+  const [algorithmRegistry, setAlgorithmRegistry] = useLocalState('roadsift-mock-algorithms-v1', initialAlgorithms);
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
   const [contextDataset, setContextDataset] = useState(null);
@@ -49,7 +52,24 @@ export default function App() {
   useEffect(() => { if (!accountOpen) return; const handler = e => { if (!e.target.closest('.account-anchor')) setAccountOpen(false); }; document.addEventListener('pointerdown', handler); return () => document.removeEventListener('pointerdown', handler); }, [accountOpen]);
   useEffect(() => { if (!mobileOpen) return; const previous = document.activeElement; const old = document.body.style.overflow; document.body.style.overflow = 'hidden'; document.querySelector('.sidebar__close')?.focus(); return () => { document.body.style.overflow = old; previous?.focus?.(); }; }, [mobileOpen]);
   const notify = message => setToast({ message, id: Date.now() });
-  const shared = { navigate, notify, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, contextDataset, language, setLanguage };
+  // Local worker simulator: submit only queues a job. A Batch is materialized
+  // once execution transitions through Running and Validating to Complete.
+  useEffect(() => {
+    const active=runs.find(r=>r.type==='Mining'&&r.executionMode==='mock-worker'&&['Queued','Running','Validating'].includes(r.status));
+    if(!active) return;
+    const next={Queued:'Running',Running:'Validating',Validating:'Complete'}[active.status];
+    const timer=setTimeout(()=>{
+      setRuns(list=>list.map(r=>r.id===active.id&&r.status===active.status?{...r,status:next,updatedAt:new Date().toISOString(),...(next==='Complete'?{selected:r.budget,output:r.plannedBatch?.name||r.output,completedAt:new Date().toISOString()}: {})}:r));
+      if(next==='Complete'&&active.plannedBatch) {
+        const now=new Date().toISOString();
+        const batch={...active.plannedBatch,createdAt:now,updatedAt:now,
+          audit:[{at:now,actor:'mock-worker',event:'Simulated worker completed, validated EXACT-N and published the Selection Batch'}]};
+        setSelectionBatches(list=>list.some(b=>b.runId===active.id)?list:[batch,...list]);
+      }
+    },1400);
+    return()=>clearTimeout(timer);
+  },[runs,setRuns,setSelectionBatches]);
+  const shared = { navigate, notify, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
   const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, batches: SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>

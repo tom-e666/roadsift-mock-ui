@@ -372,132 +372,130 @@ export function ImportData({ notify, navigate, setPools }) {
   </div>;
 }
 
-export function Mining({ notify, setRuns, setSelectionBatches, navigate, datasets, pools }) {
+export function Mining({ notify, setRuns, runs, navigate, datasets, pools, runnerRegistry, modelRegistryState, algorithmRegistry }) {
   const [poolId,setPoolId]=useState(pools[0]?.id||'');
   const [parentId,setParentId]=useState('');
   const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
   const [budget,setBudget]=useState(String(miningConfig.defaultBudget));
   const [modelId,setModelId]=useState(miningConfig.defaultModelId||'');
   const [runnerId,setRunnerId]=useState('auto');
-  const [advanced,setAdvanced]=useState(false);
-  const [status,setStatus]=useState('draft');
-  const [submitted,setSubmitted]=useState(null);
+  const [submittedId,setSubmittedId]=useState(null);
   const pool=pools.find(p=>p.id===poolId);
   const parent=datasets.find(d=>d.id===parentId);
-  const strategy=strategies.find(s=>s.id===algorithmId);
-  const registeredModel=modelRegistry.find(m=>m.id===modelId&&m.status==='Registered');
-  const modelNeeded=Boolean(strategy?.requiresPredictionModel);
-  const modelUsable=Boolean(registeredModel?.capabilities?.includes('predictions'));
-  const requestedBudget=Number(budget);
-  const budgetValid=Number.isInteger(requestedBudget)&&requestedBudget>0&&requestedBudget<=(pool?.eligible||0);
-  const compatibleRunners=runners.filter(r=>r.status==='Ready'&&r.allowedStrategyIds?.includes(algorithmId));
-  const assignedRunner=runnerId==='auto'?compatibleRunners.find(r=>(r.queueDepth||0)<(r.maxConcurrent||1))||compatibleRunners[0]:compatibleRunners.find(r=>r.id===runnerId);
-  const runnerAvailable=Boolean(assignedRunner&&(assignedRunner.queueDepth||0)<(assignedRunner.maxConcurrent||1));
+  const algorithm=algorithmRegistry.find(s=>s.id===algorithmId);
+  const requiresPrediction=Boolean(algorithm?.requiresPredictionModel);
+  const requiresEmbedding=Boolean(algorithm?.requiresEmbedding);
+  const model=modelRegistryState.find(m=>m.id===modelId);
+  const modelUsable=Boolean(model&&model.status==='Registered'&&model.capabilities?.includes('predictions')&&model.artifactUri);
+  const n=Number(budget);
+  const exactNValid=Number.isSafeInteger(n)&&n>0&&n<=(pool?.eligible||0);
+  const busyRunnerIds=new Set(runs.filter(r=>r.type==='Mining'&&['Queued','Running','Validating'].includes(r.status)).map(r=>r.runnerId));
+  const health=r=>{
+    if(r.status!=='Ready')return {ok:false,label:r.status==='Pending verification'?'Pending verification':r.status};
+    if(r.verified===false)return {ok:false,label:'Not verified'};
+    if(!r.lastHeartbeatAt)return {ok:false,label:'No heartbeat'};
+    const heartbeat=Date.parse(r.lastHeartbeatAt);
+    if(!Number.isFinite(heartbeat))return {ok:false,label:'Invalid heartbeat'};
+    // Fixture heartbeats represent seeded test resources; they are explicitly
+    // simulated, never evidence of a connected runner.
+    if(r.fixture===true)return {ok:true,label:'Fixture · simulated Ready'};
+    return {ok:false,label:'Live heartbeat check unavailable'};
+  };
+  const suitable=r=>Boolean(r.allowedStrategyIds?.includes(algorithmId)&&(!requiresEmbedding||r.capabilities?.includes('embedding')));
+  const runnable=runnerRegistry.filter(r=>health(r).ok&&suitable(r));
+  const freeSlots=r=>Math.max(0,(r.maxConcurrent||1)-(r.queueDepth||0)-(busyRunnerIds.has(r.id)?1:0));
+  const chosen=runnerId==='auto'?runnable.find(r=>freeSlots(r)>0):runnerRegistry.find(r=>r.id===runnerId);
+  const runnerReady=Boolean(chosen&&runnable.some(r=>r.id===chosen.id)&&freeSlots(chosen)>0);
   const checks=[
-    {text:'Immutable Pool snapshot registered',pass:Boolean(pool?.snapshot&&pool?.manifestUri)},
-    {text:'EXACT-N fits eligible capacity',pass:budgetValid},
-    {text:'Algorithm configuration resolved',pass:Boolean(strategy?.id&&strategy?.version)},
-    {text:modelNeeded?'Registered prediction model available':'Prediction model not required',pass:!modelNeeded||modelUsable},
-    {text:'Compatible runner capacity available',pass:runnerAvailable}
+    {name:'Registered Pool Snapshot + manifest',ok:Boolean(pool?.snapshot&&pool?.manifestUri)},
+    {name:'EXACT-N within eligible capacity',ok:exactNValid},
+    {name:'Enabled algorithm implementation + version',ok:Boolean(algorithm&&algorithm.enabled!==false&&algorithm.version)},
+    {name:requiresPrediction?'Registered prediction model and artifact':'Prediction model not required',ok:!requiresPrediction||modelUsable},
+    {name:requiresEmbedding?'Runner supports embedding':'Embedding not required',ok:!requiresEmbedding||Boolean(chosen?.capabilities?.includes('embedding'))},
+    {name:'Verified compatible runner with free capacity',ok:runnerReady}
   ];
-  const ready=checks.every(c=>c.pass);
+  const ready=checks.every(x=>x.ok);
+  const contract={schemaVersion:miningConfig.contractSchema,poolSnapshotId:pool?.snapshot||null,
+    poolManifestUri:pool?.manifestUri||null,parentDatasetVersionId:parent?.id||null,
+    algorithmId:algorithm?.id||null,algorithmVersion:algorithm?.version||null,
+    algorithmWeights:algorithm?.weights||null,
+    registeredModelId:requiresPrediction?model?.id||null:null,
+    modelArtifactUri:requiresPrediction?model?.artifactUri||null:null,
+    budget:n,exactN:true,runnerId:chosen?.id||null};
   const fingerprint=value=>{
-    const s=JSON.stringify(value);
-    let h=2166136261;
+    const s=JSON.stringify(value);let h=2166136261;
     for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
     return 'fnv1a-'+(h>>>0).toString(16).padStart(8,'0');
   };
-  const draftContract={
-    schemaVersion:miningConfig.contractSchema,
-    poolSnapshotId:pool?.snapshot||null,
-    poolManifestUri:pool?.manifestUri||null,
-    parentDatasetVersionId:parent?.id||null,
-    algorithmId:strategy?.id||null,
-    algorithmVersion:strategy?.version||null,
-    algorithmWeights:strategy?.weights||null,
-    registeredModelId:modelNeeded?(registeredModel?.id||null):null,
-    modelArtifactUri:modelNeeded?(registeredModel?.artifactUri||null):null,
-    budget:requestedBudget,
-    exactN:true,
-    runnerId:assignedRunner?.id||null
-  };
-  const configFingerprint=fingerprint(draftContract);
-  const start=()=>{
-    if(!ready){notify('Mining preflight blocked · resolve the failed checks');return;}
-    const now=new Date().toISOString();
-    const stamp=Date.now().toString(36);
-    const id=`mine_${now.replace(/[-:T]/g,'').slice(0,12)}_${stamp.slice(-4)}`;
-    const batchId=`batch_${pool.slug.replace(/-/g,'_')}_${stamp.slice(-6)}`;
-    const batchName=`${pool.name} · ${strategy.name} · ${requestedBudget} frames`;
-    const spec={...draftContract,configFingerprint,jobId:id};
-    const run={id,type:'Mining',name:`${strategy.name} · ${pool.name}`,status:'Complete',
-      source:`${pool.name} p${pool.version}`,sourcePoolId:pool.id,dataset:parent?`${parent.name} v${parent.version}`:'None',
-      output:batchName,outputBatchId:batchId,frames:pool.eligible,selected:requestedBudget,budget:requestedBudget,
-      executor:assignedRunner.name,runnerId:assignedRunner.id,duration:miningConfig.simulatedDuration,date:now,
-      owner:'Perception Data Ops',createdBy:'mining-orchestrator',updatedAt:now,attempt:1,contract:spec,configFingerprint};
-    const batch={id:batchId,name:batchName,status:'In review',strategy:strategy.name,algorithmId:strategy.id,
+  const configFingerprint=fingerprint(contract);
+  const submitted=runs.find(r=>r.id===submittedId);
+  const submit=()=>{
+    if(!ready){notify('Preflight blocked · fix invalid dependencies');return;}
+    const now=new Date().toISOString(),nonce=Date.now().toString(36);
+    const id=`mine_${now.replace(/[-:T]/g,'').slice(0,12)}_${nonce.slice(-5)}`;
+    const batchId=`batch_${pool.slug.replace(/-/g,'_')}_${nonce.slice(-6)}`;
+    const jobContract={...contract,configFingerprint};
+    const batchName=`${pool.name} · ${algorithm.name} · ${count(n)} samples`;
+    const plannedBatch={id:batchId,name:batchName,status:'In review',strategy:algorithm.name,algorithmId:algorithm.id,
       sourcePoolId:pool.id,sourceSnapshot:pool.snapshot,baseDatasetId:parent?.id||null,
-      registeredModelId:spec.registeredModelId,runId:id,count:requestedBudget,
-      schemaVersion:'roadsift.selection-batch.v1',manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
-      membershipHash:`simulated:${fingerprint({batchId,runId:id,budget:requestedBudget})}`,
-      owner:'Perception Data Ops',createdBy:'mining-orchestrator',createdAt:now,updatedAt:now,
-      review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},
+      registeredModelId:requiresPrediction?model.id:null,runId:id,count:n,
+      schemaVersion:'roadsift.selection-batch.v1',
+      manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
+      membershipHash:`simulated:${fingerprint({batchId,runId:id,count:n})}`,owner:'Perception Data Ops',
+      createdBy:'mock-worker',review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},
       handoff:{status:'Not started',destination:null,sentAt:null,manifestUri:null},
-      annotationReturn:{status:'Not started',expected:0,returned:0,validation:null,uri:null,receivedAt:null},
-      audit:[{at:now,actor:'mining-orchestrator',event:'Simulated Mining completion · Selection Batch created'}]};
-    setRuns(list=>[run,...list]);
-    setSelectionBatches?.(list=>[batch,...list]);
-    setSubmitted({run,batch});
-    setStatus('complete');
-    notify('Mock worker completed · Selection Batch registered');
+      annotationReturn:{status:'Not started',expected:0,returned:0,validation:null,uri:null,receivedAt:null}};
+    const record={id,type:'Mining',name:`${algorithm.name} · ${pool.name}`,status:'Queued',executionMode:'mock-worker',
+      source:`${pool.name} p${pool.version}`,sourcePoolId:pool.id,dataset:parent?`${parent.name} v${parent.version}`:'None',
+      output:'Pending worker execution',plannedBatch,frames:pool.eligible,selected:0,budget:n,
+      executor:chosen.name,runnerId:chosen.id,duration:'—',date:now,updatedAt:now,
+      owner:'Perception Data Ops',createdBy:'mining-orchestrator',attempt:1,
+      contract:jobContract,configFingerprint,outputBatchId:null};
+    setRuns(list=>[record,...list]);setSubmittedId(id);
+    notify('Mining Run queued · awaiting mock worker');
   };
   return <div className="page mining-page mining-page--production">
-    <PageHeader eyebrow="Active learning operations" title="New Mining Run" description="Select a candidate Pool, configure an acquisition algorithm and assign execution resources." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
+    <PageHeader eyebrow="Active learning operations" title="New Mining Run" description="Configure a reproducible selection run using registered resources." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
     <div className="mining-builder">
       <section className="mining-builder__main">
-        <Panel title="Candidate source" description="Selection always starts from a registered immutable Pool snapshot.">
-          <Field label="Pool Snapshot *" help="Only eligible members of this snapshot can be selected."><select value={poolId} onChange={e=>{setPoolId(e.target.value);setStatus('draft')}}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field>
-          <div className="mining-source-meta"><StatRow label="Snapshot ID" value={pool?.snapshot||'—'}/><StatRow label="Eligible" value={count(pool?.eligible||0)}/><StatRow label="Manifest" value={pool?.manifestUri||'Missing'}/></div>
-        </Panel>
-        <Panel title="Acquisition configuration" description="The parent Dataset is optional. Prediction models are required only for algorithms that use them.">
-          <div className="mining-field-stack">
-            <Field label="Parent Dataset Version · Optional" help="Optional Active Learning lineage/context. This is not the model selector."><select value={parentId} onChange={e=>{setParentId(e.target.value);setStatus('draft')}}><option value="">None · independent Pool mining</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></Field>
-            <div className="register-grid">
-              <Field label="Selection Algorithm *"><select value={algorithmId} onChange={e=>{setAlgorithmId(e.target.value);setStatus('draft')}}>{strategies.map(a=><option key={a.id} value={a.id}>{a.name} · v{a.version}</option>)}</select></Field>
-              <Field label="Selection Budget (EXACT-N) *"><input type="number" min="1" step="1" value={budget} onChange={e=>{setBudget(e.target.value);setStatus('draft')}}/></Field>
-            </div>
-            <div className="mining-algorithm-description">{strategy?.description}</div>
-            <Field label={modelNeeded?'Registered Prediction Model *':'Registered Prediction Model · Optional'} help="Choose an existing model registry artifact, independently of the optional parent Dataset."><select value={modelId} onChange={e=>{setModelId(e.target.value);setStatus('draft')}} disabled={!modelNeeded}><option value="">{modelNeeded?'Select registered model':'Not required for this algorithm'}</option>{modelRegistry.filter(m=>m.status==='Registered'&&m.capabilities?.includes('predictions')).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
-            {modelNeeded&&registeredModel&&<div className="mining-model-ref"><StatRow label="Model registry ID" value={registeredModel.id}/><StatRow label="Artifact URI" value={registeredModel.artifactUri}/></div>}
-          </div>
-          <details className="advanced-config" open={advanced} onToggle={e=>setAdvanced(e.currentTarget.open)}><summary>Advanced algorithm settings</summary>{strategy?.weights?<div className="strategy-params">{Object.entries(strategy.weights).map(([key,value])=><div key={key}><span>{key}</span><strong>{Number(value).toFixed(2)}</strong></div>)}</div>:<p className="mining-algorithm-description">Uses the registered default algorithm configuration.</p>}</details>
-        </Panel>
-        <Panel title="Execution assignment" description="Auto assignment picks a compatible healthy worker with available capacity.">
-          <Field label="Runner assignment *" help="Auto prefers an available runner. An explicitly selected runner must also have free capacity."><select value={runnerId} onChange={e=>{setRunnerId(e.target.value);setStatus('draft')}}><option value="auto">Auto · compatible available runner</option>{runners.map(r=><option key={r.id} value={r.id}>{r.name} · {r.status}</option>)}</select></Field>
-          <div className="mining-source-meta"><StatRow label="Resolved runner" value={assignedRunner?.name||'Unavailable'}/><StatRow label="Queue / capacity" value={assignedRunner?`${assignedRunner.queueDepth||0} queued · ${assignedRunner.maxConcurrent||1} capacity`:'—'}/><StatRow label="Execution" value="Worker queue · asynchronous in production"/></div>
-        </Panel>
+        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Candidate Source</strong><small>{pool?.name||'Choose Pool'} · {pool?.snapshot||'Missing snapshot'}</small></summary><div className="panel__body">
+          <Field label="Pool Snapshot *" help="Only eligible sample IDs from this immutable snapshot may be selected."><select value={poolId} onChange={e=>setPoolId(e.target.value)}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field>
+          <div className="mining-source-meta"><StatRow label="Snapshot" value={pool?.snapshot||'—'}/><StatRow label="Eligible" value={count(pool?.eligible||0)}/><StatRow label="Manifest URI" value={pool?.manifestUri||'Missing'}/></div>
+        </div></details>
+        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Acquisition Context</strong><small>{parent?`${parent.name} v${parent.version}`:'No parent dataset'} · {requiresPrediction?(model?.name||'Select model'):'No detector required'}</small></summary><div className="panel__body mining-field-stack">
+          <Field label="Parent Dataset Version · Optional" help="Lineage reference only; the model is selected independently."><select value={parentId} onChange={e=>setParentId(e.target.value)}><option value="">None · independent Pool mining</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></Field>
+          {requiresPrediction&&<Field label="Registered Prediction Model *"><select value={modelId} onChange={e=>setModelId(e.target.value)}><option value="">Select model</option>{modelRegistryState.filter(m=>m.status==='Registered'&&m.capabilities?.includes('predictions')).map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></Field>}
+          {requiresPrediction&&<div className="mining-model-ref"><StatRow label="Model artifact" value={model?.artifactUri||'Unresolved'}/></div>}
+          <Button variant="ghost" onClick={()=>navigate('system')}>Manage Model registry and runners <ArrowRight size={13}/></Button>
+        </div></details>
+        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Selection Algorithm</strong><small>{algorithm?.name} · EXACT-{Number.isFinite(n)?count(n):'—'}</small></summary><div className="panel__body mining-field-stack">
+          <div className="register-grid"><Field label="Algorithm *"><select value={algorithmId} onChange={e=>setAlgorithmId(e.target.value)}>{algorithmRegistry.filter(a=>a.enabled!==false).map(a=><option key={a.id} value={a.id}>{a.name} · v{a.version}</option>)}</select></Field>
+            <Field label="Budget (EXACT-N) *"><input type="number" min="1" step="1" value={budget} onChange={e=>setBudget(e.target.value)}/></Field></div>
+          <p className="mining-algorithm-description">{algorithm?.description}</p>
+          <details className="advanced-config"><summary>Advanced algorithm configuration</summary>{algorithm?.weights?<div className="strategy-params">{Object.entries(algorithm.weights).map(([k,v])=><div key={k}><span>{k}</span><strong>{Number(v).toFixed(2)}</strong></div>)}</div>:<p>Uses the registered algorithm defaults.</p>}</details>
+        </div></details>
+        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Execution</strong><small>{chosen?.name||'No eligible runner'} · {runnerId==='auto'?'Auto assignment':'Manual assignment'}</small></summary><div className="panel__body">
+          <Field label="Runner assignment *"><select value={runnerId} onChange={e=>setRunnerId(e.target.value)}><option value="auto">Auto · available compatible worker</option>{runnerRegistry.map(r=><option key={r.id} value={r.id}>{r.name} · {health(r).label}</option>)}</select></Field>
+          <div className="mining-source-meta"><StatRow label="Runner" value={chosen?.name||'Unavailable'}/><StatRow label="Health" value={chosen?health(chosen).label:'Not assigned'}/><StatRow label="Free capacity" value={chosen?String(freeSlots(chosen)):'0'}/></div>
+          <p className="mining-simulation-disclaimer">Seeded runners are simulated test resources. Newly registered runners require a verified heartbeat before they can execute jobs.</p>
+        </div></details>
       </section>
-      <aside className="mining-builder__side">
-        <Panel title="Preflight & submit" description="Only submit when all required resources and algorithm dependencies resolve.">
-          <div className="preflight-list">{checks.map(c=><div key={c.text} className={c.pass?'pass':'fail'}><Check size={13}/>{c.text}</div>)}</div>
-          <div className="job-spec-preview"><div><span>Immutable job contract</span><Badge>{ready?'Ready':'Blocked'}</Badge></div>
-            <code>pool_snapshot: {draftContract.poolSnapshotId||'—'}</code>
-            <code>parent_dataset: {draftContract.parentDatasetVersionId||'none'}</code>
-            <code>algorithm: {algorithmId}@{strategy?.version||'—'}</code>
-            <code>registered_model: {draftContract.registeredModelId||'none'}</code>
-            <code>budget: {budgetValid?count(requestedBudget):'invalid'}</code>
-            <code>runner: {draftContract.runnerId||'unavailable'}</code>
-            <code>config_fingerprint: {configFingerprint}</code>
-          </div>
-          {!budgetValid&&<p className="mining-inline-error">Budget must be a positive integer no greater than {count(pool?.eligible||0)} eligible samples. EXACT-N is never silently reduced.</p>}
-          <div className="submit-note"><strong>Output</strong><span>One immutable Selection Batch reserved for human review; no Dataset or model is created by Mining.</span></div>
-          <Button variant="primary" className="wide" icon={Play} disabled={!ready} onClick={start}>Submit Mining Run</Button>
-          <p className="mining-simulation-disclaimer">Prototype behavior: submit simulates worker completion locally. Real deployment enqueues a job and creates the Batch only after successful worker execution.</p>
-        </Panel>
-      </aside>
+      <aside className="mining-builder__side"><Panel title="Review & submit" description="Preflight validates every algorithm dependency and the immutable job contract.">
+        <div className="preflight-list">{checks.map(x=><div key={x.name} className={x.ok?'pass':'fail'}><Check size={13}/>{x.name}</div>)}</div>
+        <div className="job-spec-preview"><div><span>Job contract</span><Badge>{ready?'Ready':'Blocked'}</Badge></div>
+          <code>pool: {contract.poolSnapshotId||'—'}</code><code>parent: {contract.parentDatasetVersionId||'none'}</code>
+          <code>algorithm: {algorithm?.id}@{algorithm?.version}</code><code>model: {contract.registeredModelId||'none'}</code>
+          <code>budget: {exactNValid?count(n):'invalid'}</code><code>runner: {chosen?.id||'none'}</code>
+          <code>config fingerprint: {configFingerprint}</code>
+        </div>
+        {!exactNValid&&<p className="mining-inline-error">EXACT-N blocked: enter an integer from 1 to {count(pool?.eligible||0)}. Budget is never reduced automatically.</p>}
+        <div className="submit-note"><strong>Result contract</strong><span>Submit queues a Mining Run. The worker publishes a Selection Batch only after successful validation; it never creates a Dataset.</span></div>
+        <Button className="wide" variant="primary" icon={Play} disabled={!ready} onClick={submit}>Submit Mining Run</Button>
+        <p className="mining-simulation-disclaimer">This frontend uses a local mock worker. No remote GPU job is submitted.</p>
+      </Panel></aside>
     </div>
-    {status==='complete'&&submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Simulated worker completion</small><h3>Selection Batch created</h3><p>{count(submitted.batch.count)} selected · {submitted.run.executor}</p></div><Badge>Complete</Badge></div>
-      <div className="result-output"><div><small>Run record</small><strong>{submitted.run.id}</strong><span>{submitted.run.configFingerprint} · EXACT-N satisfied</span></div><div><small>Selection Batch</small><strong>{submitted.batch.id}</strong><span>In review · immutable manifest reference</span></div><Button variant="primary" icon={ArrowRight} onClick={()=>navigate('batches')}>Open Selection Batches</Button></div>
+    {submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Mining Run {submitted.status}</small><h3>{submitted.id}</h3><p>{submitted.executor} · EXACT-{count(submitted.budget)} · {submitted.configFingerprint}</p></div><Badge>{submitted.status}</Badge></div>
+      <div className="section-actions"><Button onClick={()=>navigate('history')}>Open Run details</Button>{submitted.status==='Complete'&&<Button variant="primary" onClick={()=>navigate('batches')}>Open Selection Batch</Button>}</div>
     </div>}
   </div>;
 }
@@ -543,13 +541,25 @@ export function SelectionBatches({ selectionBatches, setSelectionBatches, datase
   </div>;
 }
 
-export function History({ runs, navigate, notify }) {
+export function History({ runs, setRuns, navigate, notify }) {
   const [query,setQuery]=useState(''), [filter,setFilter]=useState('All'), [selected,setSelected]=useState(null);
+  const retry=run=>{
+    if(!run.contract||!run.plannedBatch){notify('Historical run has no replayable contract. Create a new Mining Run.');return;}
+    const now=new Date().toISOString(),id=`mine_retry_${Date.now().toString(36)}`;
+    const batchId=`batch_retry_${Date.now().toString(36)}`;
+    const attempt={...run,id,status:'Queued',date:now,updatedAt:now,attempt:(run.attempt||1)+1,
+      retryOf:run.id,selected:0,output:'Pending worker execution',completedAt:null,
+      plannedBatch:{...run.plannedBatch,id:batchId,runId:id,
+        manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
+        membershipHash:`simulated:${id}`}};
+    setRuns(list=>[attempt,...list]);setSelected(attempt);
+    notify('New retry attempt queued using the same immutable contract');
+  };
   const results=runs.filter(r=>(filter==='All'||r.type===filter)&&(`${r.name} ${r.id} ${r.source} ${r.output}`).toLowerCase().includes(query.toLowerCase()));
   return <div className="page runs-page"><PageHeader eyebrow="Operations registry" title="Runs" description="Audit ingest and Mining jobs across the workspace." actions={<Button variant="primary" icon={Plus} onClick={()=>navigate('mining')}>New mining run</Button>}/>
     <div className="history-toolbar"><div className="search-field"><Search size={16}/><input aria-label="Search runs" placeholder="Run ID, source, output…" value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="segmented"><button className={filter==='All'?'active':''} onClick={()=>setFilter('All')}>All</button><button className={filter==='Import'?'active':''} onClick={()=>setFilter('Import')}>Ingest</button><button className={filter==='Mining'?'active':''} onClick={()=>setFilter('Mining')}>Mining</button></div><Badge>{results.length} records</Badge></div>
     <section className="catalog"><div className="table-scroll"><table className="dataset-table runs-table"><thead><tr><th>Run</th><th>Type</th><th>Status</th><th>Source</th><th>Output</th><th>Executor</th><th>Started</th><th>Duration</th></tr></thead><tbody>{results.map(r=><tr key={r.id} tabIndex="0" role="button" onClick={()=>setSelected(r)}><td><div className="dataset-name-cell"><strong>{r.name}</strong><small>{r.id}</small></div></td><td>{r.type==='Import'?'Ingest':r.type}</td><td><Badge>{r.status}</Badge></td><td>{r.source}</td><td>{r.output}</td><td>{r.executor}</td><td>{date(r.date)}</td><td>{r.duration}</td></tr>)}</tbody></table></div></section>
-    {selected&&<Modal sheet title="Run details" onClose={()=>setSelected(null)} footer={<Button icon={Download} onClick={()=>{downloadJSON(`${selected.id}.json`,{schemaVersion:'roadsift.run.v1',run:selected});notify('Run record exported')}}>Export record</Button>}><div className="detail-heading"><div className="detail-heading__meta"><Badge>{selected.type==='Import'?'Ingest':selected.type}</Badge><Badge>{selected.status}</Badge></div><h2>{selected.name}</h2><code>{selected.id}</code></div><details className="detail-section" open><summary><div><strong>Execution summary</strong><span>Operational state and timing.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Source" value={selected.source}/><StatRow label="Output" value={selected.output}/><StatRow label="Executor" value={selected.executor}/><StatRow label="Started" value={date(selected.date)}/><StatRow label="Duration" value={selected.duration}/><StatRow label="Status" value={selected.status}/></div></div></details>{selected.status==='Failed'&&<details className="detail-section" open><summary><div><strong>Failure</strong><span>Executor error and retry eligibility.</span></div></summary><div className="detail-section__body"><div className="registration-error"><X size={18}/><div><strong>{selected.errorCode||'RUN_FAILED'}</strong><p>{selected.errorMessage||'The run did not complete.'}</p></div></div>{selected.retryable&&<Button onClick={()=>notify('Retry queued from the same immutable run contract')}>Retry from same contract</Button>}</div></details>}{selected.type==='Mining'&&<><details className="detail-section" open><summary><div><strong>Selection contract</strong><span>Inputs captured by this Active Learning run.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Base dataset" value={selected.dataset}/><StatRow label="Eligible at start" value={count(selected.frames)}/><StatRow label="Budget" value={count(selected.budget)}/><StatRow label="Selected" value={count(selected.selected)}/></div></div></details><details className="detail-section"><summary><div><strong>Artifacts</strong><span>Immutable outputs from the executor.</span></div></summary><div className="detail-section__body"><div className="run-artifacts">{miningConfig.artifacts.map(a=><span key={a}>{a}</span>)}</div></div></details></>}</Modal>}
+    {selected&&<Modal sheet title="Run details" onClose={()=>setSelected(null)} footer={<Button icon={Download} onClick={()=>{downloadJSON(`${selected.id}.json`,{schemaVersion:'roadsift.run.v1',run:selected});notify('Run record exported')}}>Export record</Button>}><div className="detail-heading"><div className="detail-heading__meta"><Badge>{selected.type==='Import'?'Ingest':selected.type}</Badge><Badge>{selected.status}</Badge></div><h2>{selected.name}</h2><code>{selected.id}</code></div><details className="detail-section" open><summary><div><strong>Execution summary</strong><span>Operational state and timing.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Source" value={selected.source}/><StatRow label="Output" value={selected.output}/><StatRow label="Executor" value={selected.executor}/><StatRow label="Started" value={date(selected.date)}/><StatRow label="Duration" value={selected.duration}/><StatRow label="Status" value={selected.status}/></div></div></details>{selected.status==='Failed'&&<details className="detail-section" open><summary><div><strong>Failure</strong><span>Executor error and retry eligibility.</span></div></summary><div className="detail-section__body"><div className="registration-error"><X size={18}/><div><strong>{selected.errorCode||'RUN_FAILED'}</strong><p>{selected.errorMessage||'The run did not complete.'}</p></div></div>{selected.retryable&&<Button disabled={!selected.contract||!selected.plannedBatch} onClick={()=>retry(selected)}>Retry from same contract</Button>}{selected.retryable&&(!selected.contract||!selected.plannedBatch)&&<p className="mining-simulation-disclaimer">Historical fixture lacks a complete replayable contract. Retry is blocked; create a new Mining Run.</p>}</div></details>}{selected.type==='Mining'&&<><details className="detail-section" open><summary><div><strong>Selection contract</strong><span>Inputs captured by this Active Learning run.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Base dataset" value={selected.dataset}/><StatRow label="Eligible at start" value={count(selected.frames)}/><StatRow label="Budget" value={count(selected.budget)}/><StatRow label="Selected" value={count(selected.selected)}/><StatRow label="Attempt" value={selected.attempt||1}/><StatRow label="Retry of" value={selected.retryOf||'—'}/><StatRow label="Fingerprint" value={selected.configFingerprint||'Legacy fixture'}/></div></div></details><details className="detail-section"><summary><div><strong>Artifacts</strong><span>Immutable outputs from the executor.</span></div></summary><div className="detail-section__body"><div className="run-artifacts">{miningConfig.artifacts.map(a=><span key={a}>{a}</span>)}</div></div></details></>}</Modal>}
   </div>;
 }
 
@@ -591,10 +601,10 @@ export function StrategyComparison({ datasets, navigate }) {
 }
 
 
-export function SettingsPage({ theme, setTheme, preferences, setPreferences, setDatasets, setPools, setSelectionBatches, setRuns, notify, language='en', setLanguage }) {
+export function SettingsPage({ theme, setTheme, preferences, setPreferences, setDatasets, setPools, setSelectionBatches, setRuns, setRunnerRegistry, setModelRegistryState, setAlgorithmRegistry, notify, language='en', setLanguage }) {
   const [resetOpen,setResetOpen]=useState(false);
   const vi=language==='vi';
-  const resetWorkspace=()=>{setDatasets(initialDatasets);setPools?.(pools);setSelectionBatches?.(initialSelectionBatches);setRuns(initialRuns);try{localStorage.removeItem('roadsift-mock-annotations')}catch{}setResetOpen(false);notify('Workspace fixture state restored');};
+  const resetWorkspace=()=>{setDatasets(initialDatasets);setPools?.(pools);setSelectionBatches?.(initialSelectionBatches);setRuns(initialRuns);setRunnerRegistry?.(runners);setModelRegistryState?.(modelRegistry);setAlgorithmRegistry?.(strategies);try{localStorage.removeItem('roadsift-mock-annotations')}catch{}setResetOpen(false);notify('Workspace fixture state restored');};
   return <div className="page enterprise-settings"><PageHeader eyebrow="Workspace" title={vi?'Cài đặt':'Settings'} description={vi?'Cấu hình giao diện, ngôn ngữ và trạng thái workspace.':'Configure interface preferences and local workspace state.'}/>
     <div className="settings-shell"><nav className="settings-nav"><a href="#general">General</a><a href="#appearance">Appearance</a><a href="#workspace">Workspace data</a></nav><div className="settings-sections">
       <section id="general" className="settings-section"><div className="settings-section__header"><div><h2>General</h2><p>{vi?'Ngôn ngữ và hành vi mặc định.':'Language and default interface behavior.'}</p></div></div><div className="settings-table"><div className="settings-table__row"><div><strong>{vi?'Ngôn ngữ giao diện':'Interface language'}</strong><p>Technical ML/CV terms remain in English.</p></div><div className="language-switch language-switch--settings"><button aria-pressed={language==='en'} onClick={()=>setLanguage?.('en')}>English</button><button aria-pressed={language==='vi'} onClick={()=>setLanguage?.('vi')}>Tiếng Việt</button></div></div><div className="settings-table__row"><div><strong>{vi?'Danh sách gọn':'Compact tables'}</strong><p>{vi?'Giảm chiều cao row trong registry và operations table.':'Reduce row density in registry and operations tables.'}</p></div><Toggle label="Compact tables" checked={preferences.compact} onChange={value=>setPreferences(p=>({...p,compact:value}))}/></div><div className="settings-table__row"><div><strong>{vi?'Hiệu ứng giao diện':'Interface motion'}</strong><p>{vi?'Bật transition nhẹ cho panel và navigation.':'Enable subtle transitions for panels and navigation.'}</p></div><Toggle label="Interface motion" checked={preferences.animations} onChange={value=>setPreferences(p=>({...p,animations:value}))}/></div></div></section>
@@ -605,17 +615,52 @@ export function SettingsPage({ theme, setTheme, preferences, setPreferences, set
   </div>;
 }
 
-export function SystemPage({ notify }) {
-  const [runnerOpen,setRunnerOpen]=useState(false);
-  const [runnerName,setRunnerName]=useState(systemRunnerRegistrationDefaults.name);
-  const [runnerType,setRunnerType]=useState(systemRunnerRegistrationDefaults.type);
-  const [endpoint,setEndpoint]=useState(systemRunnerRegistrationDefaults.endpoint);
-  const registerRunner=()=>{setRunnerOpen(false);notify?.(`${runnerName} registered`)};
-  return <div className="page system-page"><PageHeader eyebrow="Infrastructure" title="System" description="Execution backends and external service references used by RoadSift." actions={<Button icon={Plus} onClick={()=>setRunnerOpen(true)}>Register runner</Button>}/>
-    <section className="ops-section"><div className="ops-section__header"><div><h2>Execution backends</h2><p>Mining runners registered for immutable job execution.</p></div><Badge>{runners.length} runners</Badge></div><div className="table-scroll"><table className="dataset-table system-table"><thead><tr><th>Runner</th><th>Type</th><th>Status</th><th>Heartbeat</th><th>Queue</th><th>Capacity</th></tr></thead><tbody>{runners.map(r=><tr key={r.id}><td><div className="dataset-name-cell"><strong>{r.name}</strong><small>{r.id}</small></div></td><td>{r.type}</td><td><Badge>{r.status}</Badge></td><td>{date(r.lastHeartbeatAt)}</td><td>{r.queueDepth}</td><td>{r.capacity}</td></tr>)}</tbody></table></div></section>
-    <section className="ops-section"><div className="ops-section__header"><div><h2>Connected services</h2><p>External systems referenced by workflow records.</p></div></div><div className="system-service-list"><div><span>Artifact storage</span><strong>{systemServices.artifactStorage}</strong><Badge>Connected</Badge></div><div><span>Annotation handoff</span><strong>{systemServices.annotationHandoff}</strong><Badge>External</Badge></div><div><span>Model registry</span><strong>{systemServices.modelRegistry}</strong><Badge>Reference</Badge></div><div><span>Evaluation</span><strong>{systemServices.evaluation}</strong><Badge>Registered</Badge></div></div></section>
-    <section className="ops-section"><div className="ops-section__header"><div><h2>Execution contract</h2><p>Every Mining run resolves the same contract regardless of runner.</p></div></div><div className="contract-line"><code>Pool snapshot</code><ArrowRight size={14}/><code>Dataset version</code><ArrowRight size={14}/><code>Acquisition model</code><ArrowRight size={14}/><code>Job spec</code><ArrowRight size={14}/><code>Selection Batch</code></div></section>
-    {runnerOpen&&<Modal title="Register runner" onClose={()=>setRunnerOpen(false)} footer={<><Button onClick={()=>setRunnerOpen(false)}>Cancel</Button><Button variant="primary" onClick={registerRunner}>Register runner</Button></>}><Field label="Runner name"><input value={runnerName} onChange={e=>setRunnerName(e.target.value)}/></Field><Field label="Runner type"><select value={runnerType} onChange={e=>setRunnerType(e.target.value)}><option>Kaggle</option><option>RoadSift Worker</option><option>Custom</option></select></Field><Field label="Endpoint / runner URI"><input value={endpoint} onChange={e=>setEndpoint(e.target.value)}/></Field></Modal>}
+export function SystemPage({ notify, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry }) {
+  const [open,setOpen]=useState(null);
+  const [form,setForm]=useState({name:'',type:'RoadSift Worker',endpoint:'',maxConcurrent:'1',modelTask:'Object Detection',datasetVersionId:'',artifactUri:''});
+  const [error,setError]=useState('');
+  const patch=(field,value)=>{setForm(f=>({...f,[field]:value}));setError('');};
+  const reset=kind=>{setOpen(kind);setError('');setForm({name:'',type:'RoadSift Worker',endpoint:'',maxConcurrent:'1',modelTask:'Object Detection',datasetVersionId:'',artifactUri:''});};
+  const save=()=>{
+    const name=form.name.trim(),endpoint=form.endpoint.trim();
+    if(!name){setError('Resource name is required.');return;}
+    if(open==='runner'){
+      if(!/^(worker|kaggle|https?):\/\//.test(endpoint)){setError('Runner URI must start with worker://, kaggle://, http:// or https://.');return;}
+      if(!Number.isInteger(Number(form.maxConcurrent))||Number(form.maxConcurrent)<1){setError('Capacity must be a positive integer.');return;}
+      if(runnerRegistry.some(r=>r.name.toLowerCase()===name.toLowerCase()||r.uri===endpoint)){setError('A runner with this name or URI already exists.');return;}
+      const id='runner_local_'+Date.now().toString(36);
+      setRunnerRegistry(list=>[...list,{id,name,type:form.type,uri:endpoint,status:'Pending verification',verified:false,
+        lastHeartbeatAt:null,queueDepth:0,maxConcurrent:Number(form.maxConcurrent),
+        capacity:`0 / ${form.maxConcurrent} slots`,allowedStrategyIds:algorithmRegistry.map(a=>a.id),
+        capabilities:['predictions','embedding'],createdAt:new Date().toISOString()}]);
+      notify('Runner saved as Pending verification; no live connectivity assumed');
+    }else{
+      const uri=form.artifactUri.trim();
+      if(!/^(r2|s3|gs|https?):\/\//.test(uri)){setError('A valid artifact URI is required (r2://, s3://, gs:// or https://).');return;}
+      if(modelRegistryState.some(m=>m.name.toLowerCase()===name.toLowerCase()&&m.artifactUri===uri)){setError('This model artifact is already registered.');return;}
+      setModelRegistryState(list=>[...list,{id:'model_local_'+Date.now().toString(36),name,version:'1.0',artifactUri:uri,
+        datasetVersionId:form.datasetVersionId||null,status:'Pending verification',task:form.modelTask,
+        capabilities:['predictions','uncertainty','safety'],createdAt:new Date().toISOString()}]);
+      notify('Model metadata saved; artifact not yet verified');
+    }
+    setOpen(null);
+  };
+  return <div className="page system-page"><PageHeader eyebrow="Resource registry" title="System" description="Shared Model and Runner registries. Local additions are pending verification, not automatically execution-ready."/>
+    <section className="ops-section"><div className="ops-section__header"><div><h2>Execution runners</h2><p>Connected worker metadata, capabilities, heartbeat and assignment readiness.</p></div><Button icon={Plus} onClick={()=>reset('runner')}>Register runner</Button></div>
+      <div className="table-scroll"><table className="dataset-table system-table"><thead><tr><th>Runner</th><th>Backend</th><th>State</th><th>Heartbeat</th><th>Queue</th><th>Capacity</th></tr></thead><tbody>{runnerRegistry.map(r=><tr key={r.id}><td><div className="dataset-name-cell"><strong>{r.name}</strong><small>{r.uri}</small></div></td><td>{r.type}</td><td><Badge>{r.fixture?'Simulated Ready':r.status}</Badge></td><td>{r.lastHeartbeatAt?date(r.lastHeartbeatAt):'Not verified'}</td><td>{r.queueDepth||0}</td><td>{r.maxConcurrent||1}</td></tr>)}</tbody></table></div></section>
+    <section className="ops-section"><div className="ops-section__header"><div><h2>Registered models</h2><p>Artifact metadata referenced by uncertainty-based acquisition policies.</p></div><Button icon={Plus} onClick={()=>reset('model')}>Register model</Button></div>
+      <div className="table-scroll"><table className="dataset-table system-table"><thead><tr><th>Model</th><th>Task</th><th>Status</th><th>Artifact</th></tr></thead><tbody>{modelRegistryState.map(m=><tr key={m.id}><td><div className="dataset-name-cell"><strong>{m.name}</strong><small>{m.id}</small></div></td><td>{m.task}</td><td><Badge>{m.fixture?'Fixture · Registered':m.status}</Badge></td><td><code>{m.artifactUri}</code></td></tr>)}</tbody></table></div></section>
+    <section className="ops-section"><div className="ops-section__header"><div><h2>Algorithm catalog</h2><p>Deployable strategy definitions with versioned dependency contracts. Managed by engineering, not created from Mining.</p></div><Badge>{algorithmRegistry.length} implementations</Badge></div>
+      <div className="table-scroll"><table className="dataset-table system-table"><thead><tr><th>Algorithm</th><th>Version</th><th>Prediction model</th><th>Embeddings</th></tr></thead><tbody>{algorithmRegistry.map(a=><tr key={a.id}><td>{a.name}</td><td>{a.version}</td><td>{a.requiresPredictionModel?'Required':'Not required'}</td><td>{a.requiresEmbedding?'Required':'Not required'}</td></tr>)}</tbody></table></div></section>
+    <section className="ops-section"><div className="ops-section__header"><div><h2>Connected services</h2><p>References only. A browser fixture cannot verify storage or compute connectivity.</p></div></div><div className="system-service-list">{Object.entries(systemServices).map(([key,value])=><div key={key}><span>{key.replace(/([A-Z])/g,' $1')}</span><strong>{value}</strong><Badge>Fixture reference</Badge></div>)}</div></section>
+    {open&&<Modal title={open==='runner'?'Register runner':'Register model'} onClose={()=>setOpen(null)} footer={<><Button onClick={()=>setOpen(null)}>Cancel</Button><Button variant="primary" onClick={save}>Save to registry</Button></>}>
+      <div className="mining-field-stack"><Field label="Resource name *"><input value={form.name} onChange={e=>patch('name',e.target.value)}/></Field>
+        {open==='runner'?<><Field label="Backend type"><select value={form.type} onChange={e=>patch('type',e.target.value)}><option>RoadSift Worker</option><option>Kaggle</option><option>Custom</option></select></Field><Field label="Runner URI *"><input value={form.endpoint} onChange={e=>patch('endpoint',e.target.value)} placeholder="worker://roadsift/gpu-node"/></Field><Field label="Max concurrent jobs *"><input type="number" min="1" value={form.maxConcurrent} onChange={e=>patch('maxConcurrent',e.target.value)}/></Field></>:
+          <><Field label="Model task"><select value={form.modelTask} onChange={e=>patch('modelTask',e.target.value)}><option>Object Detection</option></select></Field><Field label="Artifact URI *"><input value={form.artifactUri} onChange={e=>patch('artifactUri',e.target.value)} placeholder="r2://roadsift/models/model.pt"/></Field><Field label="Training Dataset version (optional)"><input value={form.datasetVersionId} onChange={e=>patch('datasetVersionId',e.target.value)} placeholder="huc-v7"/></Field></>}
+        {error&&<p className="mining-inline-error" role="alert">{error}</p>}
+        <p className="mining-simulation-disclaimer">Saving registry metadata does not verify an endpoint, artifact, capability or live heartbeat. A backend verification service is required to mark this resource Ready.</p>
+      </div>
+    </Modal>}
   </div>;
 }
 

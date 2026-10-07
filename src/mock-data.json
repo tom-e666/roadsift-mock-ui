@@ -3582,7 +3582,13 @@
         "diversity",
         "random"
       ],
-      "maxConcurrent": 1
+      "maxConcurrent": 1,
+      "fixture": true,
+      "verified": true,
+      "capabilities": [
+        "predictions",
+        "embedding"
+      ]
     },
     {
       "id": "runner_roadsift_gpu",
@@ -3600,7 +3606,13 @@
         "diversity",
         "random"
       ],
-      "maxConcurrent": 2
+      "maxConcurrent": 2,
+      "fixture": true,
+      "verified": true,
+      "capabilities": [
+        "predictions",
+        "embedding"
+      ]
     }
   ],
   "systemServices": {
@@ -3693,7 +3705,8 @@
         "uncertainty",
         "safety"
       ],
-      "createdAt": "2026-10-04T11:32:19"
+      "createdAt": "2026-10-04T11:32:19",
+      "fixture": true
     },
     {
       "id": "model_huc-v7",
@@ -3708,7 +3721,8 @@
         "uncertainty",
         "safety"
       ],
-      "createdAt": "2026-10-07T01:36:47"
+      "createdAt": "2026-10-07T01:36:47",
+      "fixture": true
     },
     {
       "id": "model_ilt-v9",
@@ -3723,7 +3737,8 @@
         "uncertainty",
         "safety"
       ],
-      "createdAt": "2026-10-06T14:08:35"
+      "createdAt": "2026-10-06T14:08:35",
+      "fixture": true
     },
     {
       "id": "model_nar-v5",
@@ -3738,7 +3753,8 @@
         "uncertainty",
         "safety"
       ],
-      "createdAt": "2026-10-06T22:47:16"
+      "createdAt": "2026-10-06T22:47:16",
+      "fixture": true
     },
     {
       "id": "model_nhc-v12",
@@ -3753,7 +3769,8 @@
         "uncertainty",
         "safety"
       ],
-      "createdAt": "2026-10-07T00:14:52"
+      "createdAt": "2026-10-07T00:14:52",
+      "fixture": true
     },
     {
       "id": "model_vru-v3",
@@ -3768,7 +3785,8 @@
         "uncertainty",
         "safety"
       ],
-      "createdAt": "2026-10-05T17:23:41"
+      "createdAt": "2026-10-05T17:23:41",
+      "fixture": true
     }
   ]
 }
