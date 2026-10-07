@@ -57,9 +57,9 @@ export default function App() {
   useEffect(() => {
     const active=runs.find(r=>r.type==='Mining'&&r.executionMode==='mock-worker'&&['Queued','Running','Validating'].includes(r.status));
     if(!active) return;
-    const next={Queued:'Running',Running:'Validating',Validating:'Complete'}[active.status];
+    const next={Queued:'Running',Running:'Validating',Validating:active.simulateFailure?'Failed':'Complete'}[active.status];
     const timer=setTimeout(()=>{
-      setRuns(list=>list.map(r=>r.id===active.id&&r.status===active.status?{...r,status:next,updatedAt:new Date().toISOString(),...(next==='Complete'?{selected:r.budget,output:r.plannedBatch?.name||r.output,completedAt:new Date().toISOString()}: {})}:r));
+      setRuns(list=>list.map(r=>r.id===active.id&&r.status===active.status?{...r,status:next,updatedAt:new Date().toISOString(),...(next==='Complete'?{selected:r.budget,output:r.plannedBatch?.name||r.output,outputBatchId:r.plannedBatch?.id||null,completedAt:new Date().toISOString()}: {}),...(next==='Failed'?{errorCode:'SIMULATED_WORKER_ERROR',errorMessage:'Mock worker failure requested by simulation controls.',retryable:true,completedAt:new Date().toISOString()}: {})}:r));
       if(next==='Complete'&&active.plannedBatch) {
         const now=new Date().toISOString();
         const batch={...active.plannedBatch,createdAt:now,updatedAt:now,
