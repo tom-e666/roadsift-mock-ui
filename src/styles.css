@@ -277,3 +277,13 @@ th .help-tip{margin-left:4px}
 .worker-policy-list{display:grid;margin-top:10px;border:1px solid var(--line);border-radius:9px;overflow:hidden}.worker-policy-list>div{display:grid;grid-template-columns:18px 1fr auto;align-items:center;gap:8px;padding:10px 11px;border-top:1px solid var(--line)}.worker-policy-list>div:first-child{border-top:0}.worker-policy-list span,.worker-policy-list strong{font-size:12px}.worker-policy-list span{color:var(--muted)}
 .job-lifecycle{display:grid;gap:0}.job-lifecycle>div{display:grid;grid-template-columns:24px 1fr;align-items:center;gap:8px;min-height:34px;position:relative}.job-lifecycle>div:not(:last-child):after{content:"";position:absolute;left:11px;top:27px;width:1px;height:14px;background:var(--line)}.job-lifecycle>div>span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);font-size:12px;color:var(--tertiary);background:var(--surface)}.job-lifecycle>div strong{font-size:12px;color:var(--tertiary)}.job-lifecycle>div.current>span,.job-lifecycle>div.done>span{border-color:var(--accent);color:var(--accent)}.job-lifecycle>div.current strong,.job-lifecycle>div.done strong{color:var(--text)}.job-status-note{font-size:12px;color:var(--muted);line-height:1.5;margin:10px 0 0}
 @media(max-width:900px){.source-adapter-grid{grid-template-columns:1fr}.control-plane-note{grid-template-columns:1fr}.control-plane-note>svg{transform:rotate(90deg)}}
+
+/* Mining job contract — production form */
+.mining-page--production .mining-builder__main{display:grid;gap:14px}
+.mining-field-stack{display:grid;gap:14px}
+.mining-algorithm-description,.mining-simulation-disclaimer{font-size:12px;line-height:1.5;color:var(--muted)}
+.mining-algorithm-description{margin:0}
+.mining-simulation-disclaimer{margin:10px 0 0}
+.mining-inline-error{font-size:12px;line-height:1.45;margin:10px 0;color:#c53631}
+.mining-model-ref{border:1px solid var(--line);border-radius:8px;padding:10px}
+.mining-page--production .advanced-config .strategy-params{margin-top:10px}

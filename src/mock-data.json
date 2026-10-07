@@ -3412,22 +3412,34 @@
         "diversity": 0.25,
         "redundancy": -0.1
       },
-      "requiresEmbedding": true
+      "requiresEmbedding": true,
+      "version": "1.0.0",
+      "requiresPredictionModel": true,
+      "description": "Combine uncertainty, safety, diversity and redundancy for candidate ranking."
     },
     {
       "id": "entropy",
       "name": "Entropy Sampling",
-      "requiresEmbedding": false
+      "requiresEmbedding": false,
+      "version": "1.0.0",
+      "requiresPredictionModel": true,
+      "description": "Rank frames using prediction uncertainty from a registered detector."
     },
     {
       "id": "diversity",
       "name": "Diversity Sampling",
-      "requiresEmbedding": true
+      "requiresEmbedding": true,
+      "version": "1.0.0",
+      "requiresPredictionModel": false,
+      "description": "Select coverage using worker-generated embeddings; no detector required."
     },
     {
       "id": "random",
       "name": "Random Sampling",
-      "requiresEmbedding": false
+      "requiresEmbedding": false,
+      "version": "1.0.0",
+      "requiresPredictionModel": false,
+      "description": "Uniform random selection over eligible samples; no model required."
     }
   ],
   "datasetRegistration": {
@@ -3547,7 +3559,11 @@
       "selected.json",
       "statistics.json",
       "run_result.json"
-    ]
+    ],
+    "defaultModelId": "model_fb-v4",
+    "runnerAssignment": "auto",
+    "executionMode": "mock-worker",
+    "contractSchema": "roadsift.mining-job.v1"
   },
   "runners": [
     {
@@ -3559,7 +3575,14 @@
       "lastHeartbeatAt": "2026-10-07T05:47:18",
       "queueDepth": 1,
       "capacity": "1 / 1 GPU",
-      "lastSuccessAt": "2026-10-07T04:42:11"
+      "lastSuccessAt": "2026-10-07T04:42:11",
+      "allowedStrategyIds": [
+        "hybrid",
+        "entropy",
+        "diversity",
+        "random"
+      ],
+      "maxConcurrent": 1
     },
     {
       "id": "runner_roadsift_gpu",
@@ -3570,7 +3593,14 @@
       "lastHeartbeatAt": "2026-10-07T05:46:52",
       "queueDepth": 0,
       "capacity": "1 / 2 GPU",
-      "lastSuccessAt": "2026-10-07T03:58:09"
+      "lastSuccessAt": "2026-10-07T03:58:09",
+      "allowedStrategyIds": [
+        "hybrid",
+        "entropy",
+        "diversity",
+        "random"
+      ],
+      "maxConcurrent": 2
     }
   ],
   "systemServices": {
@@ -3647,6 +3677,98 @@
       "id": "closed",
       "label": "Closed",
       "description": "Returned annotations were materialized into a Dataset version."
+    }
+  ],
+  "modelRegistry": [
+    {
+      "id": "model_fb-v4",
+      "name": "YOLO11m · fb-v4",
+      "version": "1.0",
+      "artifactUri": "r2://roadsift/models/fleet-baseline/v4/model.pt",
+      "datasetVersionId": "fb-v4",
+      "status": "Registered",
+      "task": "Object Detection",
+      "capabilities": [
+        "predictions",
+        "uncertainty",
+        "safety"
+      ],
+      "createdAt": "2026-10-04T11:32:19"
+    },
+    {
+      "id": "model_huc-v7",
+      "name": "YOLO11m · huc-v7",
+      "version": "1.0",
+      "artifactUri": "r2://roadsift/models/hanoi-urban-core/v7/model.pt",
+      "datasetVersionId": "huc-v7",
+      "status": "Registered",
+      "task": "Object Detection",
+      "capabilities": [
+        "predictions",
+        "uncertainty",
+        "safety"
+      ],
+      "createdAt": "2026-10-07T01:36:47"
+    },
+    {
+      "id": "model_ilt-v9",
+      "name": "YOLO11m · ilt-v9",
+      "version": "1.0",
+      "artifactUri": "r2://roadsift/models/intersection-long-tail/v9/model.pt",
+      "datasetVersionId": "ilt-v9",
+      "status": "Registered",
+      "task": "Object Detection",
+      "capabilities": [
+        "predictions",
+        "uncertainty",
+        "safety"
+      ],
+      "createdAt": "2026-10-06T14:08:35"
+    },
+    {
+      "id": "model_nar-v5",
+      "name": "YOLO11m · nar-v5",
+      "version": "1.0",
+      "artifactUri": "r2://roadsift/models/night-adverse-weather/v5/model.pt",
+      "datasetVersionId": "nar-v5",
+      "status": "Registered",
+      "task": "Object Detection",
+      "capabilities": [
+        "predictions",
+        "uncertainty",
+        "safety"
+      ],
+      "createdAt": "2026-10-06T22:47:16"
+    },
+    {
+      "id": "model_nhc-v12",
+      "name": "YOLO11m · nhc-v12",
+      "version": "1.0",
+      "artifactUri": "r2://roadsift/models/northern-highway-corridor/v12/model.pt",
+      "datasetVersionId": "nhc-v12",
+      "status": "Registered",
+      "task": "Object Detection",
+      "capabilities": [
+        "predictions",
+        "uncertainty",
+        "safety"
+      ],
+      "createdAt": "2026-10-07T00:14:52"
+    },
+    {
+      "id": "model_vru-v3",
+      "name": "YOLO11m · vru-v3",
+      "version": "1.0",
+      "artifactUri": "r2://roadsift/models/vru-critical-scenes/v3/model.pt",
+      "datasetVersionId": "vru-v3",
+      "status": "Registered",
+      "task": "Object Detection",
+      "capabilities": [
+        "predictions",
+        "uncertainty",
+        "safety"
+      ],
+      "createdAt": "2026-10-05T17:23:41"
     }
   ]
 }

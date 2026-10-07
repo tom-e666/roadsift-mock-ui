@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
 import { Button, Badge, PageHeader, Metric, Segmented, Empty, Panel, DemoNote, Field, Toggle, Modal, TextLink, HelpTip } from './components/UI.jsx';
-import { frames, initialDatasets, initialRuns, initialSelectionBatches, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, systemServices, strategyComparison, systemRunnerRegistrationDefaults, poolRegistration, batchLifecycle } from './data.js';
+import { frames, initialDatasets, initialRuns, initialSelectionBatches, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, modelRegistry, systemServices, strategyComparison, systemRunnerRegistrationDefaults, poolRegistration, batchLifecycle } from './data.js';
 
 function useSimulation(onComplete) {
   const [progress, setProgress] = useState(0);
@@ -373,61 +373,132 @@ export function ImportData({ notify, navigate, setPools }) {
 }
 
 export function Mining({ notify, setRuns, setSelectionBatches, navigate, datasets, pools }) {
-  const latestDatasets=Object.values(datasets.reduce((acc,d)=>{ if(!acc[d.name]||d.version>acc[d.name].version) acc[d.name]=d; return acc; },{}));
   const [poolId,setPoolId]=useState(pools[0]?.id||'');
-  const [datasetId,setDatasetId]=useState(latestDatasets[0]?.id||'');
-  const defaultStrategy=strategies.find(s=>s.id===miningConfig.defaultStrategyId)||strategies[0];
-  const [strategy,setStrategy]=useState(defaultStrategy?.name||'');
+  const [parentId,setParentId]=useState('');
+  const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
   const [budget,setBudget]=useState(String(miningConfig.defaultBudget));
-  const defaultRunner=runners.find(r=>r.id===miningConfig.defaultRunnerId)||runners[0];
-  const [executor,setExecutor]=useState(defaultRunner?.name||'');
-  const [status,setStatus]=useState('idle');
-  const pool=pools.find(p=>p.id===poolId)||pools[0];
-  const base=datasets.find(d=>d.id===datasetId)||latestDatasets[0];
-  const acquisitionModel=base?.model||'No registered model';
-  const nextRound=(base?.round||base?.version||0)+1;
-  const batchName=`${base?.name||'Selection'} · Round ${nextRound} Selection Batch`;
-  const exactBudget=Math.min(Number(budget)||0,pool?.eligible||0);
-  const ready=Boolean(pool&&base&&base.model&&base.evalId&&exactBudget>0&&executor);
-  const runId=()=>`mine_${new Date().toISOString().replace(/[-:T]/g,'').slice(0,12)}_${Date.now().toString(36).slice(-4)}`;
-  const start=()=>{
-    if(!ready){notify('Mining preflight failed · complete required inputs');return;}
-    const id=runId(); const now=new Date().toISOString();
-    const batchId=`batch_${(base?.slug||'selection').replace(/-/g,'_')}_r${String(nextRound).padStart(2,'0')}_${Date.now().toString(36).slice(-4)}`;
-    const batch={id:batchId,name:`${base?.name||'Selection'} · Round ${nextRound}`,status:'In review',strategy,sourcePoolId:pool.id,sourceSnapshot:pool.snapshot,baseDatasetId:base.id,runId:id,count:exactBudget,schemaVersion:'roadsift.selection-batch.v1',manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,membershipHash:`sha256:${Date.now().toString(36)}`,owner:'Perception Data Ops',createdBy:'mining-orchestrator',createdAt:now,updatedAt:now,review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},handoff:{status:'Not started',destination:null,sentAt:null,manifestUri:null},annotationReturn:{status:'Not started',expected:0,returned:0,validation:null,uri:null,receivedAt:null},audit:[{at:now,actor:'mining-orchestrator',event:'Selection Batch created'}]};
-    setStatus('complete');
-    setSelectionBatches?.(list=>[batch,...list]);
-    setRuns(v=>[{id,type:'Mining',name:`${strategy} · ${pool.name} · Round ${nextRound}`,status:'Complete',source:`${pool.name} p${pool.version}`,dataset:`${base.name} v${base.version}`,output:batchName,frames:pool.eligible,selected:exactBudget,budget:exactBudget,executor,duration:miningConfig.simulatedDuration,date:now,scene:base.scene||0,owner:'Perception Data Ops',createdBy:'mining-orchestrator',updatedAt:now,attempt:1},...v]);
-    notify('Mining complete · Selection Batch created');
+  const [modelId,setModelId]=useState(miningConfig.defaultModelId||'');
+  const [runnerId,setRunnerId]=useState('auto');
+  const [advanced,setAdvanced]=useState(false);
+  const [status,setStatus]=useState('draft');
+  const [submitted,setSubmitted]=useState(null);
+  const pool=pools.find(p=>p.id===poolId);
+  const parent=datasets.find(d=>d.id===parentId);
+  const strategy=strategies.find(s=>s.id===algorithmId);
+  const registeredModel=modelRegistry.find(m=>m.id===modelId&&m.status==='Registered');
+  const modelNeeded=Boolean(strategy?.requiresPredictionModel);
+  const modelUsable=Boolean(registeredModel?.capabilities?.includes('predictions'));
+  const requestedBudget=Number(budget);
+  const budgetValid=Number.isInteger(requestedBudget)&&requestedBudget>0&&requestedBudget<=(pool?.eligible||0);
+  const compatibleRunners=runners.filter(r=>r.status==='Ready'&&r.allowedStrategyIds?.includes(algorithmId));
+  const assignedRunner=runnerId==='auto'?compatibleRunners.find(r=>(r.queueDepth||0)<(r.maxConcurrent||1))||compatibleRunners[0]:compatibleRunners.find(r=>r.id===runnerId);
+  const runnerAvailable=Boolean(assignedRunner&&(assignedRunner.queueDepth||0)<(assignedRunner.maxConcurrent||1));
+  const checks=[
+    {text:'Immutable Pool snapshot registered',pass:Boolean(pool?.snapshot&&pool?.manifestUri)},
+    {text:'EXACT-N fits eligible capacity',pass:budgetValid},
+    {text:'Algorithm configuration resolved',pass:Boolean(strategy?.id&&strategy?.version)},
+    {text:modelNeeded?'Registered prediction model available':'Prediction model not required',pass:!modelNeeded||modelUsable},
+    {text:'Compatible runner capacity available',pass:runnerAvailable}
+  ];
+  const ready=checks.every(c=>c.pass);
+  const fingerprint=value=>{
+    const s=JSON.stringify(value);
+    let h=2166136261;
+    for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
+    return 'fnv1a-'+(h>>>0).toString(16).padStart(8,'0');
   };
-  return <div className="page mining-page"><PageHeader eyebrow="Active learning operations" title="Mining" description="Configure and execute an immutable acquisition run from registered inputs." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
-
-    <div className="enterprise-stepper mining-stepper"><span className="active">1 · Candidate source</span><i/><span className="active">2 · Acquisition context</span><i/><span className="active">3 · Selection policy</span><i/><span className={ready?'active':''}>4 · Preflight</span><i/><span className={status==='complete'?'active':''}>5 · Selection Batch</span></div>
-    <div className="mining-context">
-      <div><small>Candidate snapshot</small><strong>{pool?.name} · p{pool?.version}</strong><span>{count(pool?.eligible||0)} eligible</span></div>
-      <ArrowRight size={15}/>
-      <div><small>Base dataset</small><strong>{base?.name} · v{base?.version}</strong><span>{count(base?.count||0)} labeled</span></div>
-      <ArrowRight size={15}/>
-      <div><small>Acquisition model</small><strong>{acquisitionModel}</strong><span>{base?.evalId||'No evaluation'}</span></div>
-      <ArrowRight size={15}/>
-      <div><small>Output</small><strong>Selection Batch</strong><span>EXACT-{count(exactBudget)}</span></div>
-    </div>
-
+  const draftContract={
+    schemaVersion:miningConfig.contractSchema,
+    poolSnapshotId:pool?.snapshot||null,
+    poolManifestUri:pool?.manifestUri||null,
+    parentDatasetVersionId:parent?.id||null,
+    algorithmId:strategy?.id||null,
+    algorithmVersion:strategy?.version||null,
+    algorithmWeights:strategy?.weights||null,
+    registeredModelId:modelNeeded?(registeredModel?.id||null):null,
+    modelArtifactUri:modelNeeded?(registeredModel?.artifactUri||null):null,
+    budget:requestedBudget,
+    exactN:true,
+    runnerId:assignedRunner?.id||null
+  };
+  const configFingerprint=fingerprint(draftContract);
+  const start=()=>{
+    if(!ready){notify('Mining preflight blocked · resolve the failed checks');return;}
+    const now=new Date().toISOString();
+    const stamp=Date.now().toString(36);
+    const id=`mine_${now.replace(/[-:T]/g,'').slice(0,12)}_${stamp.slice(-4)}`;
+    const batchId=`batch_${pool.slug.replace(/-/g,'_')}_${stamp.slice(-6)}`;
+    const batchName=`${pool.name} · ${strategy.name} · ${requestedBudget} frames`;
+    const spec={...draftContract,configFingerprint,jobId:id};
+    const run={id,type:'Mining',name:`${strategy.name} · ${pool.name}`,status:'Complete',
+      source:`${pool.name} p${pool.version}`,sourcePoolId:pool.id,dataset:parent?`${parent.name} v${parent.version}`:'None',
+      output:batchName,outputBatchId:batchId,frames:pool.eligible,selected:requestedBudget,budget:requestedBudget,
+      executor:assignedRunner.name,runnerId:assignedRunner.id,duration:miningConfig.simulatedDuration,date:now,
+      owner:'Perception Data Ops',createdBy:'mining-orchestrator',updatedAt:now,attempt:1,contract:spec,configFingerprint};
+    const batch={id:batchId,name:batchName,status:'In review',strategy:strategy.name,algorithmId:strategy.id,
+      sourcePoolId:pool.id,sourceSnapshot:pool.snapshot,baseDatasetId:parent?.id||null,
+      registeredModelId:spec.registeredModelId,runId:id,count:requestedBudget,
+      schemaVersion:'roadsift.selection-batch.v1',manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
+      membershipHash:`simulated:${fingerprint({batchId,runId:id,budget:requestedBudget})}`,
+      owner:'Perception Data Ops',createdBy:'mining-orchestrator',createdAt:now,updatedAt:now,
+      review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},
+      handoff:{status:'Not started',destination:null,sentAt:null,manifestUri:null},
+      annotationReturn:{status:'Not started',expected:0,returned:0,validation:null,uri:null,receivedAt:null},
+      audit:[{at:now,actor:'mining-orchestrator',event:'Simulated Mining completion · Selection Batch created'}]};
+    setRuns(list=>[run,...list]);
+    setSelectionBatches?.(list=>[batch,...list]);
+    setSubmitted({run,batch});
+    setStatus('complete');
+    notify('Mock worker completed · Selection Batch registered');
+  };
+  return <div className="page mining-page mining-page--production">
+    <PageHeader eyebrow="Active learning operations" title="New Mining Run" description="Select a candidate Pool, configure an acquisition algorithm and assign execution resources." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
     <div className="mining-builder">
       <section className="mining-builder__main">
-        <Panel title="Candidate source" description="Choose the exact immutable Pool snapshot. This becomes part of the run contract."><Field label="Pool snapshot" help="Pins the exact immutable candidate membership used by this run, so results can be reproduced later."><select value={poolId} onChange={e=>setPoolId(e.target.value)}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field><div className="mining-source-meta"><StatRow label="Snapshot" value={pool?.snapshot}/><StatRow label="Storage" value={pool?.storage}/><StatRow label="Reserved" value={count(pool?.reserved||0)}/><StatRow label="Updated" value={date(pool?.indexed)}/></div></Panel>
-
-        <Panel title="Acquisition context" description="Select the current labeled Dataset version and its registered acquisition model."><Field label="Base dataset version" help="The current labeled state used to define this Active Learning round and its acquisition context."><select value={datasetId} onChange={e=>setDatasetId(e.target.value)}>{latestDatasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version} · {count(d.count)} labeled</option>)}</select></Field><div className="mining-model-card"><div><span className="inline-label-help">Acquisition model <HelpTip>The registered model used to score the unlabeled Pool for uncertainty and other acquisition signals.</HelpTip></span><strong>{acquisitionModel}</strong><code>{base?.evalId}</code></div><Badge>{base?.evaluation?'Evaluated':'Missing eval'}</Badge></div></Panel>
-
-        <Panel title="Selection policy" description="Configure ranking policy and the exact annotation budget for this round."><div className="register-grid"><Field label="Strategy" help="The acquisition policy used to rank eligible samples, such as Hybrid, Entropy, Diversity, or Random Sampling."><select value={strategy} onChange={e=>setStrategy(e.target.value)}>{strategies.map(s=><option key={s.id}>{s.name}</option>)}</select></Field><Field label="Budget" help="EXACT-N target: RoadSift must return exactly this many eligible samples when capacity allows."><select value={budget} onChange={e=>setBudget(e.target.value)}>{miningConfig.budgets.map(v=><option key={v} value={v}>{count(v)} samples</option>)}</select></Field></div>{strategies.find(s=>s.name===strategy)?.weights&&<details className="advanced-config"><summary>Advanced strategy weights</summary><div className="strategy-params">{Object.entries(strategies.find(s=>s.name===strategy).weights).map(([key,value])=><div key={key}><span>{key[0].toUpperCase()+key.slice(1)}</span><strong>{Number(value).toFixed(2)}</strong></div>)}</div></details>}<div className="inline-callout">EXACT-N is enforced. Reserved, labeled and excluded samples are not eligible for reselection.</div></Panel>
+        <Panel title="Candidate source" description="Selection always starts from a registered immutable Pool snapshot.">
+          <Field label="Pool Snapshot *" help="Only eligible members of this snapshot can be selected."><select value={poolId} onChange={e=>{setPoolId(e.target.value);setStatus('draft')}}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field>
+          <div className="mining-source-meta"><StatRow label="Snapshot ID" value={pool?.snapshot||'—'}/><StatRow label="Eligible" value={count(pool?.eligible||0)}/><StatRow label="Manifest" value={pool?.manifestUri||'Missing'}/></div>
+        </Panel>
+        <Panel title="Acquisition configuration" description="The parent Dataset is optional. Prediction models are required only for algorithms that use them.">
+          <div className="mining-field-stack">
+            <Field label="Parent Dataset Version · Optional" help="Optional Active Learning lineage/context. This is not the model selector."><select value={parentId} onChange={e=>{setParentId(e.target.value);setStatus('draft')}}><option value="">None · independent Pool mining</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></Field>
+            <div className="register-grid">
+              <Field label="Selection Algorithm *"><select value={algorithmId} onChange={e=>{setAlgorithmId(e.target.value);setStatus('draft')}}>{strategies.map(a=><option key={a.id} value={a.id}>{a.name} · v{a.version}</option>)}</select></Field>
+              <Field label="Selection Budget (EXACT-N) *"><input type="number" min="1" step="1" value={budget} onChange={e=>{setBudget(e.target.value);setStatus('draft')}}/></Field>
+            </div>
+            <div className="mining-algorithm-description">{strategy?.description}</div>
+            <Field label={modelNeeded?'Registered Prediction Model *':'Registered Prediction Model · Optional'} help="Choose an existing model registry artifact, independently of the optional parent Dataset."><select value={modelId} onChange={e=>{setModelId(e.target.value);setStatus('draft')}} disabled={!modelNeeded}><option value="">{modelNeeded?'Select registered model':'Not required for this algorithm'}</option>{modelRegistry.filter(m=>m.status==='Registered'&&m.capabilities?.includes('predictions')).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></Field>
+            {modelNeeded&&registeredModel&&<div className="mining-model-ref"><StatRow label="Model registry ID" value={registeredModel.id}/><StatRow label="Artifact URI" value={registeredModel.artifactUri}/></div>}
+          </div>
+          <details className="advanced-config" open={advanced} onToggle={e=>setAdvanced(e.currentTarget.open)}><summary>Advanced algorithm settings</summary>{strategy?.weights?<div className="strategy-params">{Object.entries(strategy.weights).map(([key,value])=><div key={key}><span>{key}</span><strong>{Number(value).toFixed(2)}</strong></div>)}</div>:<p className="mining-algorithm-description">Uses the registered default algorithm configuration.</p>}</details>
+        </Panel>
+        <Panel title="Execution assignment" description="Auto assignment picks a compatible healthy worker with available capacity.">
+          <Field label="Runner assignment *" help="Auto prefers an available runner. An explicitly selected runner must also have free capacity."><select value={runnerId} onChange={e=>{setRunnerId(e.target.value);setStatus('draft')}}><option value="auto">Auto · compatible available runner</option>{runners.map(r=><option key={r.id} value={r.id}>{r.name} · {r.status}</option>)}</select></Field>
+          <div className="mining-source-meta"><StatRow label="Resolved runner" value={assignedRunner?.name||'Unavailable'}/><StatRow label="Queue / capacity" value={assignedRunner?`${assignedRunner.queueDepth||0} queued · ${assignedRunner.maxConcurrent||1} capacity`:'—'}/><StatRow label="Execution" value="Worker queue · asynchronous in production"/></div>
+        </Panel>
       </section>
-
       <aside className="mining-builder__side">
-        <Panel title="Preflight & submit" description="Resolve every dependency before creating an immutable Mining run."><div className="job-spec-preview"><div><span>Immutable job contract</span><Badge>{ready?'Ready':'Blocked'}</Badge></div><code>pool: {pool?.slug}:p{pool?.version}</code><code>snapshot: {pool?.snapshot}</code><code>dataset: {base?.slug}:v{base?.version}</code><code>model: {acquisitionModel}</code><code>strategy: {strategy}</code><code>budget: {exactBudget}</code></div><Field label="Runner" help="The registered compute backend that executes the same immutable Mining job spec, for example Kaggle or a RoadSift Worker."><select value={executor} onChange={e=>setExecutor(e.target.value)}>{runners.filter(r=>r.status==='Ready').map(r=><option key={r.id}>{r.name}</option>)}</select></Field><div className="preflight-list"><div className={pool?'pass':'fail'}><Check size={13}/>Pool snapshot resolved</div><div className={base?'pass':'fail'}><Check size={13}/>Base dataset resolved</div><div className={base?.model?'pass':'fail'}><Check size={13}/>Acquisition model registered</div><div className={base?.evalId?'pass':'fail'}><Check size={13}/>Evaluation attached</div><div className={exactBudget>0?'pass':'fail'}><Check size={13}/>Budget fits eligible capacity</div></div><div className="submit-note"><strong>Output contract</strong><span>Successful execution creates one immutable Selection Batch. It does not create a Dataset version.</span></div><Button variant="primary" className="wide" icon={Play} disabled={!ready} onClick={start}>Submit mining run</Button></Panel>
+        <Panel title="Preflight & submit" description="Only submit when all required resources and algorithm dependencies resolve.">
+          <div className="preflight-list">{checks.map(c=><div key={c.text} className={c.pass?'pass':'fail'}><Check size={13}/>{c.text}</div>)}</div>
+          <div className="job-spec-preview"><div><span>Immutable job contract</span><Badge>{ready?'Ready':'Blocked'}</Badge></div>
+            <code>pool_snapshot: {draftContract.poolSnapshotId||'—'}</code>
+            <code>parent_dataset: {draftContract.parentDatasetVersionId||'none'}</code>
+            <code>algorithm: {algorithmId}@{strategy?.version||'—'}</code>
+            <code>registered_model: {draftContract.registeredModelId||'none'}</code>
+            <code>budget: {budgetValid?count(requestedBudget):'invalid'}</code>
+            <code>runner: {draftContract.runnerId||'unavailable'}</code>
+            <code>config_fingerprint: {configFingerprint}</code>
+          </div>
+          {!budgetValid&&<p className="mining-inline-error">Budget must be a positive integer no greater than {count(pool?.eligible||0)} eligible samples. EXACT-N is never silently reduced.</p>}
+          <div className="submit-note"><strong>Output</strong><span>One immutable Selection Batch reserved for human review; no Dataset or model is created by Mining.</span></div>
+          <Button variant="primary" className="wide" icon={Play} disabled={!ready} onClick={start}>Submit Mining Run</Button>
+          <p className="mining-simulation-disclaimer">Prototype behavior: submit simulates worker completion locally. Real deployment enqueues a job and creates the Batch only after successful worker execution.</p>
+        </Panel>
       </aside>
     </div>
-
-    {status==='complete'&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Mining run complete</small><h3>{count(exactBudget)} / {count(exactBudget)} selected</h3><p>{strategy} · {executor} · {miningConfig.exactN?'EXACT-N':'Budgeted'}</p></div><Badge>Selection Batch</Badge></div><div className="result-pipeline">{['Resolve snapshot','Inference','Embedding','Scoring','Exact-N selection','Publish batch'].map(x=><span key={x}><Check size={12}/>{x}</span>)}</div><div className="result-output"><div><small>Created</small><strong>{batchName}</strong><span>{count(exactBudget)} samples reserved · awaiting review</span></div><div><small>Artifacts</small><strong>{miningConfig.artifacts.slice(0,2).join(' · ')}</strong><span>{miningConfig.artifacts.slice(2).join(' · ')}</span></div><Button variant="primary" icon={ArrowRight} onClick={()=>navigate('batches')}>Open Selection Batch</Button></div></div>}
+    {status==='complete'&&submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Simulated worker completion</small><h3>Selection Batch created</h3><p>{count(submitted.batch.count)} selected · {submitted.run.executor}</p></div><Badge>Complete</Badge></div>
+      <div className="result-output"><div><small>Run record</small><strong>{submitted.run.id}</strong><span>{submitted.run.configFingerprint} · EXACT-N satisfied</span></div><div><small>Selection Batch</small><strong>{submitted.batch.id}</strong><span>In review · immutable manifest reference</span></div><Button variant="primary" icon={ArrowRight} onClick={()=>navigate('batches')}>Open Selection Batches</Button></div>
+    </div>}
   </div>;
 }
 
