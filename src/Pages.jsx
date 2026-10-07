@@ -666,7 +666,7 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
     '# export_curated_batch(verified)  # Never export unverified raw frames',
     '',
     'print("Job config loaded. Integrate the actual RoadSift worker to run.")'
-  ].join('\\n');
+  ].join('\n');
   const submitted=runs.find(r=>r.id===submittedId);
   const submit=()=>{
     if(!ready){notify('Resolve the issues shown under Ready to run');return;}
