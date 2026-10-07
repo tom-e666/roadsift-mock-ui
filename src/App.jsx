@@ -11,6 +11,7 @@ function currentPage() { const path = window.location.pathname.split('/')[1] || 
 
 export default function App() {
   const [page, setPage] = useState(currentPage);
+  const [routePath, setRoutePath] = useState(() => window.location.pathname);
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light');
   const [collapsed, setCollapsed] = useLocalState('roadsift-mock-collapsed', false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -33,11 +34,11 @@ export default function App() {
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
     const next = target.startsWith('/') ? target.slice(1).split('?')[0] : target;
-    if (!allPages.some(([id]) => id === next)) return;
+    if (!allPages.some(([id]) => id === next) && !/^datasets\/[^/]+$/.test(next)) return;
     if (dataset) setContextDataset(dataset);
-    window.history.pushState({}, '', `/${next}`); setPage(next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
+    window.history.pushState({}, '', `/${next}`); setRoutePath(`/${next}`); setPage(next.startsWith('datasets/')?'datasets':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
-  useEffect(() => { const handler = () => setPage(currentPage()); window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
+  useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
   useEffect(() => { document.title = `RoadSift · ${title}`; }, [title]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('roadsift-mock-theme', theme); } catch {} }, [theme]);
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function App() {
     },1400);
     return()=>clearTimeout(timer);
   },[runs,setRuns,setSelectionBatches]);
-  const shared = { navigate, notify, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
+  const shared = { navigate, notify, routePath, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
   const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, batches: SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
