@@ -24,10 +24,9 @@ function downloadJSON(name, data) { const url = URL.createObjectURL(new Blob([JS
 
 export function Pools({ navigate, pools, setPools, notify, routePath }) {
   const [query,setQuery]=useState('');
-  const [detailTab,setDetailTab]=useState('overview');
   const selectedId=routePath?.startsWith('/pools/')?decodeURIComponent(routePath.slice('/pools/'.length)):null;
   const selected=pools.find(x=>x.id===selectedId)||null;
-  const openPool=pool=>{setDetailTab('overview');navigate(`/pools/${encodeURIComponent(pool.id)}`)};
+  const openPool=pool=>navigate(`/pools/${encodeURIComponent(pool.id)}`);
   const [createOpen,setCreateOpen]=useState(false);
   const [poolDraft,setPoolDraft]=useState({name:'',source:'',storageUri:'',manifestUri:'',total:'',eligible:'',validated:false});
   const [poolValidation,setPoolValidation]=useState(null);
@@ -86,19 +85,56 @@ export function Pools({ navigate, pools, setPools, notify, routePath }) {
     </section>
 
     </>}
-    {selected&&<section className="pool-detail-workspace">
-      <div className="dataset-detail-top"><Button icon={ArrowLeft} onClick={()=>navigate('pools')}>All pools</Button><div className="dataset-detail-actions"><Button icon={ScanLine} onClick={()=>navigate('data-explorer',{kind:'pool',id:selected.id})}>Browse samples</Button><Button variant="primary" icon={Pickaxe} onClick={()=>navigate('mining',{kind:'pool',id:selected.id})}>Start mining</Button></div></div>
-      <div className="dataset-detail-heading"><div><p className="eyebrow">Candidate registry / Pool snapshot p{selected.version}</p><h2>{selected.name}</h2><p>{selected.source||'Registered candidate pool'}</p></div><div className="dataset-detail-hero-metrics"><div><small>Total frames</small><strong>{count(selected.total)}</strong></div><div><small>Available to mine</small><strong>{count(selected.eligible)}</strong></div></div></div>
-      <div className="dataset-detail-tabs" role="tablist" aria-label="Pool details">{[['overview','Overview'],['composition','Composition'],['quality','Quality'],['snapshots','Snapshots'],['samples','Samples']].map(([id,label])=><button key={id} role="tab" aria-selected={detailTab===id} className={detailTab===id?'active':''} onClick={()=>setDetailTab(id)}>{label}</button>)}</div>
-      {detailTab==='overview'&&<div className="dataset-detail-stack"><Panel title="Pool membership" description="Total frames are partitioned into four mutually exclusive lifecycle states.">
-        <div className="pool-total-metric"><small>TOTAL REGISTERED FRAMES</small><strong>{count(selected.total)}</strong></div><div className="pool-composition-track">{[['eligible',selected.eligible],['reserved',selected.reserved],['labeled',selected.labeled],['excluded',selected.excluded]].map(([k,v])=><span key={k} className={`pool-part--${k}`} style={{flex:Math.max(0,Number(v)||0)}} title={`${k}: ${count(v)}`}/>)}</div>
-        <div className="pool-composition-legend">{[['Eligible',selected.eligible],['Reserved',selected.reserved],['Labeled',selected.labeled],['Excluded',selected.excluded]].map(([k,v])=><div key={k}><span className={`pool-legend-dot pool-part--${k.toLowerCase()}`}/><small>{k}</small><strong>{count(v||0)}</strong></div>)}</div>
-        {Number(selected.total)!==Number(selected.eligible||0)+Number(selected.reserved||0)+Number(selected.labeled||0)+Number(selected.excluded||0)&&<p className="mining-inline-error">Membership counts do not reconcile with Pool total. Registry review required.</p>}
-      </Panel><Panel title="Activity"><div className="detail-stats"><StatRow label="Mining runs · 7 days" value={String(selected.miningRuns7d||0)}/><StatRow label="Last mining" value={date(selected.lastMiningAt)}/><StatRow label="Snapshot" value={`${selected.slug}:p${selected.version}`}/><StatRow label="Updated" value={date(selected.indexed)}/></div><details className="advanced-config"><summary>Technical references</summary><div className="detail-stats"><StatRow label="Snapshot ID" value={selected.snapshot}/>{selected.manifestUri&&<StatRow label="Manifest URI" value={selected.manifestUri}/>} {selected.storage&&<StatRow label="Storage URI" value={selected.storage}/>}</div></details></Panel></div>}
-      {detailTab==='composition'&&<Panel title="Candidate domain composition" description="Composition describes eligible candidates; category values need not describe the entire Pool."><div className="pool-breakdown">{Object.entries(selected.composition||{}).map(([label,value])=><div className="pool-breakdown__row" key={label}><div><span>{label}</span><strong>{count(value)}</strong></div><div className="pool-breakdown__track"><i style={{width:barWidth(value,selected.eligible)}}/></div></div>)}</div></Panel>}
-      {detailTab==='quality'&&<Panel title="Quality flags" description="Quality flags may overlap. Low-light or blurred-but-usable frames are not automatically excluded."><div className="pool-flag-grid">{Object.entries(selected.quality||{}).map(([key,value])=><div key={key}><span>{key.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)}</strong></div>)}</div><p className="mining-muted-explainer">Quarantined indicates a review policy flag, not a mutually exclusive image-quality class. Lifecycle eligibility is shown under Overview.</p></Panel>}
-      {detailTab==='snapshots'&&<Panel title="Snapshot history" description="Recorded immutable membership snapshots, newest first."><div className="snapshot-list">{(selected.recentSnapshots||[]).map(s=><div className="snapshot-row" key={s.version}><code>{selected.slug}:p{s.version}</code><div><strong>{count(s.eligible)} eligible</strong><span>{s.reason}</span></div><small>{date(s.at)}</small></div>)}</div></Panel>}
-      {detailTab==='samples'&&<Panel title="Sample preview" description="Representative demo images. Open Data Explorer for filtering and inspection."><div className="pool-preview-grid">{(selected.sampleScenes||[0,1,2,3]).map((scene,i)=><button key={i} className="pool-preview-card" onClick={()=>navigate('data-explorer',{kind:'pool',id:selected.id})}><Scene scene={scene} alt={`${selected.name} representative sample ${i+1}`}/><span>Demo preview {i+1}</span></button>)}</div><div className="section-actions"><Button onClick={()=>navigate('data-explorer',{kind:'pool',id:selected.id})}>Open Data Explorer</Button></div></Panel>}
+    {selected&&<section className="pool-detail-workspace pool-overview-single">
+      <div className="dataset-detail-top">
+        <Button icon={ArrowLeft} onClick={()=>navigate('pools')}>All pools</Button>
+        <div className="dataset-detail-actions"><Button icon={ScanLine} onClick={()=>navigate('data-explorer',{kind:'pool',id:selected.id})}>Browse samples</Button><Button variant="primary" icon={Pickaxe} onClick={()=>navigate('mining',{kind:'pool',id:selected.id})}>Start mining</Button></div>
+      </div>
+      <div className="dataset-detail-heading">
+        <div><p className="eyebrow">Candidate Pool · <span className="pool-current-version">{selected.slug||selected.id}:p{selected.version}</span></p><h2>{selected.name}</h2><p>{selected.source||'Candidate registry'} · Updated {date(selected.indexed)}</p></div>
+        <div className="dataset-detail-hero-metrics"><div><small>Total frames</small><strong>{count(selected.total)}</strong></div><div><small>Available to mine</small><strong>{count(selected.eligible)}</strong></div></div>
+      </div>
+      <Panel title="Pool membership">
+        <div className="pool-composition-track" role="img" aria-label="Pool membership split by lifecycle state">{[['eligible',selected.eligible],['reserved',selected.reserved],['labeled',selected.labeled],['excluded',selected.excluded]].map(([key,value])=><span key={key} className={`pool-part--${key}`} style={{flex:Math.max(0,Number(value)||0)}} title={`${key}: ${count(value||0)}`}/>)}</div>
+        <div className="pool-composition-legend">{[['Eligible',selected.eligible],['Reserved',selected.reserved],['Labeled',selected.labeled],['Excluded',selected.excluded]].map(([key,value])=><div key={key}><span className={`pool-legend-dot pool-part--${key.toLowerCase()}`}/><small>{key}</small><strong>{count(value||0)}</strong></div>)}</div>
+        {Number(selected.total)!==Number(selected.eligible||0)+Number(selected.reserved||0)+Number(selected.labeled||0)+Number(selected.excluded||0)&&<p className="mining-inline-error">Pool membership counts need review: states do not reconcile with Total.</p>}
+      </Panel>
+      <div className="pool-overview-two-columns">
+        <Panel title="Candidate composition">
+          <div className="pool-breakdown">{Object.entries(selected.composition||{}).map(([label,value])=><div className="pool-breakdown__row" key={label}><div><span>{label.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)}</strong></div><div className="pool-breakdown__track"><i style={{width:barWidth(value,selected.eligible)}}/></div></div>)}</div>
+        </Panel>
+        <Panel title="Quality & review flags">
+          <div className="pool-quality-list">{Object.entries(selected.quality||{}).map(([key,value])=><div key={key}><span>{key.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)}</strong></div>)}</div>
+          <p className="pool-hint">Flags may overlap. Low light and blur do not automatically exclude a frame.</p>
+        </Panel>
+      </div>
+      <Panel title="Snapshot history" description="Each version captures Pool membership after a recorded change.">
+        <div className="pool-snapshot-timeline">{(selected.recentSnapshots||[]).map((snapshot,index,array)=>{
+          const previous=array[index+1];
+          const current=snapshot.version===selected.version;
+          const eligibleDelta=previous&&Number.isFinite(snapshot.eligible)&&Number.isFinite(previous.eligible)?Number(snapshot.eligible)-Number(previous.eligible):null;
+          const totalDelta=previous&&Number.isFinite(snapshot.total)&&Number.isFinite(previous.total)?Number(snapshot.total)-Number(previous.total):null;
+          const deltaText=value=>value===null?'Not recorded':`${value>0?'+':''}${count(value)}`;
+          return <div key={snapshot.version} className="pool-snapshot-event">
+            <div className="pool-snapshot-rail"><span className={current?'pool-snapshot-marker current':'pool-snapshot-marker'}/></div>
+            <div className="pool-snapshot-event-main">
+              <div className="pool-snapshot-event-top"><div><strong>{selected.slug||selected.id}:p{snapshot.version}</strong>{current&&<Badge>Current</Badge>}</div><time dateTime={snapshot.at}>{date(snapshot.at)}</time></div>
+              <p>{snapshot.reason||'Change reason not registered'}</p>
+              <div className="pool-snapshot-numbers"><span><b>{count(snapshot.eligible||0)}</b> eligible</span>{previous&&<><span>Δ eligible <b className={eligibleDelta>0?'pool-positive':eligibleDelta<0?'pool-negative':''}>{deltaText(eligibleDelta)}</b></span><span>Δ total <b>{deltaText(totalDelta)}</b></span></>}</div>
+              {previous&&<small>Compared with p{previous.version}. Net changes do not identify individual ingested or reserved samples.</small>}
+            </div>
+          </div>
+        })}</div>
+        <p className="pool-hint">Trigger job IDs and membership transitions are not recorded for these historical snapshots.</p>
+      </Panel>
+      <Panel title="Sample preview" description="Browse the available image collection in Data Explorer.">
+        <div className="pool-overview-previews">{(selected.sampleScenes||[0,1,2,3]).slice(0,4).map((scene,index)=><div key={index} className="pool-overview-preview"><Scene scene={scene} alt={`Sample preview ${index+1}`}/></div>)}</div>
+      </Panel>
+      <details className="panel mining-accordion pool-technical-section"><summary className="mining-accordion__summary"><strong>Technical metadata</strong><small>Snapshot references · activity</small></summary>
+        <div className="panel__body"><div className="detail-stats"><StatRow label="Current version" value={`${selected.slug||selected.id}:p${selected.version}`}/><StatRow label="Snapshot ID" value={selected.snapshot}/>{selected.manifestUri&&<StatRow label="Manifest URI" value={selected.manifestUri}/>}
+          {selected.storage&&<StatRow label="Storage URI" value={selected.storage}/>}<StatRow label="Mining runs · 7 days" value={String(selected.miningRuns7d||0)}/><StatRow label="Last mining" value={date(selected.lastMiningAt)}/></div>
+        </div>
+      </details>
     </section>}
     {createOpen&&<Modal title="Create pool" onClose={()=>setCreateOpen(false)} footer={<><Button onClick={()=>setCreateOpen(false)}>Cancel</Button><Button onClick={validatePool}>Validate</Button><Button variant="primary" onClick={createPool}>Create pool</Button></>}><div className="register-intro"><div><p className="modal-intro">Register an existing unlabeled candidate collection as a versioned Pool. Use Import Data when you still need to upload or extract media first.</p></div><Button icon={Sparkles} onClick={autofillPool}>Autofill</Button></div><Field label="Pool name"><input value={poolDraft.name} onChange={e=>patchPoolDraft({name:e.target.value})} placeholder="Central Vietnam Fleet Pool"/></Field><Field label="Source description"><input value={poolDraft.source} onChange={e=>patchPoolDraft({source:e.target.value})} placeholder="Existing R2 collection"/></Field><Field label="Storage URI"><input value={poolDraft.storageUri} onChange={e=>patchPoolDraft({storageUri:e.target.value})} placeholder="r2://roadsift/pools/central-vietnam/"/></Field><Field label="Manifest URI" help="Canonical membership reference for this Pool snapshot."><input value={poolDraft.manifestUri} onChange={e=>patchPoolDraft({manifestUri:e.target.value})} placeholder="r2://roadsift/pools/central-vietnam/manifest.parquet"/></Field><div className="register-grid"><Field label="Total samples"><input inputMode="numeric" value={poolDraft.total} onChange={e=>patchPoolDraft({total:e.target.value})}/></Field><Field label="Eligible samples" help="Samples currently allowed to enter Mining."><input inputMode="numeric" value={poolDraft.eligible} onChange={e=>patchPoolDraft({eligible:e.target.value})}/></Field></div>{poolValidation&&<div className={poolValidation.tone==='success'?'registration-valid':'registration-error'}>{poolValidation.tone==='success'?<CheckCircle2 size={18}/>:<X size={18}/>}<div><strong>{poolValidation.tone==='success'?'Validation passed':'Validation failed'}</strong><p>{poolValidation.message}</p></div></div>}</Modal>}
 
