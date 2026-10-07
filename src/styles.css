@@ -624,3 +624,33 @@ th .help-tip{margin-left:4px}
 .dataset-registry-table td:nth-child(2) .dataset-name-cell{min-width:185px}
 .dataset-registry-table tbody tr{cursor:pointer}
 .dataset-registry-table tbody tr:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+/* Ingest: source-first frame registry workflow */
+.ingest-workflow .panel__body{display:grid;gap:13px}
+.ingest-mode-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ingest-mode{display:grid;gap:7px;text-align:left;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);padding:16px;min-height:77px;cursor:pointer}
+.ingest-mode strong{font-size:13px;font-weight:600}
+.ingest-mode span{font-size:12px;color:var(--muted)}
+.ingest-mode.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
+.ingest-inline-choice{display:flex;gap:14px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.ingest-inline-choice>span{font-weight:600;font-size:12px}
+.ingest-source-fields{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
+.ingest-source-fields>.field:first-child{min-width:0}
+.ingest-source-fields:has(>.field:only-of-type){grid-template-columns:minmax(0,1fr)}
+.ingest-source-fields .mining-inline-error{grid-column:1/-1}
+.ingest-file-manager{display:grid;gap:9px}
+.ingest-file-manager .ingest-dropzone-new{margin:0;min-height:100px}
+.ingest-files{display:grid;gap:4px}
+.ingest-files>div{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:12px;min-width:0}
+.ingest-files>div>span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ingest-files small{white-space:nowrap;color:var(--muted)}
+.ingest-files button{display:grid;place-items:center;padding:5px;border:0;border-radius:5px;color:var(--muted);background:transparent;cursor:pointer}
+.ingest-files button:hover{color:var(--text);background:var(--bg)}
+.ingest-destination-note{display:flex;gap:9px;align-items:center;padding:11px 12px;border-radius:8px;background:var(--bg);color:var(--muted);font-size:12px}
+.ingest-destination-note svg{flex:none}
+.ingest-output-steps{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ingest-output-steps>div{display:flex;gap:10px;align-items:center;padding:12px 15px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:12px}
+.ingest-output-steps>svg{color:var(--muted)}
+.ingest-workflow .ingest-action-bar{bottom:10px}
+.ingest-workflow .ingest-action-bar>div:first-child{max-width:60%}
+@media(max-width:680px){.ingest-mode-picker{grid-template-columns:1fr}.ingest-source-fields{grid-template-columns:1fr}.ingest-workflow .ingest-action-bar>div:first-child{max-width:100%}}
