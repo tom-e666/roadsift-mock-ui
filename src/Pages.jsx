@@ -330,29 +330,50 @@ export function Explorer({datasets,pools,contextDataset,notify,navigate}) {
   const [detections,setDetections]=useState(false);
   const [view,setView]=useState('grid');
   const [inspectorTab,setInspectorTab]=useState('overview');
-  const [limit,setLimit]=useState(12);
+  const [records,setRecords]=useState([]);
+  const [cursor,setCursor]=useState('0');
+  const [loading,setLoading]=useState(false);
+  const [pageError,setPageError]=useState('');
+  const requestId=useRef(0);
   const loadingSentinel=useRef(null);
   useEffect(()=>{if(contextDataset?.id){setSourceType(contextDataset.kind==='pool'?'pool':'dataset');setSourceId(contextDataset.id)}},[contextDataset]);
   useEffect(()=>{const handler=e=>{if(sourceMenu.current&&!sourceMenu.current.contains(e.target))setSourceOpen(false)};document.addEventListener('pointerdown',handler);return()=>document.removeEventListener('pointerdown',handler)},[]);
   const sourceList=sourceType==='pool'?pools:datasets;
   const source=sourceList.find(x=>x.id===sourceId)||sourceList[0]||null;
   const normalizedState=s=>({Raw:'Eligible',Selected:'Reserved',Labeled:'Labeled',Excluded:'Excluded'})[s]||s;
-  const demoFrames=sourceType==='dataset'?frames.filter(f=>f.state==='Labeled'):frames;
+  const demoFrames=frames;
   const filtered=demoFrames.filter(f=>(state==='All'||normalizedState(f.state)===state)
     &&(domain==='All'||f.domain===domain)&&(weather==='All'||f.weather===weather)
     &&(quality==='All'||f.quality===quality)
     &&(minObjects===''||f.objects>=Number(minObjects))
     &&(maxUncertainty===''||f.uncertainty<=Number(maxUncertainty))
     &&`${f.id} ${f.domain} ${f.video}`.toLowerCase().includes(query.toLowerCase()));
-  const visible=filtered.slice(0,limit);
-  const resetView=()=>{setState('All');setQuery('');setDomain('All');setWeather('All');setQuality('All');setMinObjects('');setMaxUncertainty('');setSelectedIds([]);setLimit(12);setLastClicked(-1);setActive(null)};
-  useEffect(()=>{setLimit(12);setSelectedIds([]);setLastClicked(-1)},[state,query,domain,weather,quality,minObjects,maxUncertainty,sourceId,sourceType]);
+  const visible=records;
+  // Preview API contract: cursor pagination, filtering, and stable sample IDs.
+  const mockQuery=JSON.stringify({sourceType,sourceId,state,domain,weather,quality,minObjects,maxUncertainty,query});
+  const fetchNext=async()=>{
+    if(loading||cursor===null)return;
+    setLoading(true);setPageError('');
+    const version=requestId.current,after=cursor;
+    try{
+      const result=await new Promise(resolve=>setTimeout(()=>{
+        const start=Math.max(0,Number(after)||0);
+        resolve({items:filtered.slice(start,start+12),nextCursor:start+12<filtered.length?String(start+12):null,total:filtered.length});
+      },140));
+      if(version!==requestId.current)return;
+      setRecords(previous=>[...previous,...result.items.filter(item=>!previous.some(p=>p.id===item.id))]);
+      setCursor(result.nextCursor);
+    }catch{if(version===requestId.current)setPageError('Could not load samples. Retry.');}
+    finally{if(version===requestId.current)setLoading(false)}
+  };
+  const resetView=()=>{setState('All');setQuery('');setDomain('All');setWeather('All');setQuality('All');setMinObjects('');setMaxUncertainty('');setSelectedIds([]);setLastClicked(-1);setActive(null)};
+  useEffect(()=>{requestId.current+=1;setRecords([]);setCursor('0');setLoading(false);setPageError('');setSelectedIds([]);setLastClicked(-1)},[mockQuery]);
   useEffect(()=>{
     const target=loadingSentinel.current;
-    if(!target||visible.length>=filtered.length||typeof IntersectionObserver==='undefined')return;
-    const observer=new IntersectionObserver(entries=>{if(entries.some(x=>x.isIntersecting))setLimit(n=>Math.min(filtered.length,n+12))},{rootMargin:'250px'});
+    if(!target||cursor===null||loading||typeof IntersectionObserver==='undefined')return;
+    const observer=new IntersectionObserver(entries=>{if(entries.some(x=>x.isIntersecting))fetchNext()},{rootMargin:'250px'});
     observer.observe(target);return()=>observer.disconnect();
-  },[visible.length,filtered.length]);
+  },[cursor,loading,mockQuery]);
   const aggregate=sourceType==='pool'?{All:source?.total,Eligible:source?.eligible,Reserved:source?.reserved,Labeled:source?.labeled,Excluded:source?.excluded}:{All:source?.count,Labeled:source?.count};
   const tabs=sourceType==='pool'?['All','Eligible','Reserved','Labeled','Excluded']:['All','Labeled'];
   const checked=id=>selectedIds.includes(id);
@@ -363,7 +384,7 @@ export function Explorer({datasets,pools,contextDataset,notify,navigate}) {
   };
   const exportSelection=()=>{const chosen=frames.filter(f=>selectedIds.includes(f.id));downloadJSON('roadsift-preview-selection.json',{schemaVersion:'roadsift.preview-selection.v1',fixtureOnly:true,sourceType,sourceId:source?.id,samples:chosen});notify('Exported selected preview metadata')};
   return <div className="page data-browser data-browser--reworked">
-    <PageHeader eyebrow="Library" title="Data Explorer" description="Inspect available sample previews. Pool statistics refer to the full registry; the gallery is a separate, limited fixture."/>
+    <PageHeader eyebrow="Library" title="Data Explorer" description="Browse frames and sample metadata."/>
     <div className="explorer-source-panel">
       <div className="explorer-source-switch" role="group" aria-label="Source type"><button aria-pressed={sourceType==='pool'} onClick={()=>{setSourceType('pool');setSourceId(pools[0]?.id||'');resetView()}}>Candidate Pools</button><button aria-pressed={sourceType==='dataset'} onClick={()=>{setSourceType('dataset');setSourceId(datasets[0]?.id||'');resetView()}}>Labeled Datasets</button></div>
       <div className="explorer-source-select" ref={sourceMenu}><label>{sourceType==='pool'?'Pool Snapshot':'Dataset Version'}</label><button type="button" className="explorer-select-trigger" aria-haspopup="listbox" aria-expanded={sourceOpen} onClick={()=>{setSourceOpen(x=>!x);setSourceSearch('')}}><strong>{source?`${source.name} · ${sourceType==='pool'?'p':'v'}${source.version}`:'Select a source'}</strong><ChevronDown size={15}/></button>
@@ -374,12 +395,12 @@ export function Explorer({datasets,pools,contextDataset,notify,navigate}) {
     <div className="state-tabs-wrap"><div className="state-tabs">{tabs.map(s=><button key={s} className={state===s?'state-tab state-tab--active':'state-tab'} onClick={()=>setState(s)}><span>{s}</span><b>{aggregate[s]!=null?count(aggregate[s]):'N/A'}</b></button>)}</div></div>
     <div className="explorer-toolbar browser-filters explorer-consolidated-filters"><div className="search-field"><Search size={15}/><input aria-label="Search preview samples" placeholder="Find sample ID or source video…" value={query} onChange={e=>setQuery(e.target.value)}/></div><Button icon={SlidersHorizontal} onClick={()=>setFiltersOpen(x=>!x)}>{filtersOpen?'Hide filters':'Filters'}</Button><Button icon={BoxSelect} onClick={()=>setView(v=>v==='grid'?'list':'grid')}>{view==='grid'?'List view':'Grid view'}</Button><Button icon={ScanLine} onClick={()=>setDetections(v=>!v)}>{detections?'Hide boxes':'Show boxes'}</Button></div>
     {filtersOpen&&<div className="explorer-extra-filters"><Field label="Domain"><select value={domain} onChange={e=>setDomain(e.target.value)}>{['All',...new Set(frames.map(f=>f.domain))].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Weather"><select value={weather} onChange={e=>setWeather(e.target.value)}>{['All',...new Set(frames.map(f=>f.weather))].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Quality"><select value={quality} onChange={e=>setQuality(e.target.value)}>{['All',...new Set(frames.map(f=>f.quality))].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Min objects"><input type="number" min="0" value={minObjects} onChange={e=>setMinObjects(e.target.value)}/></Field><Field label="Max uncertainty"><input type="number" min="0" max="1" step=".05" value={maxUncertainty} onChange={e=>setMaxUncertainty(e.target.value)}/></Field><Button onClick={resetView}>Reset filters</Button></div>}
-    <div className="section-caption"><span><strong>{filtered.length} fixture previews match</strong> · {visible.length} loaded · {count(aggregate[state]||0)} registered {state==='All'?'in source':state.toLowerCase()}</span><span>Mock gallery only · No live API pagination</span></div>
+    <div className="section-caption"><span><strong>{visible.length} of {filtered.length} preview samples</strong> · {count(aggregate[state]||0)} registered {state==='All'?'in source':state.toLowerCase()}</span><span>Preview collection: 36 samples</span></div>
     {!!selectedIds.length&&<div className="explorer-bulk-toolbar"><strong>{selectedIds.length} selected previews</strong><Button onClick={exportSelection} icon={Download}>Export metadata</Button><Button disabled title="Requires backend membership and versioned Pool mutation">Exclude / Quarantine</Button><Button disabled title="Requires server-side candidate constraint contract">Send to Mining</Button><Button onClick={()=>setSelectedIds([])}>Clear</Button></div>}
     <div className={view==='grid'?'frame-grid':'frame-list'}>{visible.map((frame,index)=><article className="frame-card browser-frame explorer-frame" key={frame.id}><button type="button" className="frame-card__preview" aria-label={`Inspect ${frame.id}`} onClick={()=>{setActive(frame);setInspectorTab('overview')}}><Scene scene={frame.scene}/>{detections&&frame.state!=='Raw'&&frame.state!=='Excluded'&&<><span className="mock-box mock-box--car">car</span><span className="mock-box mock-box--person">person</span></>}<span className={`sample-state sample-state--${frame.state.toLowerCase()}`}>{normalizedState(frame.state)}</span></button><label className="explorer-select-checkbox" onClick={e=>e.stopPropagation()}><input type="checkbox" checked={checked(frame.id)} onChange={e=>pick(frame,index,e.nativeEvent?.shiftKey||false)} aria-label={`Select ${frame.id}`}/></label><div className="frame-card__meta"><strong>{frame.id}</strong><span>{frame.domain}</span></div><div className="frame-card__foot"><span>{frame.weather} · {frame.objects} objects</span><span>{frame.video}</span></div></article>)}</div>
-    <div ref={loadingSentinel} className="explorer-load-status">{visible.length<filtered.length?`Loading more preview samples… (${visible.length} of ${filtered.length})`:`End of available fixture previews · ${visible.length} of ${filtered.length}`}</div>
-    {!filtered.length&&<Empty title="No preview samples match" detail="Adjust filters. Registered source membership is not currently accessible through this demo."/>}
-    {active&&<Modal sheet title={`Sample · ${active.id}`} onClose={()=>setActive(null)} footer={<Button icon={Download} onClick={()=>{downloadJSON(`${active.id}.metadata.json`,{schemaVersion:'roadsift.sample.v1',sample:active,fixtureOnly:true});notify('Sample preview metadata exported')}}>Export metadata</Button>}><div className="inspector-scene inspector-scene--large"><Scene scene={active.scene}/>{detections&&active.state!=='Raw'&&active.state!=='Excluded'&&<><span className="mock-box mock-box--car">car · 0.91</span><span className="mock-box mock-box--person">person · 0.78</span></>}</div><div className="inspector-title"><div><h3>{active.id}</h3><p>{active.video} · {active.time}</p></div><Badge>{normalizedState(active.state)}</Badge></div><div className="inspector-tabs">{['overview','provenance','quality','predictions','acquisition','annotation'].map(t=><button key={t} className={inspectorTab===t?'active':''} onClick={()=>setInspectorTab(t)}>{t[0].toUpperCase()+t.slice(1)}</button>)}</div><div className="inspector-tab-body">{inspectorTab==='overview'&&<div className="detail-stats"><StatRow label="Context" value={source?.name}/><StatRow label="Demo state" value={normalizedState(active.state)}/><StatRow label="Domain" value={active.domain}/><StatRow label="Weather" value={active.weather}/><StatRow label="Objects" value={active.objects}/></div>}{inspectorTab==='provenance'&&<div className="detail-stats"><StatRow label="Fixture sample" value={active.id}/><StatRow label="Video" value={active.video}/><StatRow label="Timestamp" value={active.time}/><StatRow label="Verified source membership" value="Not available in demo"/></div>}{inspectorTab==='quality'&&<div className="detail-stats"><StatRow label="Quality" value={active.quality}/><StatRow label="Blur" value={active.blur.toFixed(2)}/><StatRow label="Brightness" value={active.brightness.toFixed(2)}/></div>}{inspectorTab==='predictions'&&<div className="detail-stats"><StatRow label="Predictions" value="Illustrative overlay only"/><StatRow label="Object count (fixture)" value={active.objects}/></div>}{inspectorTab==='acquisition'&&<div className="score-bars"><ScoreBar label="Uncertainty" value={active.uncertainty}/><ScoreBar label="Safety" value={active.safety}/><ScoreBar label="Diversity" value={active.diversity}/><ScoreBar label="Redundancy" value={active.redundancy}/></div>}{inspectorTab==='annotation'&&<div className="detail-stats"><StatRow label="Fixture lifecycle state" value={normalizedState(active.state)}/><StatRow label="Annotation reference" value="Not available"/></div>}</div></Modal>}
+    <div ref={loadingSentinel} className="explorer-load-status">{pageError?<Button onClick={fetchNext}>Retry loading</Button>:loading?'Loading…':cursor!==null?<Button onClick={fetchNext}>Load more</Button>:`${visible.length} samples shown`}</div>
+    {!filtered.length&&<Empty title="No preview samples match" detail="Change filters to see more samples."/>}
+    {active&&<Modal sheet title={`Sample · ${active.id}`} onClose={()=>setActive(null)} footer={<Button icon={Download} onClick={()=>{downloadJSON(`${active.id}.metadata.json`,{schemaVersion:'roadsift.sample.v1',sample:active,fixtureOnly:true});notify('Sample preview metadata exported')}}>Export metadata</Button>}><div className="inspector-scene inspector-scene--large"><Scene scene={active.scene}/>{detections&&active.state!=='Raw'&&active.state!=='Excluded'&&<><span className="mock-box mock-box--car">car · 0.91</span><span className="mock-box mock-box--person">person · 0.78</span></>}</div><div className="inspector-title"><div><h3>{active.id}</h3><p>{active.video} · {active.time}</p></div><Badge>{normalizedState(active.state)}</Badge></div><div className="inspector-tabs">{['overview','provenance','quality','predictions','acquisition','annotation'].map(t=><button key={t} className={inspectorTab===t?'active':''} onClick={()=>setInspectorTab(t)}>{t[0].toUpperCase()+t.slice(1)}</button>)}</div><div className="inspector-tab-body">{inspectorTab==='overview'&&<div className="detail-stats"><StatRow label="Context" value={source?.name}/><StatRow label="State" value={normalizedState(active.state)}/><StatRow label="Domain" value={active.domain}/><StatRow label="Weather" value={active.weather}/><StatRow label="Objects" value={active.objects}/></div>}{inspectorTab==='provenance'&&<div className="detail-stats"><StatRow label="Sample ID" value={active.id}/><StatRow label="Video" value={active.video}/><StatRow label="Timestamp" value={active.time}/><StatRow label="Verified source membership" value="Unavailable"/></div>}{inspectorTab==='quality'&&<div className="detail-stats"><StatRow label="Quality" value={active.quality}/><StatRow label="Blur" value={active.blur.toFixed(2)}/><StatRow label="Brightness" value={active.brightness.toFixed(2)}/></div>}{inspectorTab==='predictions'&&<div className="detail-stats"><StatRow label="Predictions" value="Detection preview"/><StatRow label="Object count" value={active.objects}/></div>}{inspectorTab==='acquisition'&&<div className="score-bars"><ScoreBar label="Uncertainty" value={active.uncertainty}/><ScoreBar label="Safety" value={active.safety}/><ScoreBar label="Diversity" value={active.diversity}/><ScoreBar label="Redundancy" value={active.redundancy}/></div>}{inspectorTab==='annotation'&&<div className="detail-stats"><StatRow label="Lifecycle state" value={normalizedState(active.state)}/><StatRow label="Annotation reference" value="Not available"/></div>}</div></Modal>}
   </div>;
 }
 
@@ -430,7 +451,7 @@ export function ImportData({notify,navigate,pools}) {
     <div className="ingest-single-column">
       <Panel title="1. Where is your data?" description="Choose one source type to begin.">
         <div className="ingest-source-choices">{[['upload','upload-cloud','My computer','Images or videos'],['existing','database','Cloud storage','R2 / S3 prefix'],['manifest','file-text','Manifest','CSV / JSONL / Parquet']].map(([id,icon,label,sub])=><button key={id} className={sourceMode===id?'ingest-choice active':'ingest-choice'} onClick={()=>{setSourceMode(id);setValidated(false);setStatus('draft')}}><strong>{label}</strong><small>{sub}</small></button>)}</div>
-        {sourceMode==='upload'&&<><div className="segmented compact"><button className={mediaType==='videos'?'active':''} onClick={()=>{setMediaType('videos');setFiles([]);setValidated(false);setStatus('draft')}}>Videos</button><button className={mediaType==='images'?'active':''} onClick={()=>{setMediaType('images');setFiles([]);setValidated(false);setStatus('draft')}}>Images</button></div><input className="sr-only" type="file" ref={picker} multiple accept={mediaType==='videos'?'video/*':'image/*'} onChange={e=>{setFiles(Array.from(e.target.files||[]));setValidated(false);setStatus('draft')}}/><button className="ingest-dropzone-new" onClick={()=>picker.current?.click()}><Upload size={24}/><strong>{files.length?`${files.length} files selected`:'Choose local files'}</strong><span>{files.length?files.slice(0,3).map(f=>f.name).join(' · '):'No files selected · JPG/PNG or MP4/MOV'}</span></button><p className="ingest-disclaimer">Browser upload to object storage requires a connected API and presigned URLs. This demo does not upload files.</p></>}
+        {sourceMode==='upload'&&<><div className="segmented compact"><button className={mediaType==='videos'?'active':''} onClick={()=>{setMediaType('videos');setFiles([]);setValidated(false);setStatus('draft')}}>Videos</button><button className={mediaType==='images'?'active':''} onClick={()=>{setMediaType('images');setFiles([]);setValidated(false);setStatus('draft')}}>Images</button></div><input className="sr-only" type="file" ref={picker} multiple accept={mediaType==='videos'?'video/*':'image/*'} onChange={e=>{setFiles(Array.from(e.target.files||[]));setValidated(false);setStatus('draft')}}/><button className="ingest-dropzone-new" onClick={()=>picker.current?.click()}><Upload size={24}/><strong>{files.length?`${files.length} files selected`:'Choose local files'}</strong><span>{files.length?files.slice(0,3).map(f=>f.name).join(' · '):'No files selected · JPG/PNG or MP4/MOV'}</span></button><p className="ingest-disclaimer">No file upload until storage is connected.</p></>}
         {sourceMode==='existing'&&<Field label="Cloud storage prefix"><input value={prefix} onChange={change(setPrefix)} placeholder="r2://bucket/incoming/drive-01/"/></Field>}
         {sourceMode==='manifest'&&<div className="register-grid"><Field label="Manifest URI"><input value={manifestUri} onChange={change(setManifestUri)} placeholder="r2://bucket/manifests/frames.parquet"/></Field><Field label="Format"><select value={manifestFormat} onChange={change(setManifestFormat)}>{importSimulation.manifestFormats.map(fmt=><option key={fmt}>{fmt}</option>)}</select></Field></div>}
       </Panel>
@@ -443,7 +464,7 @@ export function ImportData({notify,navigate,pools}) {
         <div className="worker-policy-list">{[['Quality checks',worker.qualityChecks],['Deduplication',worker.deduplication],['Metadata indexing',worker.metadataIndex]].map(([key,on])=><div key={key}><Check size={14}/><span>{key}</span><strong>{on?'Enabled':'Disabled'}</strong></div>)}</div>
       </div></details>
       <details className="panel mining-accordion"><summary className="mining-accordion__summary"><strong>Job specification · JSON</strong><small>Technical configuration · read-only</small></summary><div className="panel__body"><div className="mining-code-actions"><Button icon={Download} onClick={()=>downloadJSON('ingest-job-draft.json',spec)}>Download JSON</Button></div><pre className="mining-code-block"><code>{JSON.stringify(spec,null,2)}</code></pre></div></details>
-      {status!=='draft'&&<Panel title={status==='complete'?'Demo processing complete':'Background job · demo'} description={`Job ${jobId} · ${status}`}><div className="job-lifecycle">{['queued','processing','validating','complete'].map((step,i)=><div key={step} className={['queued','processing','validating','complete'].indexOf(status)>i?'done':status===step?'current':''}><span>{i+1}</span><strong>{step[0].toUpperCase()+step.slice(1)}</strong></div>)}</div>{status==='complete'&&<p className="ingest-disclaimer">Demo only: no object storage was contacted and no Pool Snapshot was registered. A production worker must write and validate artifacts before publishing membership.</p>}</Panel>}
+      {status!=='draft'&&<Panel title={status==='complete'?'Demo processing complete':'Background job · demo'} description={`Job ${jobId} · ${status}`}><div className="job-lifecycle">{['queued','processing','validating','complete'].map((step,i)=><div key={step} className={['queued','processing','validating','complete'].indexOf(status)>i?'done':status===step?'current':''}><span>{i+1}</span><strong>{step[0].toUpperCase()+step.slice(1)}</strong></div>)}</div>{status==='complete'&&<p className="ingest-disclaimer">No storage objects or Pool Snapshot were created.</p>}</Panel>}
       <div className="ingest-action-bar"><div><strong>{!sourcePresent?'Choose a data source':!poolPresent?'Choose a destination Pool':validated?'Local form ready':'Review configuration'}</strong><span>{!sourcePresent?'No valid source supplied':!poolPresent?'Pool destination is required':validated?'Remote access has not been checked':'Validate your inputs before starting'}</span></div><div><Button onClick={check} disabled={!inputReady||isProcessing}>Check inputs</Button><Button variant="primary" icon={Play} onClick={submit} disabled={!inputReady||!validated||isProcessing||status==='complete'}>Start import</Button></div></div>
     </div>
   </div>;
@@ -608,7 +629,7 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
             <Field label="Where should this job run?"><select value={runnerId} onChange={e=>setRunnerId(e.target.value)}><option value="auto">Automatic · recommended</option>{runnerRegistry.map(r=><option key={r.id} value={r.id}>{r.name} · {r.fixture?'Demo resource':r.status}</option>)}</select></Field>
             <div className="mining-source-meta"><StatRow label="Selected runner" value={resolvedRunner?.name||'Unavailable'}/><StatRow label="Supports this pipeline" value={resolvedRunner&&supported(resolvedRunner)?'Yes':'No'}/><StatRow label="Current active jobs" value={resolvedRunner?String(activeCount(resolvedRunner)):'—'}/><StatRow label="Available worker slots" value={resolvedRunner?String(freeSlots(resolvedRunner)):'0'}/></div>
             <p className="mining-muted-explainer">Runners are registered and managed under System. The API would queue this job and a worker would execute it asynchronously.</p>
-            <p className="mining-demo-note">Demo workspace · the seeded runners and job execution are simulated locally. No live GPU or remote queue is connected.</p>
+            <p className="mining-demo-note">Execution backend not connected.</p>
           </div>
         </details>
       </section>
@@ -628,7 +649,7 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
           </div>
           <div className="submit-note"><strong>What happens next?</strong><span>Submit starts a selection run. When processing succeeds, the system creates a Selection Batch for human review.</span></div>
           <Button className="wide" variant="primary" icon={Play} disabled={!ready} onClick={submit}>Run selection</Button>
-          <p className="mining-simulation-disclaimer">Demo only · background processing is simulated in this browser.</p>
+          <p className="mining-simulation-disclaimer">Local job preview; no remote execution.</p>
         </Panel>
       </aside>
     </div>
@@ -685,27 +706,77 @@ export function SelectionBatches({ selectionBatches, setSelectionBatches, datase
   </div>;
 }
 
-export function History({ runs, setRuns, navigate, notify }) {
-  const [query,setQuery]=useState(''), [filter,setFilter]=useState('All'), [selected,setSelected]=useState(null);
+export function History({runs,setRuns,navigate,notify,routePath}) {
+  const [query,setQuery]=useState('');
+  const [filter,setFilter]=useState('All');
+  const [detailTab,setDetailTab]=useState('overview');
+  const [selectedId,setSelectedId]=useState(()=>{
+    const search=new URLSearchParams(window.location.search);
+    return search.get('selected');
+  });
+  const fullId=routePath?.startsWith('/runs/')?decodeURIComponent(routePath.split('?')[0].slice('/runs/'.length)):null;
+  const selected=runs.find(r=>r.id===(fullId||selectedId));
+  const full=Boolean(fullId);
+  useEffect(()=>{
+    if(fullId){setSelectedId(null);return;}
+    setSelectedId(new URLSearchParams(window.location.search).get('selected'));
+  },[routePath,fullId]);
+  useEffect(()=>{
+    const sync=()=>setSelectedId(new URLSearchParams(window.location.search).get('selected'));
+    window.addEventListener('popstate',sync);
+    return()=>window.removeEventListener('popstate',sync);
+  },[]);
+  const choose=id=>{
+    const url=new URL(window.location.href);
+    if(id)url.searchParams.set('selected',id);
+    else url.searchParams.delete('selected');
+    window.history.pushState({},'',url.pathname+url.search);
+    setSelectedId(id);
+  };
   const retry=run=>{
-    if(!run.contract||!run.plannedBatch){notify('Historical run has no replayable contract. Create a new Mining Run.');return;}
+    if(!run.contract||!run.plannedBatch){notify('No replayable job configuration. Create a new selection run.');return;}
     const now=new Date().toISOString(),id=`mine_retry_${Date.now().toString(36)}`;
     const batchId=`batch_retry_${Date.now().toString(36)}`;
     const attempt={...run,id,status:'Queued',date:now,updatedAt:now,attempt:(run.attempt||1)+1,
       retryOf:run.id,selected:0,output:'Pending worker execution',completedAt:null,
-      simulateFailure:false,errorCode:null,errorMessage:null,
+      simulateFailure:false,errorCode:null,errorMessage:null,outputBatchId:null,
       plannedBatch:{...run.plannedBatch,id:batchId,runId:id,
-        manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
-        membershipHash:`simulated:${id}`}};
-    setRuns(list=>[attempt,...list]);setSelected(attempt);
-    notify('New retry attempt queued using the same immutable contract');
+        manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,membershipHash:`simulated:${id}`}};
+    setRuns(list=>[attempt,...list]);
+    if(full)navigate('/runs/'+encodeURIComponent(id));else choose(id);
+    notify('Retry queued');
   };
-  const selectedLatest=selected?(runs.find(r=>r.id===selected.id)||selected):null;
-  const results=runs.filter(r=>(filter==='All'||r.type===filter)&&(`${r.name} ${r.id} ${r.source} ${r.output}`).toLowerCase().includes(query.toLowerCase()));
-  return <div className="page runs-page"><PageHeader eyebrow="Operations registry" title="Runs" description="Audit ingest and Mining jobs across the workspace." actions={<Button variant="primary" icon={Plus} onClick={()=>navigate('mining')}>New mining run</Button>}/>
-    <div className="history-toolbar"><div className="search-field"><Search size={16}/><input aria-label="Search runs" placeholder="Run ID, source, output…" value={query} onChange={e=>setQuery(e.target.value)}/></div><div className="segmented"><button className={filter==='All'?'active':''} onClick={()=>setFilter('All')}>All</button><button className={filter==='Import'?'active':''} onClick={()=>setFilter('Import')}>Ingest</button><button className={filter==='Mining'?'active':''} onClick={()=>setFilter('Mining')}>Mining</button></div><Badge>{results.length} records</Badge></div>
-    <section className="catalog"><div className="table-scroll"><table className="dataset-table runs-table"><thead><tr><th>Run</th><th>Type</th><th>Status</th><th>Source</th><th>Output</th><th>Executor</th><th>Started</th><th>Duration</th></tr></thead><tbody>{results.map(r=><tr key={r.id} tabIndex="0" role="button" onClick={()=>setSelected(r)}><td><div className="dataset-name-cell"><strong>{r.name}</strong><small>{r.id}</small></div></td><td>{r.type==='Import'?'Ingest':r.type}</td><td><Badge>{r.status}</Badge></td><td>{r.source}</td><td>{r.output}</td><td>{r.executor}</td><td>{date(r.date)}</td><td>{r.duration}</td></tr>)}</tbody></table></div></section>
-    {selected&&<Modal sheet title="Run details" onClose={()=>setSelected(null)} footer={<Button icon={Download} onClick={()=>{downloadJSON(`${selectedLatest.id}.json`,{schemaVersion:'roadsift.run.v1',run:selectedLatest});notify('Run record exported')}}>Export record</Button>}><div className="detail-heading"><div className="detail-heading__meta"><Badge>{selectedLatest.type==='Import'?'Ingest':selectedLatest.type}</Badge><Badge>{selectedLatest.status}</Badge></div><h2>{selectedLatest.name}</h2><code>{selectedLatest.id}</code></div><details className="detail-section" open><summary><div><strong>Execution summary</strong><span>Operational state and timing.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Source" value={selectedLatest.source}/><StatRow label="Output" value={selectedLatest.output}/><StatRow label="Executor" value={selectedLatest.executor}/><StatRow label="Started" value={date(selectedLatest.date)}/><StatRow label="Duration" value={selectedLatest.duration}/><StatRow label="Status" value={selectedLatest.status}/></div></div></details>{selectedLatest.status==='Failed'&&<details className="detail-section" open><summary><div><strong>Failure</strong><span>Executor error and retry eligibility.</span></div></summary><div className="detail-section__body"><div className="registration-error"><X size={18}/><div><strong>{selectedLatest.errorCode||'RUN_FAILED'}</strong><p>{selectedLatest.errorMessage||'The run did not complete.'}</p></div></div>{selectedLatest.retryable&&<Button disabled={!selectedLatest.contract||!selectedLatest.plannedBatch} onClick={()=>retry(selectedLatest)}>Retry from same contract</Button>}{selectedLatest.retryable&&(!selectedLatest.contract||!selectedLatest.plannedBatch)&&<p className="mining-simulation-disclaimer">Historical fixture lacks a complete replayable contract. Retry is blocked; create a new Mining Run.</p>}</div></details>}{selectedLatest.type==='Mining'&&<><details className="detail-section" open><summary><div><strong>Selection contract</strong><span>Inputs captured by this Active Learning run.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Base dataset" value={selectedLatest.dataset}/><StatRow label="Eligible at start" value={count(selectedLatest.frames)}/><StatRow label="Budget" value={count(selectedLatest.budget)}/><StatRow label="Selected" value={count(selectedLatest.selected)}/><StatRow label="Attempt" value={selectedLatest.attempt||1}/><StatRow label="Retry of" value={selectedLatest.retryOf||'—'}/><StatRow label="Fingerprint" value={selectedLatest.configFingerprint||'Legacy fixture'}/></div></div></details><details className="detail-section"><summary><div><strong>Artifacts</strong><span>Immutable outputs from the executor.</span></div></summary><div className="detail-section__body"><div className="run-artifacts">{miningConfig.artifacts.map(a=><span key={a}>{a}</span>)}</div></div></details></>}</Modal>}
+  const exportRun=run=>{downloadJSON(`${run.id}.json`,{schemaVersion:'roadsift.run.v1',run});notify('Run record exported')};
+  const runsFiltered=runs.filter(r=>(filter==='All'||r.type===filter)&&`${r.name} ${r.id} ${r.source} ${r.output}`.toLowerCase().includes(query.toLowerCase()));
+  const summary=run=><div className="run-summary-fields">
+    <StatRow label="Status" value={run.status}/>
+    <StatRow label="Source" value={run.source||'Not registered'}/>
+    <StatRow label="Output" value={run.output||'Pending'}/>
+    <StatRow label="Runner" value={run.executor||'Not assigned'}/>
+    <StatRow label="Started" value={date(run.date)}/>
+    {run.duration&&<StatRow label="Duration" value={run.duration}/>}
+    {run.type==='Mining'&&<><StatRow label="Target" value={count(run.budget||0)}/><StatRow label="Selected" value={count(run.selected||0)}/></>}
+  </div>;
+  const failure=run=>run.status==='Failed'&&<div className="registration-error"><X size={16}/><div><strong>{run.errorCode||'Run failed'}</strong><p>{run.errorMessage||'No additional error details recorded.'}</p>{run.retryable&&<Button disabled={!run.contract||!run.plannedBatch} onClick={()=>retry(run)}>Retry run</Button>}</div></div>;
+  return <div className="page runs-page">
+    {!full&&<><PageHeader eyebrow="Operations" title="Runs" description="Job history and execution status." actions={<Button icon={Plus} onClick={()=>navigate('mining')}>New selection run</Button>}/>
+      <div className="history-toolbar"><div className="search-field"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} aria-label="Find runs" placeholder="Search runs…"/></div><div className="segmented">{[['All','All'],['Import','Ingest'],['Mining','Mining']].map(([key,label])=><button key={key} className={filter===key?'active':''} onClick={()=>setFilter(key)}>{label}</button>)}</div><Badge>{runsFiltered.length} runs</Badge></div>
+      <section className="catalog"><div className="table-scroll"><table className="dataset-table runs-table"><thead><tr><th>Run</th><th>Type</th><th>Status</th><th>Source</th><th>Output</th><th>Runner</th><th>Started</th></tr></thead><tbody>{runsFiltered.map(run=><tr key={run.id} tabIndex="0" role="button" aria-selected={selectedId===run.id} className={selectedId===run.id?'run-row--selected':''} onClick={()=>choose(run.id)} onKeyDown={e=>{if(e.key==='Enter'){choose(run.id)}}}><td><div className="dataset-name-cell"><strong>{run.name}</strong><small>{run.id}</small></div></td><td>{run.type==='Import'?'Ingest':run.type}</td><td><Badge>{run.status}</Badge></td><td>{run.source}</td><td>{run.output}</td><td>{run.executor}</td><td>{date(run.date)}</td></tr>)}</tbody></table></div></section>
+      {selectedId&&selected&&<aside className="run-quick-drawer" aria-label="Run preview"><header><div><span>Run preview</span><strong>{selected.name}</strong></div><button aria-label="Close preview" onClick={()=>choose(null)}><X size={18}/></button></header><div className="run-quick-content">
+        <div className="run-preview-badges"><Badge>{selected.type==='Import'?'Ingest':selected.type}</Badge><Badge>{selected.status}</Badge></div>
+        {summary(selected)}{failure(selected)}
+        <details className="advanced-config"><summary>Identifiers</summary><div className="detail-stats"><StatRow label="Run ID" value={selected.id}/>{selected.configFingerprint&&<StatRow label="Config fingerprint" value={selected.configFingerprint}/>}</div></details>
+      </div><footer><Button icon={Download} onClick={()=>exportRun(selected)}>Export</Button><Button variant="primary" icon={ArrowUpRight} onClick={()=>navigate('/runs/'+encodeURIComponent(selected.id))}>Open full page</Button></footer></aside>}
+    </>}
+    {full&&(selected?<section className="run-full-detail">
+      <div className="dataset-detail-top"><Button icon={ArrowLeft} onClick={()=>navigate('/history?selected='+encodeURIComponent(selected.id))}>Back to runs</Button><div className="dataset-detail-actions"><Button icon={Download} onClick={()=>exportRun(selected)}>Export record</Button>{selected.status==='Failed'&&selected.retryable&&<Button disabled={!selected.contract||!selected.plannedBatch} onClick={()=>retry(selected)}>Retry run</Button>}</div></div>
+      <div className="dataset-detail-heading"><div><p className="eyebrow">Execution / {selected.type==='Import'?'Ingest':'Mining'}</p><h2>{selected.name}</h2><p>{selected.id}</p></div><Badge>{selected.status}</Badge></div>
+      <div className="dataset-detail-tabs" role="tablist" aria-label="Run details">{[['overview','Overview'],['config','Configuration'],['artifacts','Artifacts'],['logs','Logs']].map(([key,label])=><button role="tab" aria-selected={detailTab===key} key={key} className={detailTab===key?'active':''} onClick={()=>setDetailTab(key)}>{label}</button>)}</div>
+      {detailTab==='overview'&&<Panel title="Execution">{summary(selected)}{failure(selected)}{selected.retryOf&&<StatRow label="Retry of" value={selected.retryOf}/>}</Panel>}
+      {detailTab==='config'&&<Panel title="Job configuration">{selected.contract?<><div className="section-actions"><Button onClick={()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(JSON.stringify(selected.contract,null,2)).then(()=>notify('Configuration copied')).catch(()=>notify('Clipboard unavailable'))}}>Copy JSON</Button></div><pre className="mining-code-block"><code>{JSON.stringify(selected.contract,null,2)}</code></pre></>:<p className="run-empty-data">No job contract recorded for this run.</p>}</Panel>}
+      {detailTab==='artifacts'&&<Panel title="Outputs">{selected.outputBatchId&&<StatRow label="Selection Batch" value={selected.outputBatchId}/>}<StatRow label="Output" value={selected.output||'None'}/><p className="run-empty-data">Artifacts are not downloadable unless registered with a valid URI.</p></Panel>}
+      {detailTab==='logs'&&<Panel title="Execution events"><div className="run-events">{[['Started',selected.date],['Updated',selected.updatedAt],['Completed',selected.completedAt]].filter(x=>x[1]).map(([label,t])=><div key={label}><strong>{label}</strong><span>{date(t)}</span></div>)}</div>{!selected.errorMessage&&<p className="run-empty-data">No detailed worker logs registered.</p>}{selected.errorMessage&&<div className="registration-error"><X size={14}/>{selected.errorMessage}</div>}</Panel>}
+    </section>:<section className="run-full-detail"><Button icon={ArrowLeft} onClick={()=>navigate('history')}>Back to runs</Button><Empty title="Run not found" detail="This run is not in the current registry."/></section>)}
   </div>;
 }
 
@@ -750,12 +821,12 @@ export function StrategyComparison({ navigate }) {
       experiment:exp,evaluationRecords:rows,checks,eligible:valid,selectedMetric:metric});
   };
   return <div className="page comparison-page comparison-page--validated">
-    <PageHeader eyebrow="Active learning evaluation" title="Strategy Comparison" description="Compare evaluation records under a shared experiment contract, not Dataset names or assumed round numbers." actions={<><Button onClick={exportEvidence} icon={Download}>Export evidence</Button><Button icon={Pickaxe} onClick={()=>navigate('mining')}>New mining run</Button></>}/>
+    <PageHeader eyebrow="Active learning evaluation" title="Strategy Comparison" description="Compare acquisition strategies across evaluation rounds." actions={<><Button onClick={exportEvidence} icon={Download}>Export evidence</Button><Button icon={Pickaxe} onClick={()=>navigate('mining')}>New mining run</Button></>}/>
     <div className="comparison-experiment-picker"><Field label="Comparison experiment"><select value={experimentId} onChange={e=>{setExperimentId(e.target.value);setSelectedRound(8)}}>{comparisonExperiments.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field><div><Badge>Simulated fixture</Badge><p>{exp?.description}</p></div></div>
     <div className="comparison-contract comparison-contract--new"><span><small>Seed Dataset</small><strong>{exp?.initialDatasetVersionId||'Missing'}</strong></span><span><small>Pool snapshot</small><strong>{exp?.candidatePoolSnapshotId||'Incompatible'}</strong></span><span><small>Recipe</small><strong>{exp?.recipeId||'Missing'}</strong></span><span><small>Holdout</small><strong>{exp?.holdoutId||'Missing'}</strong></span></div>
-    <section className="comparison-validity"><div><h2>Experiment eligibility</h2><p>{valid?'The comparison contract is internally consistent. These are still illustrative fixture values, not evidence of measured improvement.':'Comparison blocked. Correct the experiment registration and evaluation records before displaying a ranking.'}</p></div><Badge>{valid?'Contract checks passed':'Blocked'}</Badge><div className="comparison-checks">{checks.map(c=><div className={c.ok?'pass':'fail'} key={c.label}><span>{c.ok?'✓':'×'}</span>{c.label}</div>)}</div></section>
-    {valid?<><section className="comparison-curve-panel"><div className="ops-section__header"><div><h2>Learning curve</h2><p>Seed + {exp.expectedRounds} rounds = {points.length} checkpoints per strategy. Measured results would come from Evaluation Registry records.</p></div><Field label="Metric"><select value={metric} onChange={e=>setMetric(e.target.value)}>{metrics.map(([k,label])=><option key={k} value={k}>{label}</option>)}</select></Field></div>
-      <div className="comparison-line-legend"><span><i className="comparison-key-a"/>{arms[0]?.label}</span><span><i className="comparison-key-b"/>{arms[1]?.label}</span><Badge>Illustrative only</Badge></div>
+    <section className="comparison-validity"><div><h2>Experiment eligibility</h2><p>{valid?'Experiment checks passed. Results are sample data.':'Incompatible experiment records.'}</p></div><Badge>{valid?'Contract checks passed':'Blocked'}</Badge><div className="comparison-checks">{checks.map(c=><div className={c.ok?'pass':'fail'} key={c.label}><span>{c.ok?'✓':'×'}</span>{c.label}</div>)}</div></section>
+    {valid?<><section className="comparison-curve-panel"><div className="ops-section__header"><div><h2>Learning curve</h2><p>{points.length} evaluation checkpoints</p></div><Field label="Metric"><select value={metric} onChange={e=>setMetric(e.target.value)}>{metrics.map(([k,label])=><option key={k} value={k}>{label}</option>)}</select></Field></div>
+      <div className="comparison-line-legend"><span><i className="comparison-key-a"/>{arms[0]?.label}</span><span><i className="comparison-key-b"/>{arms[1]?.label}</span><Badge>Sample data</Badge></div>
       <div className="comparison-svg-wrap"><svg viewBox="0 0 860 270" role="img" aria-label={`${metrics.find(x=>x[0]===metric)?.[1]} across ${points.length} evaluated rounds`}>
         {[0,.25,.5,.75,1].map(t=><g key={t}><line x1="64" x2="810" y1={218-t*178} y2={218-t*178} stroke="currentColor" opacity=".1"/><text x="55" y={222-t*178} textAnchor="end" fontSize="11" fill="currentColor" opacity=".55">{(low+t*(high-low)).toFixed(3)}</text></g>)}
         <path d={path('a')} fill="none" stroke="#0071e3" strokeWidth="2.5"/><path d={path('b')} fill="none" stroke="#c17835" strokeWidth="2.5"/>
@@ -767,7 +838,7 @@ export function StrategyComparison({ navigate }) {
       <Panel title="Safety slice metrics" description="Same evaluation holdout; inspect slices before interpreting aggregate mAP.">{metrics.filter(x=>x[0]!=='map').map(([key,label])=><div className="comparison-slice-row" key={key}><span>{label}</span><strong>{format(selectedA?.metrics[key])}</strong><strong>{format(selectedB?.metrics[key])}</strong></div>)}</Panel></div>
     <section className="comparison-table-card"><div><h3>Evaluation records</h3><p>One row per checkpoint. Missing values are never filled from seed or an adjacent round.</p></div><div className="table-scroll"><table><thead><tr><th>Round</th><th>Labeled frames</th><th>{arms[0].label}</th><th>{arms[1].label}</th><th>Δ B − A</th></tr></thead><tbody>{points.map(p=><tr key={p.round}><td>{p.label}</td><td>{count(p.samples)}</td><td>{format(p.a)}</td><td>{format(p.b)}</td><td>{p.round===0?'—':`${p.b-p.a>=0?'+':''}${format(p.b-p.a)}`}</td></tr>)}</tbody></table></div></section>
     <section className="comparison-efficiency"><div className="ops-section__header"><div><h2>Annotation efficiency</h2><p>Cumulative annotation cost and hours summed from round-level evaluation records. Not just the final Dataset version.</p></div></div><div className="comparison-checkpoint">{arms.map(arm=><div key={arm.id}><small>{arm.label}</small><strong>${count(sumCost(arm.id,chosen.round))}</strong><span>{count(sumHours(arm.id,chosen.round))} annotation hours</span><span>{chosen.round?format((record(arm.id,chosen.round)?.metrics.map-record(arm.id,0)?.metrics.map)/Math.max(1,sumHours(arm.id,chosen.round))*1000):'—'} mAP gain / 1,000 h</span></div>)}</div></section>
-    <section className="comparison-validity"><div><h2>Decision · Illustrative only</h2><p>Contract eligibility is not statistical significance. No bootstrap CI, paired test or independent evaluation artifact is registered, so a production strategy recommendation is not available.</p></div><Badge>Inconclusive</Badge></section>
+    <section className="comparison-validity"><div><h2>Decision · Illustrative only</h2><p>No confidence interval or paired-test evidence. Recommendation unavailable.</p></div><Badge>Inconclusive</Badge></section>
     </>:<section className="comparison-blocked"><X size={22}/><h2>Comparison blocked</h2><p>No learning curve, winner or efficiency ranking is displayed for incompatible or incomplete experiment records.</p></section>}
   </div>;
 }

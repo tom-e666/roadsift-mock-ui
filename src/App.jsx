@@ -8,11 +8,12 @@ import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, Histor
 function readState(key, fallback) { try { const value = JSON.parse(localStorage.getItem(key)); return value == null ? fallback : value; } catch { return fallback; } }
 function useLocalState(key, initial) { const [value, setValue] = useState(() => readState(key, initial)); useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Continue without persistence if storage is unavailable. */ } }, [key, value]); return [value, setValue]; }
 function currentPage() { const path = window.location.pathname.split('/')[1] || 'datasets'; if (path === 'pools' && window.location.pathname.split('/')[2]) return 'pools';
+  if (path === 'runs') return 'history';
   return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'datasets', 'model-metrics': 'datasets', projects: 'history', lineage: 'datasets', labeling: 'datasets', pal: 'mining', documentation: 'onboarding' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
 
 export default function App() {
   const [page, setPage] = useState(currentPage);
-  const [routePath, setRoutePath] = useState(() => window.location.pathname);
+  const [routePath, setRoutePath] = useState(() => window.location.pathname + window.location.search);
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light');
   const [collapsed, setCollapsed] = useLocalState('roadsift-mock-collapsed', false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -34,12 +35,13 @@ export default function App() {
   const rawTitle = allPages.find(([id]) => id === page)?.[1];
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
-    const next = target.startsWith('/') ? target.slice(1).split('?')[0] : target;
-    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools)\/[^/]+$/.test(next)) return;
+    const raw = target.startsWith('/') ? target.slice(1) : target;
+    const next = raw.split('?')[0];
+    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs)\/[^/]+$/.test(next) && next !== 'runs') return;
     if (dataset) setContextDataset(dataset);
-    window.history.pushState({}, '', `/${next}`); setRoutePath(`/${next}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
+    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
-  useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
+  useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname + window.location.search);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
   useEffect(() => { document.title = `RoadSift · ${title}`; }, [title]);
   useEffect(() => { document.documentElement.dataset.theme = theme; try { localStorage.setItem('roadsift-mock-theme', theme); } catch {} }, [theme]);
   useEffect(() => {
