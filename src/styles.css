@@ -500,3 +500,38 @@ th .help-tip{margin-left:4px}
 .pool-technical-section .panel__body{border-top:1px solid var(--line)}
 @media(max-width:880px){.pool-overview-two-columns{grid-template-columns:1fr}.pool-overview-previews{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.pool-snapshot-event-top{align-items:start;flex-direction:column;gap:5px}.pool-overview-single .dataset-detail-actions{flex-wrap:wrap}.pool-overview-single .dataset-detail-heading{gap:12px}}
+
+/* Pool overview: accurate proportions, clearer hierarchy and less scrolling */
+.pool-overview-single{gap:12px}
+.pool-overview-single .panel__header{padding-top:13px;padding-bottom:12px}
+.pool-overview-single .panel__body{padding-top:14px;padding-bottom:15px}
+.pool-overview-single .eyebrow{font-size:12px;letter-spacing:.075em}
+.pool-overview-single .dataset-detail-heading p:not(.eyebrow),
+.pool-overview-single .pool-hint{font-size:12px;line-height:1.55}
+.pool-overview-single .pool-composition-legend{grid-template-columns:repeat(4,minmax(0,1fr));margin:13px 0;gap:8px}
+.pool-overview-single .pool-composition-legend>div{grid-template-columns:11px minmax(0,1fr);column-gap:7px;row-gap:4px}
+.pool-overview-single .pool-composition-legend small{font-size:12px}
+.pool-overview-single .pool-composition-legend strong{grid-column:2;font-size:14px;font-variant-numeric:tabular-nums}
+.pool-overview-single .pool-share{grid-column:2;font-size:13px;color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.pool-overview-single .pool-mining-action{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--line);padding-top:13px;margin-top:12px}
+.pool-overview-single .pool-mining-action>div{display:grid;gap:4px}
+.pool-overview-single .pool-mining-action strong{font-size:13px}
+.pool-overview-single .pool-mining-action span{font-size:12px;color:var(--muted)}
+.pool-overview-single .pool-breakdown__row{padding:5px 0}
+.pool-overview-single .pool-breakdown__row>div:first-child{display:flex;justify-content:space-between;gap:12px}
+.pool-overview-single .pool-breakdown__row strong{font-variant-numeric:tabular-nums}
+.pool-overview-single .pool-breakdown__row strong small{font-weight:500;color:var(--muted);font-size:12px}
+.pool-overview-single .pool-breakdown__track{width:100%;overflow:hidden}
+.pool-overview-single .pool-breakdown__track i{display:block;max-width:100%;min-width:0}
+.pool-overview-single .pool-quality-list>div{padding:9px 0}
+.pool-overview-single .pool-quality-quarantined strong{color:#e6ad59}
+.pool-overview-single .pool-quality-lowlight strong,.pool-overview-single .pool-quality-blurrisk strong{color:var(--text)}
+.pool-overview-single .pool-snapshot-event-main{padding-bottom:12px}
+.pool-overview-single .pool-snapshot-numbers{margin:2px 0}
+.pool-overview-single .pool-snapshot-event-main p{margin:5px 0}
+.pool-overview-single .pool-overview-previews{gap:8px}
+.pool-overview-single .pool-overview-preview{aspect-ratio:16/8}
+[data-theme="dark"] .pool-overview-single .pool-hint,
+[data-theme="dark"] .pool-overview-single .pool-snapshot-event-top time,
+[data-theme="dark"] .pool-overview-single .dataset-detail-heading p:not(.eyebrow){color:#b6b6bd}
+@media(max-width:720px){.pool-overview-single .pool-composition-legend{grid-template-columns:repeat(2,minmax(0,1fr))}.pool-overview-single .pool-mining-action{flex-wrap:wrap}}
