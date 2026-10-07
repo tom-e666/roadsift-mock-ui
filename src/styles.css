@@ -682,3 +682,17 @@ th .help-tip{margin-left:4px}
 .dataset-version-tree__aliases,.dataset-version-tree__unlinked{font-size:11px;color:var(--muted)}
 .dataset-version-tree__unlinked{color:#e6ad59}
 @media(max-width:640px){.dataset-version-tree__node{align-items:flex-start}.dataset-version-tree__node-main{gap:8px}.dataset-version-tree__external{flex-wrap:wrap}}
+
+/* Ingest: direct source choice instead of internal processing terminology */
+.ingest-source-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.ingest-source-card{display:grid;align-content:start;justify-items:start;text-align:left;gap:8px;min-height:104px;padding:13px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.ingest-source-card strong{font-size:13px;font-weight:600}
+.ingest-source-card span{font-size:11px;line-height:1.45;color:var(--muted)}
+.ingest-source-card svg{color:var(--muted)}
+.ingest-source-card.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--surface)}
+.ingest-source-card.active svg{color:var(--text)}
+.ingest-source-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ingest-media-kind{padding:3px 0 0}
+.ingest-file-count{margin:0;color:var(--text);font-size:12px;font-weight:600}
+.ingest-workflow .ingest-source-fields{align-items:end}
+@media(max-width:680px){.ingest-source-cards{grid-template-columns:1fr}.ingest-source-card{min-height:0;grid-template-columns:24px 1fr;column-gap:10px}.ingest-source-card span{grid-column:2}.ingest-source-card svg{grid-row:1/3}}
