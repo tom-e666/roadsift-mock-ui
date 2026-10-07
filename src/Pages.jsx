@@ -392,7 +392,7 @@ export function ImportData({notify,navigate,pools}) {
   const [manifestFormat,setManifestFormat]=useState(importSimulation.defaultManifestFormat);
   const [destination,setDestination]=useState('new');
   const [poolName,setPoolName]=useState('');
-  const [poolId,setPoolId]=useState(pools[0]?.id||'');
+  const [poolId,setPoolId]=useState(contextDataset?.kind==='pool'&&pools.some(x=>x.id===contextDataset.id)?contextDataset.id:pools[0]?.id||'');
   const [fps,setFps]=useState(importSimulation.defaultFps);
   const [status,setStatus]=useState('draft');
   const [jobId,setJobId]=useState('');
@@ -429,13 +429,13 @@ export function ImportData({notify,navigate,pools}) {
   return <div className="page ingest-simple"><PageHeader eyebrow="Data operations" title="Import data" description="Add images, videos or existing storage references to a candidate Pool." actions={<Button icon={Database} onClick={()=>navigate('pools')}>Pool registry</Button>}/>
     <div className="ingest-single-column">
       <Panel title="1. Where is your data?" description="Choose one source type to begin.">
-        <div className="ingest-source-choices">{[['upload','upload-cloud','My computer','Images or videos'],['existing','database','Cloud storage','R2 / S3 prefix'],['manifest','file-text','Manifest','CSV / JSONL / Parquet']].map(([id,icon,label,sub])=><button key={id} className={sourceMode===id?'ingest-choice active':'ingest-choice'} onClick={()=>{setSourceMode(id);setValidated(false)}}><strong>{label}</strong><small>{sub}</small></button>)}</div>
-        {sourceMode==='upload'&&<><div className="segmented compact"><button className={mediaType==='videos'?'active':''} onClick={()=>{setMediaType('videos');setFiles([]);setValidated(false)}}>Videos</button><button className={mediaType==='images'?'active':''} onClick={()=>{setMediaType('images');setFiles([]);setValidated(false)}}>Images</button></div><input className="sr-only" type="file" ref={picker} multiple accept={mediaType==='videos'?'video/*':'image/*'} onChange={e=>{setFiles(Array.from(e.target.files||[]));setValidated(false)}}/><button className="ingest-dropzone-new" onClick={()=>picker.current?.click()}><Upload size={24}/><strong>{files.length?`${files.length} files selected`:'Choose local files'}</strong><span>{files.length?files.slice(0,3).map(f=>f.name).join(' · '):'No files selected · JPG/PNG or MP4/MOV'}</span></button><p className="ingest-disclaimer">Browser upload to object storage requires a connected API and presigned URLs. This demo does not upload files.</p></>}
+        <div className="ingest-source-choices">{[['upload','upload-cloud','My computer','Images or videos'],['existing','database','Cloud storage','R2 / S3 prefix'],['manifest','file-text','Manifest','CSV / JSONL / Parquet']].map(([id,icon,label,sub])=><button key={id} className={sourceMode===id?'ingest-choice active':'ingest-choice'} onClick={()=>{setSourceMode(id);setValidated(false);setStatus('draft')}}><strong>{label}</strong><small>{sub}</small></button>)}</div>
+        {sourceMode==='upload'&&<><div className="segmented compact"><button className={mediaType==='videos'?'active':''} onClick={()=>{setMediaType('videos');setFiles([]);setValidated(false);setStatus('draft')}}>Videos</button><button className={mediaType==='images'?'active':''} onClick={()=>{setMediaType('images');setFiles([]);setValidated(false);setStatus('draft')}}>Images</button></div><input className="sr-only" type="file" ref={picker} multiple accept={mediaType==='videos'?'video/*':'image/*'} onChange={e=>{setFiles(Array.from(e.target.files||[]));setValidated(false);setStatus('draft')}}/><button className="ingest-dropzone-new" onClick={()=>picker.current?.click()}><Upload size={24}/><strong>{files.length?`${files.length} files selected`:'Choose local files'}</strong><span>{files.length?files.slice(0,3).map(f=>f.name).join(' · '):'No files selected · JPG/PNG or MP4/MOV'}</span></button><p className="ingest-disclaimer">Browser upload to object storage requires a connected API and presigned URLs. This demo does not upload files.</p></>}
         {sourceMode==='existing'&&<Field label="Cloud storage prefix"><input value={prefix} onChange={change(setPrefix)} placeholder="r2://bucket/incoming/drive-01/"/></Field>}
         {sourceMode==='manifest'&&<div className="register-grid"><Field label="Manifest URI"><input value={manifestUri} onChange={change(setManifestUri)} placeholder="r2://bucket/manifests/frames.parquet"/></Field><Field label="Format"><select value={manifestFormat} onChange={change(setManifestFormat)}>{importSimulation.manifestFormats.map(fmt=><option key={fmt}>{fmt}</option>)}</select></Field></div>}
       </Panel>
       <Panel title="2. Destination Pool" description="Create a new Pool or register a newer snapshot under an existing Pool.">
-        <div className="segmented compact"><button className={destination==='new'?'active':''} onClick={()=>{setDestination('new');setValidated(false)}}>New Pool</button><button className={destination==='existing'?'active':''} onClick={()=>{setDestination('existing');setValidated(false)}}>Existing Pool</button></div>
+        <div className="segmented compact"><button className={destination==='new'?'active':''} onClick={()=>{setDestination('new');setValidated(false);setStatus('draft')}}>New Pool</button><button className={destination==='existing'?'active':''} onClick={()=>{setDestination('existing');setValidated(false);setStatus('draft')}}>Existing Pool</button></div>
         {destination==='new'?<Field label="Pool name *"><input value={poolName} onChange={change(setPoolName)} placeholder="Central Vietnam Fleet Pool"/></Field>:<Field label="Destination Pool *"><select value={poolId} onChange={change(setPoolId)}>{pools.map(pool=><option key={pool.id} value={pool.id}>{pool.name} · p{pool.version}</option>)}</select></Field>}
       </Panel>
       <details className="panel mining-accordion"><summary className="mining-accordion__summary"><strong>Advanced processing</strong><small>Frame extraction · quality · deduplication</small></summary><div className="panel__body">
@@ -449,7 +449,7 @@ export function ImportData({notify,navigate,pools}) {
   </div>;
 }
 
-export function Mining({ notify, setRuns, runs, navigate, datasets, pools, runnerRegistry, modelRegistryState, algorithmRegistry }) {
+export function Mining({ notify, setRuns, runs, navigate, datasets, pools, contextDataset, runnerRegistry, modelRegistryState, algorithmRegistry }) {
   const [poolId,setPoolId]=useState(pools[0]?.id||'');
   const [parentId,setParentId]=useState('');
   const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
