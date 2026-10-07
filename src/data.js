@@ -20,6 +20,7 @@ export const datasetRegistration = mockData.datasetRegistration;
 export const importSimulation = mockData.importSimulation;
 export const miningConfig = mockData.miningConfig;
 export const runners = mockData.runners;
+export const modelRegistry = mockData.modelRegistry;
 export const systemServices = mockData.systemServices;
 export const strategyComparison = mockData.strategyComparison;
 export const systemRunnerRegistrationDefaults = mockData.systemRunnerRegistrationDefaults;
