@@ -4350,5 +4350,78 @@
       ],
       "description": "Deliberately incompatible candidate snapshots. No combined chart or ranking is allowed."
     }
-  ]
+  ],
+  "miningPlugins": {
+    "dedup": [
+      {
+        "id": "none",
+        "name": "None",
+        "version": "1.0.0",
+        "requiresEmbedding": false
+      },
+      {
+        "id": "phash",
+        "name": "Perceptual hash (pHash)",
+        "version": "1.0.0",
+        "requiresEmbedding": false
+      },
+      {
+        "id": "embedding-sim",
+        "name": "Embedding similarity",
+        "version": "1.0.0",
+        "requiresEmbedding": true
+      }
+    ],
+    "embedding": [
+      {
+        "id": "dinov2",
+        "name": "DINOv2 · vision encoder",
+        "version": "1.0.0",
+        "capability": "embedding"
+      },
+      {
+        "id": "siglip",
+        "name": "SigLIP · vision encoder",
+        "version": "1.0.0",
+        "capability": "embedding"
+      }
+    ],
+    "uncertainty": [
+      {
+        "id": "entropy",
+        "name": "Entropy",
+        "version": "1.0.0"
+      },
+      {
+        "id": "least-confidence",
+        "name": "Least confidence",
+        "version": "1.0.0"
+      },
+      {
+        "id": "margin",
+        "name": "Margin",
+        "version": "1.0.0"
+      }
+    ],
+    "diversity": [
+      {
+        "id": "kcenter",
+        "name": "K-Center Greedy",
+        "version": "1.0.0"
+      },
+      {
+        "id": "facility",
+        "name": "Facility Location",
+        "version": "1.0.0"
+      }
+    ],
+    "defaults": {
+      "dedup": "phash",
+      "embedding": "dinov2",
+      "uncertainty": "entropy",
+      "diversity": "kcenter",
+      "dedupThreshold": 8,
+      "embeddingThreshold": 0.92
+    }
+  }
 }

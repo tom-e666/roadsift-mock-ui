@@ -333,3 +333,28 @@ th .help-tip{margin-left:4px}
 .comparison-blocked h2{font-size:16px;margin:12px 0 4px}
 .comparison-blocked p{font-size:12px;color:var(--muted)}
 @media(max-width:760px){.comparison-experiment-picker,.comparison-checks,.comparison-checkpoint,.comparison-efficiency .comparison-checkpoint{grid-template-columns:1fr}.comparison-validity{grid-template-columns:1fr}}
+
+/* Progressive selection job configuration */
+.mining-muted-explainer{font-size:12px;color:var(--muted);line-height:1.55;margin:0}
+.mining-demo-note{font-size:12px;color:var(--muted);margin:0;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.mining-stage-list{border:1px solid var(--line);border-radius:9px;overflow:hidden;display:grid}
+.mining-stage-row{padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line)}
+.mining-stage-row:last-child{border-bottom:0}
+.mining-stage-name{display:grid;grid-template-columns:24px 1fr;gap:3px 8px;align-items:center;min-width:0}
+.mining-stage-name>span{font-size:11px;color:var(--tertiary);grid-row:span 2}
+.mining-stage-name>strong{font-size:12px}
+.mining-stage-name>small{font-size:11px;color:var(--muted);grid-column:2;line-height:1.45}
+.mining-stage-row>select{max-width:260px;min-width:160px;font-size:12px}
+.mining-stage-status{font-size:11px;color:var(--muted);white-space:nowrap}
+.mining-review-summary{display:grid;gap:0}
+.mining-review-summary>div{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:12px}
+.mining-review-summary>div>span{color:var(--muted)}.mining-review-summary>div>strong{text-align:right;overflow-wrap:anywhere}
+.mining-check-summary{margin-top:14px;padding:12px;background:var(--bg);border:1px solid var(--line);border-radius:9px}
+.mining-check-summary>strong{font-size:12px}
+.mining-check-summary>div{display:flex;align-items:flex-start;gap:8px;margin-top:9px;font-size:12px;color:#cf453b;line-height:1.5}
+.mining-check-summary em{font-style:normal;color:var(--muted)}
+.mining-check-summary p{font-size:12px;color:var(--muted);margin:8px 0 0}
+.mining-code-panel{margin-top:16px}.mining-code-panel>.panel__body{border-top:1px solid var(--line)}
+.mining-code-actions{display:flex;gap:8px;margin:12px 0}
+.mining-code-block{padding:16px;background:var(--bg);border:1px solid var(--line);border-radius:8px;max-height:420px;overflow:auto;font-size:11px;line-height:1.6;white-space:pre;tab-size:2}
+@media(max-width:760px){.mining-stage-row{align-items:stretch;flex-direction:column}.mining-stage-row>select{max-width:100%;width:100%}.mining-review-summary>div{flex-direction:column;gap:4px}.mining-review-summary>div>strong{text-align:left}}

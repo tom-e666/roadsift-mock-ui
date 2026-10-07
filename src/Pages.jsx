@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
 import { Button, Badge, PageHeader, Metric, Segmented, Empty, Panel, DemoNote, Field, Toggle, Modal, TextLink, HelpTip } from './components/UI.jsx';
-import { frames, initialDatasets, initialRuns, initialSelectionBatches, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, runners, modelRegistry, systemServices, strategyComparison, comparisonExperiments, evaluationRegistry, systemRunnerRegistrationDefaults, poolRegistration, batchLifecycle } from './data.js';
+import { frames, initialDatasets, initialRuns, initialSelectionBatches, metrics, count, date, sceneUrl, fleetPool, pools, seedDataset, seedEvaluation, holdouts, strategies, datasetRegistration, importSimulation, miningConfig, miningPlugins, runners, modelRegistry, systemServices, strategyComparison, comparisonExperiments, evaluationRegistry, systemRunnerRegistrationDefaults, poolRegistration, batchLifecycle } from './data.js';
 
 function useSimulation(onComplete) {
   const [progress, setProgress] = useState(0);
@@ -379,124 +379,189 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, runne
   const [budget,setBudget]=useState(String(miningConfig.defaultBudget));
   const [modelId,setModelId]=useState(miningConfig.defaultModelId||'');
   const [runnerId,setRunnerId]=useState('auto');
+  const [dedupId,setDedupId]=useState(miningPlugins.defaults.dedup);
+  const [embeddingId,setEmbeddingId]=useState(miningPlugins.defaults.embedding);
+  const [uncertaintyId,setUncertaintyId]=useState(miningPlugins.defaults.uncertainty);
+  const [diversityId,setDiversityId]=useState(miningPlugins.defaults.diversity);
   const [submittedId,setSubmittedId]=useState(null);
-  const [simulateFailure,setSimulateFailure]=useState(false);
   const pool=pools.find(p=>p.id===poolId);
   const parent=datasets.find(d=>d.id===parentId);
   const algorithm=algorithmRegistry.find(s=>s.id===algorithmId);
-  const requiresPrediction=Boolean(algorithm?.requiresPredictionModel);
-  const requiresEmbedding=Boolean(algorithm?.requiresEmbedding);
+  const dedup=miningPlugins.dedup.find(p=>p.id===dedupId);
+  const embedding=miningPlugins.embedding.find(p=>p.id===embeddingId);
+  const uncertainty=miningPlugins.uncertainty.find(p=>p.id===uncertaintyId);
+  const diversity=miningPlugins.diversity.find(p=>p.id===diversityId);
+  const needsPredictions=Boolean(algorithm?.requiresPredictionModel);
+  const needsEmbeddings=Boolean(algorithm?.requiresEmbedding||dedup?.requiresEmbedding);
+  const needsUncertainty=algorithmId==='entropy'||algorithmId==='hybrid';
+  const needsDiversity=algorithmId==='diversity'||algorithmId==='hybrid';
   const model=modelRegistryState.find(m=>m.id===modelId);
-  const modelUsable=Boolean(model&&model.status==='Registered'&&model.capabilities?.includes('predictions')&&model.artifactUri);
+  const validModel=Boolean(model&&model.status==='Registered'&&model.capabilities?.includes('predictions')&&model.artifactUri);
+  const candidateModels=modelRegistryState.filter(m=>m.status==='Registered'&&m.capabilities?.includes('predictions'));
   const n=Number(budget);
-  const exactNValid=Number.isSafeInteger(n)&&n>0&&n<=(pool?.eligible||0);
-  const busyRunnerIds=new Set(runs.filter(r=>r.type==='Mining'&&['Queued','Running','Validating'].includes(r.status)).map(r=>r.runnerId));
-  const health=r=>{
-    if(r.status!=='Ready')return {ok:false,label:r.status==='Pending verification'?'Pending verification':r.status};
-    if(r.verified===false)return {ok:false,label:'Not verified'};
-    if(!r.lastHeartbeatAt)return {ok:false,label:'No heartbeat'};
-    const heartbeat=Date.parse(r.lastHeartbeatAt);
-    if(!Number.isFinite(heartbeat))return {ok:false,label:'Invalid heartbeat'};
-    // Fixture heartbeats represent seeded test resources; they are explicitly
-    // simulated, never evidence of a connected runner.
-    if(r.fixture===true)return {ok:true,label:'Fixture · simulated Ready'};
-    return {ok:false,label:'Live heartbeat check unavailable'};
+  const validBudget=budget.trim()!==''&&Number.isSafeInteger(n)&&n>0&&n<=(pool?.eligible||0);
+  const assignedJobs=runs.filter(r=>r.type==='Mining'&&['Queued','Running','Validating'].includes(r.status));
+  const isRunnerReady=r=>{
+    if(!r||r.status!=='Ready'||r.verified===false||!r.lastHeartbeatAt)return false;
+    const time=Date.parse(r.lastHeartbeatAt);
+    if(!Number.isFinite(time))return false;
+    return r.fixture===true;
   };
-  const suitable=r=>Boolean(r.allowedStrategyIds?.includes(algorithmId)&&(!requiresEmbedding||r.capabilities?.includes('embedding')));
-  const runnable=runnerRegistry.filter(r=>health(r).ok&&suitable(r));
-  const freeSlots=r=>Math.max(0,(r.maxConcurrent||1)-(r.queueDepth||0)-(busyRunnerIds.has(r.id)?1:0));
-  const chosen=runnerId==='auto'?runnable.find(r=>freeSlots(r)>0):runnerRegistry.find(r=>r.id===runnerId);
-  const runnerReady=Boolean(chosen&&runnable.some(r=>r.id===chosen.id)&&freeSlots(chosen)>0);
+  const supported=r=>Boolean(r?.allowedStrategyIds?.includes(algorithmId)&&(!needsPredictions||r.capabilities?.includes('predictions'))&&(!needsEmbeddings||r.capabilities?.includes('embedding')));
+  const compatible=runnerRegistry.filter(r=>isRunnerReady(r)&&supported(r));
+  const activeCount=r=>assignedJobs.filter(job=>job.runnerId===r.id).length;
+  const freeSlots=r=>Math.max(0,(r.maxConcurrent||1)-activeCount(r));
+  const resolvedRunner=runnerId==='auto'?compatible.find(r=>freeSlots(r)>0):runnerRegistry.find(r=>r.id===runnerId);
+  const runnerValid=Boolean(resolvedRunner&&compatible.some(r=>r.id===resolvedRunner.id)&&freeSlots(resolvedRunner)>0);
   const checks=[
-    {name:'Registered Pool Snapshot + manifest',ok:Boolean(pool?.snapshot&&pool?.manifestUri)},
-    {name:'EXACT-N within eligible capacity',ok:exactNValid},
-    {name:'Enabled algorithm implementation + version',ok:Boolean(algorithm&&algorithm.enabled!==false&&algorithm.version)},
-    {name:requiresPrediction?'Registered prediction model and artifact':'Prediction model not required',ok:!requiresPrediction||modelUsable},
-    {name:requiresEmbedding?'Runner supports embedding':'Embedding not required',ok:!requiresEmbedding||Boolean(chosen?.capabilities?.includes('embedding'))},
-    {name:'Verified compatible runner with free capacity',ok:runnerReady}
+    {label:'Choose a registered Pool Snapshot with a manifest',ok:Boolean(pool?.snapshot&&pool?.manifestUri),where:'Data source'},
+    {label:'Requested sample count must fit the Pool (EXACT-N)',ok:validBudget,where:'Selection pipeline'},
+    {label:'Choose an enabled algorithm implementation',ok:Boolean(algorithm&&algorithm.enabled!==false&&algorithm.version),where:'Selection pipeline'},
+    {label:'Configure the required pipeline components',ok:Boolean(dedup&&(!needsEmbeddings||embedding)&&(!needsUncertainty||uncertainty)&&(!needsDiversity||diversity)),where:'Selection pipeline'},
+    {label:'Select a registered prediction model',ok:!needsPredictions||validModel,where:'Prediction model'},
+    {label:'Assign a compatible runner with available capacity',ok:runnerValid,where:'Execution'}
   ];
   const ready=checks.every(x=>x.ok);
-  const contract={schemaVersion:miningConfig.contractSchema,poolSnapshotId:pool?.snapshot||null,
-    poolManifestUri:pool?.manifestUri||null,parentDatasetVersionId:parent?.id||null,
-    algorithmId:algorithm?.id||null,algorithmVersion:algorithm?.version||null,
-    algorithmWeights:algorithm?.weights||null,
-    registeredModelId:requiresPrediction?model?.id||null:null,
-    modelArtifactUri:requiresPrediction?model?.artifactUri||null:null,
-    budget:n,exactN:true,runnerId:chosen?.id||null};
+  const plugin=p=>p?{id:p.id,version:p.version}:null;
+  const stages=[
+    {step:'eligibility',plugin:{id:'pool-eligibility',version:'1.0.0'},enabled:true},
+    {step:'deduplication',plugin:plugin(dedup),enabled:dedupId!=='none'},
+    {step:'prediction',plugin:needsPredictions?{id:'registered-detector',version:model?.version||null}:null,enabled:needsPredictions},
+    {step:'embedding',plugin:needsEmbeddings?plugin(embedding):null,enabled:needsEmbeddings},
+    {step:'uncertainty',plugin:needsUncertainty?plugin(uncertainty):null,enabled:needsUncertainty},
+    {step:'diversity',plugin:needsDiversity?plugin(diversity):null,enabled:needsDiversity},
+    {step:'selection',plugin:plugin(algorithm),enabled:true}
+  ];
+  const contract={
+    schemaVersion:miningConfig.contractSchema,
+    source:{poolId:pool?.id||null,snapshotId:pool?.snapshot||null,manifestUri:pool?.manifestUri||null,
+      parentDatasetVersionId:parent?.id||null},
+    pipeline:{steps:stages,budget:n,exactN:true,
+      scoringWeights:algorithmId==='hybrid'?algorithm?.weights||null:null,
+      modelRef:needsPredictions?{id:model?.id||null,version:model?.version||null,artifactUri:model?.artifactUri||null}:null},
+    execution:{assignment:runnerId==='auto'?'auto':'manual',runnerId:resolvedRunner?.id||null}
+  };
   const fingerprint=value=>{
-    const s=JSON.stringify(value);let h=2166136261;
-    for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
-    return 'fnv1a-'+(h>>>0).toString(16).padStart(8,'0');
+    const json=JSON.stringify(value);let hash=2166136261;
+    for(let i=0;i<json.length;i++){hash^=json.charCodeAt(i);hash=Math.imul(hash,16777619);}
+    return 'fnv1a-'+(hash>>>0).toString(16).padStart(8,'0');
   };
   const configFingerprint=fingerprint(contract);
+  const spec={...contract,configFingerprint};
+  const json=JSON.stringify(spec,null,2);
   const submitted=runs.find(r=>r.id===submittedId);
   const submit=()=>{
-    if(!ready){notify('Preflight blocked · fix invalid dependencies');return;}
+    if(!ready){notify('Resolve the issues shown under Ready to run');return;}
     const now=new Date().toISOString(),nonce=Date.now().toString(36);
     const id=`mine_${now.replace(/[-:T]/g,'').slice(0,12)}_${nonce.slice(-5)}`;
     const batchId=`batch_${pool.slug.replace(/-/g,'_')}_${nonce.slice(-6)}`;
-    const jobContract={...contract,configFingerprint};
     const batchName=`${pool.name} · ${algorithm.name} · ${count(n)} samples`;
-    const plannedBatch={id:batchId,name:batchName,status:'In review',strategy:algorithm.name,algorithmId:algorithm.id,
-      sourcePoolId:pool.id,sourceSnapshot:pool.snapshot,baseDatasetId:parent?.id||null,
-      registeredModelId:requiresPrediction?model.id:null,runId:id,count:n,
-      schemaVersion:'roadsift.selection-batch.v1',
+    const plannedBatch={id:batchId,name:batchName,status:'In review',strategy:algorithm.name,
+      algorithmId:algorithm.id,sourcePoolId:pool.id,sourceSnapshot:pool.snapshot,
+      baseDatasetId:parent?.id||null,registeredModelId:needsPredictions?model.id:null,
+      runId:id,count:n,schemaVersion:'roadsift.selection-batch.v1',
       manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
-      membershipHash:`simulated:${fingerprint({batchId,runId:id,count:n})}`,owner:'Perception Data Ops',
-      createdBy:'mock-worker',review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},
+      membershipHash:`simulated:${fingerprint({batchId,runId:id,count:n})}`,
+      owner:'Perception Data Ops',createdBy:'mock-worker',
+      review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},
       handoff:{status:'Not started',destination:null,sentAt:null,manifestUri:null},
       annotationReturn:{status:'Not started',expected:0,returned:0,validation:null,uri:null,receivedAt:null}};
-    const record={id,type:'Mining',name:`${algorithm.name} · ${pool.name}`,status:'Queued',executionMode:'mock-worker',
-      source:`${pool.name} p${pool.version}`,sourcePoolId:pool.id,dataset:parent?`${parent.name} v${parent.version}`:'None',
-      output:'Pending worker execution',plannedBatch,frames:pool.eligible,selected:0,budget:n,
-      executor:chosen.name,runnerId:chosen.id,duration:'—',date:now,updatedAt:now,
-      owner:'Perception Data Ops',createdBy:'mining-orchestrator',attempt:1,retryable:true,simulateFailure,
-      contract:jobContract,configFingerprint,outputBatchId:null};
-    setRuns(list=>[record,...list]);setSubmittedId(id);
-    notify('Mining Run queued · awaiting mock worker');
+    const record={id,type:'Mining',name:`${algorithm.name} · ${pool.name}`,status:'Queued',
+      executionMode:'mock-worker',source:`${pool.name} p${pool.version}`,
+      sourcePoolId:pool.id,dataset:parent?`${parent.name} v${parent.version}`:'None',
+      output:'Pending worker execution',plannedBatch,frames:pool.eligible,
+      selected:0,budget:n,executor:resolvedRunner.name,runnerId:resolvedRunner.id,
+      duration:'—',date:now,updatedAt:now,owner:'Perception Data Ops',
+      createdBy:'mining-orchestrator',attempt:1,retryable:true,simulateFailure:false,
+      contract:spec,configFingerprint,outputBatchId:null};
+    setRuns(old=>[record,...old]);setSubmittedId(id);
+    notify('Selection run queued · local demo worker will process it');
+  };
+  const copySpec=async()=>{
+    try{
+      if(!navigator.clipboard?.writeText){notify('Clipboard unavailable. Use Download JSON instead.');return;}
+      await navigator.clipboard.writeText(json);notify('Job specification copied');
+    }catch{notify('Clipboard permission unavailable. Use Download JSON instead.');}
   };
   return <div className="page mining-page mining-page--production">
-    <PageHeader eyebrow="Active learning operations" title="New Mining Run" description="Configure a reproducible selection run using registered resources." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
+    <PageHeader eyebrow="Active learning operations" title="New Selection Run" description="Choose your data, configure selection and run it in the background." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
     <div className="mining-builder">
       <section className="mining-builder__main">
-        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Candidate Source</strong><small>{pool?.name||'Choose Pool'} · {pool?.snapshot||'Missing snapshot'}</small></summary><div className="panel__body">
-          <Field label="Pool Snapshot *" help="Only eligible sample IDs from this immutable snapshot may be selected."><select value={poolId} onChange={e=>setPoolId(e.target.value)}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field>
-          <div className="mining-source-meta"><StatRow label="Snapshot" value={pool?.snapshot||'—'}/><StatRow label="Eligible" value={count(pool?.eligible||0)}/><StatRow label="Manifest URI" value={pool?.manifestUri||'Missing'}/></div>
-        </div></details>
-        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Acquisition Context</strong><small>{parent?`${parent.name} v${parent.version}`:'No parent dataset'} · {requiresPrediction?(model?.name||'Select model'):'No detector required'}</small></summary><div className="panel__body mining-field-stack">
-          <Field label="Parent Dataset Version · Optional" help="Lineage reference only; the model is selected independently."><select value={parentId} onChange={e=>setParentId(e.target.value)}><option value="">None · independent Pool mining</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></Field>
-          {requiresPrediction&&<Field label="Registered Prediction Model *"><select value={modelId} onChange={e=>setModelId(e.target.value)}><option value="">Select model</option>{modelRegistryState.filter(m=>m.status==='Registered'&&m.capabilities?.includes('predictions')).map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></Field>}
-          {requiresPrediction&&<div className="mining-model-ref"><StatRow label="Model artifact" value={model?.artifactUri||'Unresolved'}/></div>}
-          <Button variant="ghost" onClick={()=>navigate('system')}>Manage Model registry and runners <ArrowRight size={13}/></Button>
-        </div></details>
-        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Selection Algorithm</strong><small>{algorithm?.name} · EXACT-{Number.isFinite(n)?count(n):'—'}</small></summary><div className="panel__body mining-field-stack">
-          <div className="register-grid"><Field label="Algorithm *"><select value={algorithmId} onChange={e=>setAlgorithmId(e.target.value)}>{algorithmRegistry.filter(a=>a.enabled!==false).map(a=><option key={a.id} value={a.id}>{a.name} · v{a.version}</option>)}</select></Field>
-            <Field label="Budget (EXACT-N) *"><input type="number" min="1" step="1" value={budget} onChange={e=>setBudget(e.target.value)}/></Field></div>
-          <p className="mining-algorithm-description">{algorithm?.description}</p>
-          <details className="advanced-config"><summary>Advanced algorithm configuration</summary>{algorithm?.weights?<div className="strategy-params">{Object.entries(algorithm.weights).map(([k,v])=><div key={k}><span>{k}</span><strong>{Number(v).toFixed(2)}</strong></div>)}</div>:<p>Uses the registered algorithm defaults.</p>}</details>
-        </div></details>
-        <details className="panel mining-accordion" open><summary className="mining-accordion__summary"><strong>Execution</strong><small>{chosen?.name||'No eligible runner'} · {runnerId==='auto'?'Auto assignment':'Manual assignment'}</small></summary><div className="panel__body">
-          <Field label="Runner assignment *"><select value={runnerId} onChange={e=>setRunnerId(e.target.value)}><option value="auto">Auto · available compatible worker</option>{runnerRegistry.map(r=><option key={r.id} value={r.id}>{r.name} · {health(r).label}</option>)}</select></Field>
-          <div className="mining-source-meta"><StatRow label="Runner" value={chosen?.name||'Unavailable'}/><StatRow label="Health" value={chosen?health(chosen).label:'Not assigned'}/><StatRow label="Free capacity" value={chosen?String(freeSlots(chosen)):'0'}/></div>
-          <details className="advanced-config"><summary>Simulation controls</summary><label className="mining-simulation-toggle"><input type="checkbox" checked={simulateFailure} onChange={e=>setSimulateFailure(e.target.checked)}/> Simulate worker failure (exercise retry)</label></details>
-          <p className="mining-simulation-disclaimer">Seeded runners are simulated test resources. Newly registered runners require a verified heartbeat before they can execute jobs.</p>
-        </div></details>
+        <details className="panel mining-accordion" open>
+          <summary className="mining-accordion__summary"><strong>1. Data source</strong><small>{pool?.name||'Choose Pool'} · {parent?parent.name+' v'+parent.version:'No parent dataset'}</small></summary>
+          <div className="panel__body mining-field-stack">
+            <Field label="Candidate Pool Snapshot *" help="Choose an immutable set of unlabeled samples."><select value={poolId} onChange={event=>setPoolId(event.target.value)}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field>
+            <Field label="Parent Dataset Version · Optional" help="Track which labeled Dataset this selection round extends. Not needed for independent mining."><select value={parentId} onChange={event=>setParentId(event.target.value)}><option value="">None · independent selection</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></Field>
+            <div className="mining-source-meta"><StatRow label="Pool snapshot" value={pool?.snapshot||'Missing'}/><StatRow label="Available samples" value={count(pool?.eligible||0)}/></div>
+          </div>
+        </details>
+        <details className="panel mining-accordion" open={needsPredictions}>
+          <summary className="mining-accordion__summary"><strong>2. Prediction model</strong><small>{needsPredictions?(model?.name||'Choose registered model'):'Not required by this algorithm'}</small></summary>
+          <div className="panel__body mining-field-stack">
+            <p className="mining-muted-explainer">Uncertainty-based algorithms need registered model predictions. Random and diversity-only selection do not.</p>
+            <Field label="Registered model" help="Model registration is managed in System; the model artifact is selected here."><select value={modelId} onChange={e=>setModelId(e.target.value)} disabled={!needsPredictions}><option value="">{needsPredictions?'Choose model':'No model required'}</option>{candidateModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version} · {date(m.createdAt)}</option>)}</select></Field>
+            {needsPredictions&&<div className="mining-model-ref"><StatRow label="Registered" value={date(model?.createdAt)}/><StatRow label="Model version" value={model?.version||'—'}/><StatRow label="Trained with" value={model?.datasetVersionId||'Unknown'}/><StatRow label="Artifact" value={model?.artifactUri||'Missing'}/></div>}
+            <p className="mining-muted-explainer">Need a different model? Register it in System → Registered models.</p>
+          </div>
+        </details>
+        <details className="panel mining-accordion" open>
+          <summary className="mining-accordion__summary"><strong>3. Selection pipeline</strong><small>{algorithm?.name||'Choose algorithm'} · EXACT-{validBudget?count(n):'invalid'}</small></summary>
+          <div className="panel__body mining-field-stack">
+            <div className="register-grid">
+              <Field label="Selection strategy *"><select value={algorithmId} onChange={e=>setAlgorithmId(e.target.value)}>{algorithmRegistry.filter(a=>a.enabled!==false).map(a=><option key={a.id} value={a.id}>{a.name} · v{a.version}</option>)}</select></Field>
+              <Field label="Selection budget · EXACT-N *"><input type="number" step="1" min="1" value={budget} onChange={e=>setBudget(e.target.value)}/></Field>
+            </div>
+            <p className="mining-muted-explainer">{algorithm?.description}</p>
+            <div className="mining-stage-list">
+              <div className="mining-stage-row"><div className="mining-stage-name"><span>01</span><strong>Eligibility filter</strong><small>Exclude labeled, reserved and ineligible samples</small></div><span className="mining-stage-status">Always on</span></div>
+              <div className="mining-stage-row"><div className="mining-stage-name"><span>02</span><strong>Deduplication</strong><small>Reduce duplicate candidate frames</small></div><select aria-label="Deduplication algorithm" value={dedupId} onChange={e=>setDedupId(e.target.value)}>{miningPlugins.dedup.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+              <div className="mining-stage-row"><div className="mining-stage-name"><span>03</span><strong>Prediction</strong><small>{needsPredictions?'Inference using registered detector':'Skipped · no model required'}</small></div><span className="mining-stage-status">{needsPredictions?'Enabled':'Skipped'}</span></div>
+              <div className="mining-stage-row"><div className="mining-stage-name"><span>04</span><strong>Embedding</strong><small>{needsEmbeddings?'Visual features for similarity and diversity':'Skipped for this configuration'}</small></div>{needsEmbeddings?<select aria-label="Embedding model" value={embeddingId} onChange={e=>setEmbeddingId(e.target.value)}>{miningPlugins.embedding.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>:<span className="mining-stage-status">Skipped</span>}</div>
+              {needsUncertainty&&<div className="mining-stage-row"><div className="mining-stage-name"><span>05</span><strong>Uncertainty scoring</strong><small>Convert model predictions to acquisition scores</small></div><select aria-label="Uncertainty method" value={uncertaintyId} onChange={e=>setUncertaintyId(e.target.value)}>{miningPlugins.uncertainty.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
+              {needsDiversity&&<div className="mining-stage-row"><div className="mining-stage-name"><span>06</span><strong>Diversity selection</strong><small>Promote domain coverage in selected frames</small></div><select aria-label="Diversity method" value={diversityId} onChange={e=>setDiversityId(e.target.value)}>{miningPlugins.diversity.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
+              <div className="mining-stage-row"><div className="mining-stage-name"><span>07</span><strong>Final selection</strong><small>Return exactly N eligible samples</small></div><span className="mining-stage-status">{algorithm?.name||'—'}</span></div>
+            </div>
+            {algorithmId==='hybrid'&&<details className="advanced-config"><summary>Scoring weights · Advanced</summary><div className="strategy-params">{Object.entries(algorithm?.weights||{}).map(([key,value])=><div key={key}><span>{key}</span><strong>{Number(value).toFixed(2)}</strong></div>)}</div><p className="mining-muted-explainer">Weights are pinned to algorithm version {algorithm?.version}. To change them, register a new configuration version.</p></details>}
+            <p className="mining-muted-explainer">Pipeline components are selectable from registered mock implementations; these controls define the job specification, not on-the-fly plugin installation.</p>
+          </div>
+        </details>
+        <details className="panel mining-accordion" open>
+          <summary className="mining-accordion__summary"><strong>4. Execution</strong><small>{runnerId==='auto'?'Automatic runner selection':'Manual runner selection'} · {resolvedRunner?.name||'No available runner'}</small></summary>
+          <div className="panel__body mining-field-stack">
+            <Field label="Where should this job run?"><select value={runnerId} onChange={e=>setRunnerId(e.target.value)}><option value="auto">Automatic · recommended</option>{runnerRegistry.map(r=><option key={r.id} value={r.id}>{r.name} · {r.fixture?'Demo resource':r.status}</option>)}</select></Field>
+            <div className="mining-source-meta"><StatRow label="Selected runner" value={resolvedRunner?.name||'Unavailable'}/><StatRow label="Supports this pipeline" value={resolvedRunner&&supported(resolvedRunner)?'Yes':'No'}/><StatRow label="Current active jobs" value={resolvedRunner?String(activeCount(resolvedRunner)):'—'}/><StatRow label="Available worker slots" value={resolvedRunner?String(freeSlots(resolvedRunner)):'0'}/></div>
+            <p className="mining-muted-explainer">Runners are registered and managed under System. The API would queue this job and a worker would execute it asynchronously.</p>
+            <p className="mining-demo-note">Demo workspace · the seeded runners and job execution are simulated locally. No live GPU or remote queue is connected.</p>
+          </div>
+        </details>
       </section>
-      <aside className="mining-builder__side"><Panel title="Review & submit" description="Preflight validates every algorithm dependency and the immutable job contract.">
-        <div className="preflight-list">{checks.map(x=><div key={x.name} className={x.ok?'pass':'fail'}><Check size={13}/>{x.name}</div>)}</div>
-        <div className="job-spec-preview"><div><span>Job contract</span><Badge>{ready?'Ready':'Blocked'}</Badge></div>
-          <code>pool: {contract.poolSnapshotId||'—'}</code><code>parent: {contract.parentDatasetVersionId||'none'}</code>
-          <code>algorithm: {algorithm?.id}@{algorithm?.version}</code><code>model: {contract.registeredModelId||'none'}</code>
-          <code>budget: {exactNValid?count(n):'invalid'}</code><code>runner: {chosen?.id||'none'}</code>
-          <code>config fingerprint: {configFingerprint}</code>
-        </div>
-        {!exactNValid&&<p className="mining-inline-error">EXACT-N blocked: enter an integer from 1 to {count(pool?.eligible||0)}. Budget is never reduced automatically.</p>}
-        <div className="submit-note"><strong>Result contract</strong><span>Submit queues a Mining Run. The worker publishes a Selection Batch only after successful validation; it never creates a Dataset.</span></div>
-        <Button className="wide" variant="primary" icon={Play} disabled={!ready} onClick={submit}>Submit Mining Run</Button>
-        <p className="mining-simulation-disclaimer">This frontend uses a local mock worker. No remote GPU job is submitted.</p>
-      </Panel></aside>
+      <aside className="mining-builder__side">
+        <Panel title="Ready to run?" description="A short summary of your selection request.">
+          <div className="mining-review-summary">
+            <div><span>Candidate pool</span><strong>{pool?.name||'Not selected'}</strong></div>
+            <div><span>Parent dataset</span><strong>{parent?parent.name+' v'+parent.version:'None (optional)'}</strong></div>
+            <div><span>Strategy</span><strong>{algorithm?.name||'Not selected'}</strong></div>
+            <div><span>Target samples</span><strong>{validBudget?count(n):'Invalid budget'}</strong></div>
+            <div><span>Prediction model</span><strong>{needsPredictions?(model?.name||'Not selected'):'Not needed'}</strong></div>
+            <div><span>Execution</span><strong>{resolvedRunner?.name||'Unavailable'}</strong></div>
+          </div>
+          <div className="mining-check-summary"><strong>{ready?'Configuration ready':checks.filter(x=>!x.ok).length+' issue(s) to resolve'}</strong>
+            {checks.filter(x=>!x.ok).map(x=><div key={x.label}><X size={13}/><span>{x.label} <em>({x.where})</em></span></div>)}
+            {ready&&<p>No blocking issues found in the local fixture registry.</p>}
+          </div>
+          <div className="submit-note"><strong>What happens next?</strong><span>Submit starts a selection run. When processing succeeds, the system creates a Selection Batch for human review.</span></div>
+          <Button className="wide" variant="primary" icon={Play} disabled={!ready} onClick={submit}>Run selection</Button>
+          <p className="mining-simulation-disclaimer">Demo only · background processing is simulated in this browser.</p>
+        </Panel>
+      </aside>
     </div>
-    {submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Mining Run {submitted.status}</small><h3>{submitted.id}</h3><p>{submitted.executor} · EXACT-{count(submitted.budget)} · {submitted.configFingerprint}</p></div><Badge>{submitted.status}</Badge></div>
+    <details className="panel mining-code-panel"><summary className="mining-accordion__summary"><strong>Job specification · JSON</strong><small>Generated from selections above · read-only</small></summary>
+      <div className="panel__body"><p className="mining-muted-explainer">This is the structured job request the frontend would send to the RoadSift API. Expand to inspect exact plugin versions and resource references.</p>
+        <div className="mining-code-actions"><Button onClick={copySpec}>Copy JSON</Button><Button icon={Download} onClick={()=>downloadJSON('selection-job-spec.json',spec)}>Download JSON</Button></div>
+        <pre className="mining-code-block"><code>{json}</code></pre>
+      </div>
+    </details>
+    {submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Selection Run · {submitted.status}</small><h3>{submitted.id}</h3><p>{submitted.executor} · EXACT-{count(submitted.budget)}</p></div><Badge>{submitted.status}</Badge></div>
       <div className="section-actions"><Button onClick={()=>navigate('history')}>Open Run details</Button>{submitted.status==='Complete'&&<Button variant="primary" onClick={()=>navigate('batches')}>Open Selection Batch</Button>}</div>
     </div>}
   </div>;
