@@ -338,6 +338,28 @@ export function Datasets({ datasets, setDatasets, pools, navigate, notify, route
           <details className="advanced-config"><summary>Lineage references</summary><div className="detail-stats">{selected.run&&<StatRow label="Run" value={selected.run}/>} {selected.sourceBatch&&<StatRow label="Batch" value={selected.sourceBatch}/>} {selected.evalId&&<StatRow label="Evaluation" value={selected.evalId}/>} {selectedParent&&<Button onClick={()=>openDetails(selectedParent)}>Open parent version</Button>}</div></details>
         </Panel>
       </div>
+      <Panel title="Version tree" description="Version lineage · select a version using the dropdown above">
+        <div className="dataset-version-tree" role="list" aria-label="Dataset version lineage">
+          {[...selectedFamily].reverse().map((version,index,ordered)=>{
+            const parent=version.parent?datasets.find(d=>d.id===version.parent):null;
+            const previous=ordered[index-1];
+            const linkedFromPrevious=!!previous&&version.parent===previous.id;
+            const externalParent=version.parent&&!ordered.some(v=>v.id===version.parent);
+            return <React.Fragment key={version.id}>
+              {index===0&&externalParent&&<div className="dataset-version-tree__external"><GitBranch size={14}/><span>Source: {parent?parent.name+' · v'+parent.version:version.parent}</span><small>Outside this dataset family</small></div>}
+              {index>0&&<div className={linkedFromPrevious?'dataset-version-tree__connector':'dataset-version-tree__connector dataset-version-tree__connector--broken'} aria-label={linkedFromPrevious?'Parent linked':'No direct parent relationship'}>{linkedFromPrevious?'↓':'⋯'}</div>}
+              <div className={version.id===selected.id?'dataset-version-tree__node dataset-version-tree__node--current':'dataset-version-tree__node'} role="listitem" aria-current={version.id===selected.id?'true':undefined}>
+                <span className="dataset-version-tree__dot" aria-hidden="true"/>
+                <div className="dataset-version-tree__node-main"><strong>v{version.version}</strong><span>{count(version.count||0)} samples</span><small>{date(version.date)}</small></div>
+                {version.id===selected.id&&<span className="dataset-version-tree__tag">Viewing</span>}
+                {version.id===selectedFamily[0]?.id&&<span className="dataset-version-tree__tag dataset-version-tree__tag--latest">Latest</span>}
+                {(version.aliases||[]).length>0&&<span className="dataset-version-tree__aliases">{version.aliases.join(' · ')}</span>}
+                {!linkedFromPrevious&&index>0&&<small className="dataset-version-tree__unlinked">Parent: {parent?parent.name+' v'+parent.version:version.parent||'unknown'}</small>}
+              </div>
+            </React.Fragment>;
+          })}
+        </div>
+      </Panel>
       <div className="dataset-id-strip"><div><span>Dataset ID</span><code>{selected.id}</code><button aria-label="Copy Dataset ID" title="Copy Dataset ID" onClick={()=>navigator.clipboard?.writeText(selected.id).then(()=>notify('Dataset ID copied')).catch(()=>notify('Clipboard unavailable'))}><Copy size={14}/></button></div>{selected.evalId&&<div><span>Evaluation ID</span><code>{selected.evalId}</code><button aria-label="Copy Evaluation ID" title="Copy Evaluation ID" onClick={()=>navigator.clipboard?.writeText(selected.evalId).then(()=>notify('Evaluation ID copied')).catch(()=>notify('Clipboard unavailable'))}><Copy size={14}/></button></div>}</div>
       <details className="panel mining-accordion dataset-technical-collapse"><summary className="mining-accordion__summary"><strong>Technical metadata</strong><small>Storage references · integrity · IDs</small></summary>
         <div className="panel__body"><div className="detail-stats"><StatRow label="Dataset ID" value={selected.id}/>{selected.manifestUri&&<StatRow label="Manifest" value={selected.manifestUri}/>} {selected.annotationUri&&<StatRow label="Annotations" value={selected.annotationUri}/>} {selected.schemaVersion&&<StatRow label="Schema" value={selected.schemaVersion}/>} {selected.membershipHash&&<StatRow label="Membership hash (unverified fixture)" value={selected.membershipHash}/>} {selected.evalId&&<StatRow label="Evaluation ID" value={selected.evalId}/>}</div></div>
