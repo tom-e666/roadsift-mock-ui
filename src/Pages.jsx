@@ -551,6 +551,7 @@ export function History({ runs, setRuns, navigate, notify }) {
     const batchId=`batch_retry_${Date.now().toString(36)}`;
     const attempt={...run,id,status:'Queued',date:now,updatedAt:now,attempt:(run.attempt||1)+1,
       retryOf:run.id,selected:0,output:'Pending worker execution',completedAt:null,
+      simulateFailure:false,errorCode:null,errorMessage:null,
       plannedBatch:{...run.plannedBatch,id:batchId,runId:id,
         manifestUri:`r2://roadsift/batches/${batchId}/manifest.parquet`,
         membershipHash:`simulated:${id}`}};
