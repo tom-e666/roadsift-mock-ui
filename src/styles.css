@@ -654,3 +654,12 @@ th .help-tip{margin-left:4px}
 .ingest-workflow .ingest-action-bar{bottom:10px}
 .ingest-workflow .ingest-action-bar>div:first-child{max-width:60%}
 @media(max-width:680px){.ingest-mode-picker{grid-template-columns:1fr}.ingest-source-fields{grid-template-columns:1fr}.ingest-workflow .ingest-action-bar>div:first-child{max-width:100%}}
+
+/* Runtime error fallback: a broken page must never blank the navigation shell */
+.route-error{min-height:350px;display:flex;align-items:center;justify-content:center;padding:24px}
+.route-error__body{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:32px;max-width:540px;width:100%;display:grid;gap:14px}
+.route-error__body h1{margin:0;font-size:20px;letter-spacing:-.025em}
+.route-error__body p{margin:0;color:var(--muted);line-height:1.55;font-size:13px}
+.route-error__actions{display:flex;gap:9px;flex-wrap:wrap}
+.route-error__body details{font-size:12px;color:var(--muted)}
+.route-error__body details code{display:block;margin-top:8px;overflow-wrap:anywhere}
