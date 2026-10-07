@@ -88,7 +88,7 @@ export function Pools({ navigate, pools, setPools, notify, routePath }) {
     {selected&&<section className="pool-detail-workspace pool-overview-single">
       <div className="dataset-detail-top">
         <Button icon={ArrowLeft} onClick={()=>navigate('pools')}>All pools</Button>
-        <div className="dataset-detail-actions"><Button icon={ScanLine} onClick={()=>navigate('data-explorer',{kind:'pool',id:selected.id})}>Browse samples</Button><Button variant="primary" icon={Pickaxe} onClick={()=>navigate('mining',{kind:'pool',id:selected.id})}>Start mining</Button></div>
+        <div className="dataset-detail-actions"><Button icon={ScanLine} onClick={()=>navigate('data-explorer',{kind:'pool',id:selected.id})}>Browse samples</Button></div>
       </div>
       <div className="dataset-detail-heading">
         <div><p className="eyebrow">Candidate Pool · <span className="pool-current-version">{selected.slug||selected.id}:p{selected.version}</span></p><h2>{selected.name}</h2><p>{selected.source||'Candidate registry'} · Updated {date(selected.indexed)}</p></div>
@@ -96,16 +96,17 @@ export function Pools({ navigate, pools, setPools, notify, routePath }) {
       </div>
       <Panel title="Pool membership">
         <div className="pool-composition-track" role="img" aria-label="Pool membership split by lifecycle state">{[['eligible',selected.eligible],['reserved',selected.reserved],['labeled',selected.labeled],['excluded',selected.excluded]].map(([key,value])=><span key={key} className={`pool-part--${key}`} style={{flex:Math.max(0,Number(value)||0)}} title={`${key}: ${count(value||0)}`}/>)}</div>
-        <div className="pool-composition-legend">{[['Eligible',selected.eligible],['Reserved',selected.reserved],['Labeled',selected.labeled],['Excluded',selected.excluded]].map(([key,value])=><div key={key}><span className={`pool-legend-dot pool-part--${key.toLowerCase()}`}/><small>{key}</small><strong>{count(value||0)}</strong></div>)}</div>
+        <div className="pool-composition-legend">{[['Eligible',selected.eligible],['Reserved',selected.reserved],['Labeled',selected.labeled],['Excluded',selected.excluded]].map(([key,value])=><div key={key}><span className={`pool-legend-dot pool-part--${key.toLowerCase()}`}/><small>{key}</small><strong>{count(value||0)}</strong><span className="pool-share">{selected.total>0?(100*Number(value||0)/Number(selected.total)).toFixed(2)+'%':'—'}</span></div>)}</div>
         {Number(selected.total)!==Number(selected.eligible||0)+Number(selected.reserved||0)+Number(selected.labeled||0)+Number(selected.excluded||0)&&<p className="mining-inline-error">Pool membership counts need review: states do not reconcile with Total.</p>}
+        <div className="pool-mining-action"><div><strong>Ready for selection</strong><span>{count(selected.eligible)} eligible frames · p{selected.version}</span></div><Button variant="primary" icon={Pickaxe} disabled={!selected.eligible} onClick={()=>navigate('mining',{kind:'pool',id:selected.id})}>Start mining</Button></div>
       </Panel>
       <div className="pool-overview-two-columns">
         <Panel title="Candidate composition">
-          <div className="pool-breakdown">{Object.entries(selected.composition||{}).map(([label,value])=><div className="pool-breakdown__row" key={label}><div><span>{label.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)}</strong></div><div className="pool-breakdown__track"><i style={{width:barWidth(value,selected.eligible)}}/></div></div>)}</div>
+          <div className="pool-breakdown">{Object.entries(selected.composition||{}).map(([label,value])=><div className="pool-breakdown__row" key={label}><div><span>{label.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)} <small>· {selected.eligible>0?(100*Number(value)/Number(selected.eligible)).toFixed(1):"0.0"}%</small></strong></div><div className="pool-breakdown__track"><i style={{width:selected.eligible>0?`${100*Number(value)/Number(selected.eligible)}%`:"0%"}}/></div></div>)}</div>
         </Panel>
         <Panel title="Quality & review flags">
-          <div className="pool-quality-list">{Object.entries(selected.quality||{}).map(([key,value])=><div key={key}><span>{key.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)}</strong></div>)}</div>
-          <p className="pool-hint">Flags may overlap. Low light and blur do not automatically exclude a frame.</p>
+          <div className="pool-quality-list">{Object.entries(selected.quality||{}).map(([key,value])=><div key={key} className={`pool-quality-${key.toLowerCase()}`}><span>{key.replace(/([A-Z])/g,' $1').trim()}</span><strong>{count(value)}</strong></div>)}</div>
+          <p className="pool-hint">Flags can overlap. Usable hard cases remain in the Pool.</p>
         </Panel>
       </div>
       <Panel title="Snapshot history" description="Each version captures Pool membership after a recorded change.">
