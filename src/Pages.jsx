@@ -997,7 +997,7 @@ export function SystemPage({ notify, runnerRegistry, setRunnerRegistry, modelReg
       if(modelRegistryState.some(m=>m.name.toLowerCase()===name.toLowerCase()&&m.artifactUri===uri)){setError('This model artifact is already registered.');return;}
       setModelRegistryState(list=>[...list,{id:'model_local_'+Date.now().toString(36),name,version:'1.0',artifactUri:uri,
         datasetVersionId:form.datasetVersionId||null,status:'Pending verification',task:form.modelTask,
-        capabilities:['predictions','uncertainty','safety'],createdAt:new Date().toISOString()}]);
+        capabilities:form.modelTask==='Privacy Detection'?['privacy']:['predictions','uncertainty','safety'],createdAt:new Date().toISOString()}]);
       notify('Model metadata saved; artifact not yet verified');
     }
     setOpen(null);
@@ -1013,7 +1013,7 @@ export function SystemPage({ notify, runnerRegistry, setRunnerRegistry, modelReg
     {open&&<Modal title={open==='runner'?'Register runner':'Register model'} onClose={()=>setOpen(null)} footer={<><Button onClick={()=>setOpen(null)}>Cancel</Button><Button variant="primary" onClick={save}>Save to registry</Button></>}>
       <div className="mining-field-stack"><Field label="Resource name *"><input value={form.name} onChange={e=>patch('name',e.target.value)}/></Field>
         {open==='runner'?<><Field label="Backend type"><select value={form.type} onChange={e=>patch('type',e.target.value)}><option>RoadSift Worker</option><option>Kaggle</option><option>Custom</option></select></Field><Field label="Runner URI *"><input value={form.endpoint} onChange={e=>patch('endpoint',e.target.value)} placeholder="worker://roadsift/gpu-node"/></Field><Field label="Max concurrent jobs *"><input type="number" min="1" value={form.maxConcurrent} onChange={e=>patch('maxConcurrent',e.target.value)}/></Field></>:
-          <><Field label="Model task"><select value={form.modelTask} onChange={e=>patch('modelTask',e.target.value)}><option>Object Detection</option></select></Field><Field label="Artifact URI *"><input value={form.artifactUri} onChange={e=>patch('artifactUri',e.target.value)} placeholder="r2://roadsift/models/model.pt"/></Field><Field label="Training Dataset version (optional)"><input value={form.datasetVersionId} onChange={e=>patch('datasetVersionId',e.target.value)} placeholder="huc-v7"/></Field></>}
+          <><Field label="Model task"><select value={form.modelTask} onChange={e=>patch('modelTask',e.target.value)}><option>Object Detection</option><option>Privacy Detection</option></select></Field><Field label="Artifact URI *"><input value={form.artifactUri} onChange={e=>patch('artifactUri',e.target.value)} placeholder="r2://roadsift/models/model.pt"/></Field><Field label="Training Dataset version (optional)"><input value={form.datasetVersionId} onChange={e=>patch('datasetVersionId',e.target.value)} placeholder="huc-v7"/></Field></>}
         {error&&<p className="mining-inline-error" role="alert">{error}</p>}
         <p className="mining-simulation-disclaimer">Saving registry metadata does not verify an endpoint, artifact, capability or live heartbeat. A backend verification service is required to mark this resource Ready.</p>
       </div>
