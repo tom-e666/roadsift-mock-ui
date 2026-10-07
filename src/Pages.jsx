@@ -1052,12 +1052,90 @@ export function SystemPage({ notify, runnerRegistry, setRunnerRegistry, modelReg
   </div>;
 }
 
-export function Onboarding({ navigate }) {
-  return <div className="page onboarding-page"><PageHeader eyebrow="Product onboarding" title="RoadSift in 3 minutes" description="What the product owns, what stays external, and where the ROI comes from."/>
-    <section className="onboarding-intro"><div><h2>Spend annotation budget on the frames that change the model.</h2><p>RoadSift sits between fleet collection and external annotation/training. It turns a large unlabeled candidate pool into traceable Selection Batches and measures whether those choices improve downstream model performance.</p></div><Button variant="primary" icon={ArrowRight} onClick={()=>navigate('pools')}>Open Pool registry</Button></section>
-    <section className="onboarding-grid"><div><small>Problem 01</small><h3>Too much fleet data</h3><p>Raw drives contain heavy temporal redundancy and many low-value frames. Manual browsing does not scale.</p><strong>RoadSift response</strong><p>Version Pool snapshots, score eligible candidates, enforce EXACT-N and preserve selection lineage.</p></div><div><small>Problem 02</small><h3>Hard to prove data value</h3><p>More labeled frames do not automatically mean a better model.</p><strong>RoadSift response</strong><p>Track Dataset versions, external model/evaluation results and controlled strategy comparisons on one fixed holdout.</p></div></section>
-    <section className="onboarding-boundary"><div className="ops-section__header"><div><h2>Product boundary</h2><p>RoadSift owns data selection and provenance; specialist systems keep annotation and training.</p></div></div><div className="boundary-flow"><span>Fleet media</span><ArrowRight size={14}/><span>Pool</span><ArrowRight size={14}/><span>Mining</span><ArrowRight size={14}/><span>Selection Batch</span><ArrowRight size={14}/><span className="external">External annotation</span><ArrowRight size={14}/><span>Dataset version</span><ArrowRight size={14}/><span className="external">External training/eval</span></div></section>
-    <section className="onboarding-economics"><div><small>Market</small><strong>Perception teams already pay for fleet storage, annotation and retraining; RoadSift targets the data-selection layer between collection and labeling.</strong></div><div><small>ROI</small><strong>Model gain per annotation frame / hour / dollar.</strong><p>Primary value = avoided low-value labels + faster learning at the same annotation budget − Mining compute cost.</p></div></section>
-    <section className="onboarding-next"><div><strong>Recommended first workflow</strong><p>Open a Pool → inspect membership → create a Mining run → review the Selection Batch → register the returned Dataset version.</p></div><Button onClick={()=>navigate('mining')}>Open Mining</Button></section>
+export function Onboarding() {
+  const qrRows=["000000000000000000000000000000000","000000000000000000000000000000000","001111111010101110101100111111100","001000001001110111000100100000100","001011101000111010011000101110100","001011101010101000100010101110100","001011101011101000000000101110100","001000001010001000001100100000100","001111111010101010101010111111100","000000000010000101111000000000000","001000101110111101100101111100100","001111010010111111000001111111100","001010111010001001111001100000100","001101010001100010110110001101100","001100111011111110010010000001000","001000010101010000111100111111100","000101111010000111001010011110100","000000100100111100011111010001100","001000111001000100010011010001000","001001010011101111110000111101100","000011101101010001110010101010100","000011110110000011011110001001100","001110111101011110100011111100100","000000000010011001101110001000100","001111111011101111001110101110100","001000001001100101011010001000000","001011101011100100110111111100000","001011101000001111000011000000100","001011101000111001011101000111100","001000001001001100110010011101100","001111111011111010111010011101000","000000000000000000000000000000000","000000000000000000000000000000000"];
+  return <div className="page onboarding-page onboarding-deck">
+    <section className="onboarding-slide onboarding-slide--hero">
+      <div className="onboarding-kicker">ACTIVE LEARNING · DATA CURATION · LINEAGE</div>
+      <h1>RoadSift</h1>
+      <p>Chọn đúng dữ liệu, hiểu dữ liệu đã chọn, biết mỗi vòng có đang đi đúng hướng.</p>
+    </section>
+
+    <section className="onboarding-slide onboarding-slide--problem">
+      <h2>Bài toán</h2>
+      <div className="onboarding-problem-flow">
+        <div><strong>Vài TB</strong><span>pool ảnh thô</span></div>
+        <ArrowRight size={42}/>
+        <div className="accent"><strong>~10 GB</strong><span>giá trị nhất để train</span></div>
+      </div>
+      <p className="onboarding-slide-note">Đội labeling và training không xử lý hết. Câu hỏi: lấy những frame nào?</p>
+    </section>
+
+    <section className="onboarding-slide">
+      <h2>Vòng lặp Active Learning</h2>
+      <div className="al-rounds">
+        {[['ROUND 1','Dataset v1','Chọn v1'],['ROUND 2','Dataset v2','Chọn v2'],['ROUND 3','Dataset v3','Chọn v3']].map(([round,dataset,select],index)=><div className="al-round" key={round}>
+          <div className="al-round-label"><small>{round}</small><strong>{dataset}</strong></div>
+          <div className="al-node">Pool</div><ArrowRight size={18}/>
+          <div className="al-node al-node--accent">{select}</div><ArrowRight size={18}/>
+          <div className="al-node">Gắn nhãn</div><ArrowRight size={18}/>
+          <div className="al-node">Train + eval</div>
+          {index<2&&<div className="al-feedback">↓ Evaluation quay lại pool, chọn batch cho round sau</div>}
+        </div>)}
+      </div>
+      <p className="onboarding-slide-note">⋮ v4, v5... Làm sao biết các batch sau vẫn còn tốt?</p>
+    </section>
+
+    <section className="onboarding-slide">
+      <h2>RoadSift gồm hai phần</h2>
+      <div className="onboarding-two-part">
+        <div className="onboarding-part-card">
+          <small>PHẦN 1</small>
+          <h3>Data curation pipeline</h3>
+          <p>Từ hàng triệu frame, lọc tập nhỏ giá trị cao bằng bốn tín hiệu:</p>
+          <div className="signal-chips"><span>Uncertainty</span><span>Diversity</span><span>Safety</span><span>Redundancy</span></div>
+        </div>
+        <div className="onboarding-part-card">
+          <small>PHẦN 2</small>
+          <h3>Quản lý AL lineage</h3>
+          <p>Pool, dataset version, batch, strategy, model, evaluation, lịch sử từng round.</p>
+          <div className="lineage-questions"><span>Dataset v3 tạo từ model nào?</span><span>Vì sao batch này được chọn?</span><span>Thêm batch xong mAP tăng hay giảm?</span><span>Round sau có nên giữ strategy này?</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section className="onboarding-slide">
+      <h2>RoadSift nằm ở đầu pipeline</h2>
+      <div className="position-pipeline"><span>Pool</span><span>Dataset</span><span>Train</span><span>Model</span></div>
+      <div className="position-map">
+        <div className="position-road"><strong>RoadSift</strong><span>Chọn gì từ pool, vì sao chọn</span></div>
+        <div className="position-dvc"><strong>DVC</strong><span>Version dữ liệu</span></div>
+        <div className="position-mlflow"><strong>MLflow</strong><span>Track experiment, model, metric</span></div>
+      </div>
+    </section>
+
+    <section className="onboarding-slide">
+      <h2>Kiến trúc đơn giản</h2>
+      <div className="onboarding-architecture">
+        <div><strong>Web UI</strong><span>Engineer thao tác</span></div>
+        <div><strong>FastAPI</strong><span>Backend, điều phối job</span></div>
+        <div><strong>ML workers</strong><span>Inference, embedding, selection, privacy. Kaggle hoặc GPU riêng</span></div>
+        <div className="accent"><strong>Lưu trữ</strong><span>Cloudflare R2: media, frame, curated batch.<br/>Supabase: metadata, auth, DB</span></div>
+      </div>
+      <p className="onboarding-slide-note">Dữ liệu lớn nằm ở R2, metadata và lineage nằm ở Supabase.</p>
+    </section>
+
+    <section className="onboarding-slide onboarding-slide--review">
+      <div>
+        <div className="onboarding-kicker">SAU DEMO</div>
+        <h2>Review giúp bọn mình nhé</h2>
+        <p>Review hữu ích nhất nhận một coupon mua sắm. GPT-5.6 sẽ chọn review tốt nhất.</p>
+      </div>
+      <a className="onboarding-qr-card" href="https://forms.gle/oNqqE1ToyGt35tgB8" target="_blank" rel="noreferrer">
+        <svg viewBox="0 0 33 33" role="img" aria-label="QR code mở form review">{qrRows.flatMap((row,y)=>[...row].map((cell,x)=>cell==='1'?<rect key={`${x}-${y}`} x={x} y={y} width="1" height="1"/>:null))}</svg>
+        <strong>Quét QR để điền khảo sát</strong>
+        <span>forms.gle/oNqqE1ToyGt35tgB8</span>
+      </a>
+    </section>
   </div>;
 }
