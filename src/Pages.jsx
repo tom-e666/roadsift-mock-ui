@@ -442,7 +442,7 @@ export function Explorer({datasets,pools,contextDataset,notify,navigate}) {
   </div>;
 }
 
-export function ImportData({notify,navigate,pools}) {
+export function ImportData({notify,navigate,pools,contextDataset}) {
   const [sourceMode,setSourceMode]=useState('upload');
   const [mediaType,setMediaType]=useState('videos');
   const [files,setFiles]=useState([]);
@@ -509,7 +509,7 @@ export function ImportData({notify,navigate,pools}) {
 }
 
 export function Mining({ notify, setRuns, runs, navigate, datasets, pools, contextDataset, runnerRegistry, modelRegistryState, algorithmRegistry }) {
-  const [poolId,setPoolId]=useState(pools[0]?.id||'');
+  const [poolId,setPoolId]=useState(contextDataset?.kind==='pool'&&pools.some(p=>p.id===contextDataset.id)?contextDataset.id:pools[0]?.id||'');
   const [parentId,setParentId]=useState('');
   const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
   const [budget,setBudget]=useState(String(miningConfig.defaultBudget));
