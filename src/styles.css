@@ -593,3 +593,24 @@ th .help-tip{margin-left:4px}
 .dataset-overview-single .dataset-version-control select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .dataset-overview-single .dataset-version-control>span{font-size:12px;color:var(--muted)}
 @media(max-width:780px){.dataset-overview-single .dataset-version-control{width:100%;max-width:100%}}
+
+/* Dataset UX: single version selector, readable pipeline and direct copyable IDs */
+.dataset-overview-single .dataset-release-status{border-radius:8px;border:1px solid rgba(225,161,72,.4);background:rgba(225,161,72,.065);padding:12px;gap:6px}
+.dataset-overview-single .dataset-gate-pending{color:#e6ad59;font-size:13px}
+.dataset-overview-single .dataset-release-status small{font-size:12px;line-height:1.45}
+.dataset-overview-single .dataset-eval-footer{align-items:center}
+.dataset-overview-single .dataset-inline-actions{flex-wrap:wrap;justify-content:flex-end}
+.dataset-lineage-flow--compact{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:8px 0 12px}
+.dataset-lineage-flow--compact .dataset-flow-item{display:grid;gap:7px;min-width:95px;max-width:160px;flex:1 0 105px;padding:11px 9px;border:1px solid var(--line);background:var(--bg);border-radius:8px}
+.dataset-lineage-flow--compact .dataset-flow-item>span{font-size:11px;color:var(--muted)}
+.dataset-lineage-flow--compact .dataset-flow-item strong{font-size:12px;overflow-wrap:anywhere}
+.dataset-lineage-flow--compact .dataset-flow-item--missing{border-style:dashed;border-color:rgba(225,161,72,.5)}
+.dataset-lineage-flow--compact .dataset-flow-item--missing strong{color:#e6ad59}
+.dataset-lineage-flow--compact .dataset-flow-arrow{flex:0 0 14px;opacity:.65}
+.dataset-id-strip{display:flex;gap:18px;flex-wrap:wrap;padding:12px 14px;border-radius:9px;border:1px solid var(--line);background:var(--surface)}
+.dataset-id-strip>div{display:flex;gap:10px;align-items:center;min-width:0;font-size:12px}
+.dataset-id-strip span{color:var(--muted)}
+.dataset-id-strip code{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.dataset-id-strip button{border:0;background:transparent;cursor:pointer;color:var(--muted);padding:5px;border-radius:5px}
+.dataset-id-strip button:hover,.dataset-id-strip button:focus-visible{background:var(--bg);color:var(--text)}
+@media(max-width:1100px){.dataset-overview-single .dataset-eval-footer{flex-direction:column;align-items:flex-start}.dataset-overview-single .dataset-inline-actions{justify-content:flex-start}}
