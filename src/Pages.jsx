@@ -576,6 +576,9 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
   const [uncertaintyId,setUncertaintyId]=useState(miningPlugins.defaults.uncertainty);
   const [diversityId,setDiversityId]=useState(miningPlugins.defaults.diversity);
   const [submittedId,setSubmittedId]=useState(null);
+  const [privacyMethod,setPrivacyMethod]=useState('gaussian-blur');
+  const [privacyScope,setPrivacyScope]=useState('faces-plates');
+  const [previewFormat,setPreviewFormat]=useState('python');
   const pool=pools.find(p=>p.id===poolId);
   const parent=datasets.find(d=>d.id===parentId);
   const algorithm=algorithmRegistry.find(s=>s.id===algorithmId);
@@ -611,6 +614,7 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
     {label:'Choose an enabled algorithm implementation',ok:Boolean(algorithm&&algorithm.enabled!==false&&algorithm.version),where:'Selection pipeline'},
     {label:'Configure the required pipeline components',ok:Boolean(dedup&&(!needsEmbeddings||embedding)&&(!needsUncertainty||uncertainty)&&(!needsDiversity||diversity)),where:'Selection pipeline'},
     {label:'Select a registered prediction model',ok:!needsPredictions||validModel,where:'Prediction model'},
+    {label:'Configure privacy anonymization',ok:Boolean(privacyMethod&&privacyScope),where:'Selection pipeline'},
     {label:'Assign a compatible runner with available capacity',ok:runnerValid,where:'Execution'}
   ];
   const ready=checks.every(x=>x.ok);
@@ -622,7 +626,8 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
     {step:'embedding',plugin:needsEmbeddings?plugin(embedding):null,enabled:needsEmbeddings},
     {step:'uncertainty',plugin:needsUncertainty?plugin(uncertainty):null,enabled:needsUncertainty},
     {step:'diversity',plugin:needsDiversity?plugin(diversity):null,enabled:needsDiversity},
-    {step:'selection',plugin:plugin(algorithm),enabled:true}
+    {step:'selection',plugin:plugin(algorithm),enabled:true},
+    {step:'privacy',plugin:{id:'privacy-anonymization',version:'1.0.0'},enabled:true}
   ];
   const contract={
     schemaVersion:miningConfig.contractSchema,
@@ -630,7 +635,8 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
       parentDatasetVersionId:parent?.id||null},
     pipeline:{steps:stages,budget:n,exactN:true,
       scoringWeights:algorithmId==='hybrid'?algorithm?.weights||null:null,
-      modelRef:needsPredictions?{id:model?.id||null,version:model?.version||null,artifactUri:model?.artifactUri||null}:null},
+      modelRef:needsPredictions?{id:model?.id||null,version:model?.version||null,artifactUri:model?.artifactUri||null}:null,
+      privacy:{required:true,scope:privacyScope,method:privacyMethod,verification:'fail-closed',onFailure:'block-export',preserveRaw:true}},
     execution:{assignment:runnerId==='auto'?'auto':'manual',runnerId:resolvedRunner?.id||null}
   };
   const fingerprint=value=>{
@@ -641,6 +647,26 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
   const configFingerprint=fingerprint(contract);
   const spec={...contract,configFingerprint};
   const json=JSON.stringify(spec,null,2);
+  const pythonPreview = [
+    '# RoadSift Mining · Kaggle/Python worker integration template',
+    '# UI mock only: connect registered backend implementations before execution.',
+    'import json',
+    'from pathlib import Path',
+    '',
+    'spec = json.loads(Path("selection-job-spec.json").read_text(encoding="utf-8"))',
+    'assert spec["pipeline"]["exactN"], "EXACT-N is required"',
+    'assert spec["pipeline"]["privacy"]["required"], "Privacy gate is required"',
+    '',
+    '# candidates = load_pool_snapshot(spec["source"])',
+    '# selected = select_exact_n(candidates, spec["pipeline"])',
+    '# anonymized = anonymize_faces_and_plates(selected, spec["pipeline"]["privacy"])',
+    '# verified = verify_privacy(anonymized, fail_closed=True)',
+    '# if len(verified) != spec["pipeline"]["budget"]:',
+    '#     raise RuntimeError("EXACT-N privacy gate failed: block export")',
+    '# export_curated_batch(verified)  # Never export unverified raw frames',
+    '',
+    'print("Job config loaded. Integrate the actual RoadSift worker to run.")'
+  ].join('\\n');
   const submitted=runs.find(r=>r.id===submittedId);
   const submit=()=>{
     if(!ready){notify('Resolve the issues shown under Ready to run');return;}
@@ -712,7 +738,9 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
               {needsUncertainty&&<div className="mining-stage-row"><div className="mining-stage-name"><span>05</span><strong>Uncertainty scoring</strong><small>Convert model predictions to acquisition scores</small></div><select aria-label="Uncertainty method" value={uncertaintyId} onChange={e=>setUncertaintyId(e.target.value)}>{miningPlugins.uncertainty.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
               {needsDiversity&&<div className="mining-stage-row"><div className="mining-stage-name"><span>06</span><strong>Diversity selection</strong><small>Promote domain coverage in selected frames</small></div><select aria-label="Diversity method" value={diversityId} onChange={e=>setDiversityId(e.target.value)}>{miningPlugins.diversity.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
               <div className="mining-stage-row"><div className="mining-stage-name"><span>07</span><strong>Final selection</strong><small>Return exactly N eligible samples</small></div><span className="mining-stage-status">{algorithm?.name||'—'}</span></div>
+              <div className="mining-stage-row"><div className="mining-stage-name"><span>08</span><strong>Privacy Anonymization</strong><small>Detect and mask sensitive regions before curated export · fail closed</small></div><span className="mining-stage-status">Required</span></div>
             </div>
+            <details className="advanced-config"><summary>Privacy settings · Advanced</summary><div className="mining-code-actions"><Field label="Sensitive regions"><select value={privacyScope} onChange={e=>setPrivacyScope(e.target.value)}><option value="faces-plates">Faces + license plates (recommended)</option><option value="faces-plates-persons">Faces + plates + entire persons</option></select></Field><Field label="Masking method"><select value={privacyMethod} onChange={e=>setPrivacyMethod(e.target.value)}><option value="gaussian-blur">Gaussian blur</option><option value="pixelation">Pixelation</option><option value="solid-mask">Solid mask</option></select></Field></div><p className="mining-muted-explainer">Verification is mandatory and fail-closed. Raw frames stay access-controlled; unverified exports are blocked. Full-person masking may harm pedestrian training.</p></details>
             {algorithmId==='hybrid'&&<details className="advanced-config"><summary>Scoring weights · Advanced</summary><div className="strategy-params">{Object.entries(algorithm?.weights||{}).map(([key,value])=><div key={key}><span>{key}</span><strong>{Number(value).toFixed(2)}</strong></div>)}</div><p className="mining-muted-explainer">Weights are pinned to algorithm version {algorithm?.version}. To change them, register a new configuration version.</p></details>}
             <p className="mining-muted-explainer">Pipeline components are selectable from registered mock implementations; these controls define the job specification, not on-the-fly plugin installation.</p>
           </div>
@@ -747,10 +775,12 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
         </Panel>
       </aside>
     </div>
-    <details className="panel mining-code-panel"><summary className="mining-accordion__summary"><strong>Job specification · JSON</strong><small>Generated from selections above · read-only</small></summary>
-      <div className="panel__body"><p className="mining-muted-explainer">This is the structured job request the frontend would send to the RoadSift API. Expand to inspect exact plugin versions and resource references.</p>
-        <div className="mining-code-actions"><Button onClick={copySpec}>Copy JSON</Button><Button icon={Download} onClick={()=>downloadJSON('selection-job-spec.json',spec)}>Download JSON</Button></div>
-        <pre className="mining-code-block"><code>{json}</code></pre>
+    <details className="panel mining-code-panel" open><summary className="mining-accordion__summary"><strong>Job preview</strong><small>Python worker / JSON contract · read-only</small></summary>
+      <div className="panel__body">
+        <div className="mining-code-actions"><Button onClick={()=>setPreviewFormat('python')} variant={previewFormat==='python'?'primary':'secondary'}>Python Runner</Button><Button onClick={()=>setPreviewFormat('json')} variant={previewFormat==='json'?'primary':'secondary'}>JSON Job Spec</Button></div>
+        <p className="mining-muted-explainer">{previewFormat==='python'?'Python integration template for Kaggle/worker containers, not an implemented worker. Backend operations require integration.':'Structured job request for the RoadSift API, including the required privacy policy.'}</p>
+        <div className="mining-code-actions"><Button onClick={async()=>{try{await navigator.clipboard.writeText(previewFormat==='python'?pythonPreview:json);notify('Preview copied');}catch{notify('Clipboard unavailable');}}}>Copy {previewFormat==='python'?'Python':'JSON'}</Button>{previewFormat==='python'?<Button icon={Download} onClick={()=>{const blob=new Blob([pythonPreview],{type:'text/x-python'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='roadsift-mining-worker.py';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Download Python</Button>:<Button icon={Download} onClick={()=>downloadJSON('selection-job-spec.json',spec)}>Download JSON</Button>}</div>
+        <pre className="mining-code-block"><code>{previewFormat==='python'?pythonPreview:json}</code></pre>
       </div>
     </details>
     {submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Selection Run · {submitted.status}</small><h3>{submitted.id}</h3><p>{submitted.executor} · EXACT-{count(submitted.budget)}</p></div><Badge>{submitted.status}</Badge></div>
