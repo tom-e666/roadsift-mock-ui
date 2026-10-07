@@ -702,7 +702,7 @@ th .help-tip{margin-left:4px}
 .mining-page--production .mining-privacy-fields{display:grid;grid-template-columns:minmax(220px,1.35fr) repeat(2,minmax(165px,1fr));gap:10px;align-items:end;margin:12px 0}
 .mining-page--production .mining-privacy-fields .field{min-width:0}
 .mining-page--production .mining-preview-file{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;font:600 12px ui-monospace,SFMono-Regular,Consolas,monospace}
-.mining-page--production .mining-preview-file span{font:400 11px inherit;color:var(--secondary)}
+.mining-page--production .mining-preview-file span{font-weight:400;font-size:11px;color:var(--secondary)}
 .mining-page--production .mining-code-panel .mining-code-block{border-radius:0 0 8px 8px;max-height:600px;font-size:12px}
 .mining-page--production .mining-code-panel .mining-code-actions{flex-wrap:wrap}
 @media(max-width:1100px){.mining-page--production .mining-builder{grid-template-columns:minmax(0,1fr)}.mining-page--production .mining-builder__side{position:static}.mining-page--production .mining-privacy-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
