@@ -11,6 +11,33 @@ function currentPage() { const path = window.location.pathname.split('/')[1] || 
   if (path === 'runs') return 'history';
   return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'datasets', 'model-metrics': 'datasets', projects: 'history', lineage: 'datasets', labeling: 'datasets', pal: 'mining', documentation: 'onboarding' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
 
+class PageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('RoadSift page render failed', this.props.page, error, info.componentStack);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return <section className="page route-error" role="alert">
+      <div className="route-error__body">
+        <h1>Unable to display this page</h1>
+        <p>An unexpected error interrupted this view. Navigation is still available.</p>
+        <div className="route-error__actions">
+          <Button variant="primary" onClick={() => window.location.reload()}>Retry page</Button>
+          <Button onClick={() => this.props.navigate('datasets')}>Go to Datasets</Button>
+        </div>
+        <details><summary>Technical details</summary><code>{this.state.error?.message || 'Unknown error'}</code></details>
+      </div>
+    </section>;
+  }
+}
+
 export default function App() {
   const [page, setPage] = useState(currentPage);
   const [routePath, setRoutePath] = useState(() => window.location.pathname + window.location.search);
@@ -90,7 +117,7 @@ export default function App() {
       <nav>{groups.map(([label, items]) => <div className="nav-group" key={label}><p>{language==='vi'?({Library:'Thư viện',Workflow:'Quy trình',Workspace:'Workspace'}[label]||label):label}</p>{items.map(([id, name, Icon]) => { const displayName=language==='vi'?(navVi[name]||name):name; return <button key={id} title={displayName} aria-label={displayName} aria-current={page === id ? 'page' : undefined} className={page === id ? 'nav-item nav-item--active' : 'nav-item'} onClick={() => navigate(id)}><Icon size={17} strokeWidth={1.7} /><span>{displayName}</span>{page === id && <i />}</button>})}</div>)}</nav>
     </aside>
     <div className="workspace"><header className="topbar"><div className="topbar__location"><button className="icon-control mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><Menu size={19} /></button><span>Workspace</span><i>/</i><strong>{title}</strong></div><div className="topbar__actions"><button className="topbar__search" onClick={() => setCommandOpen(true)} aria-label={language==='vi'?'Mở tìm kiếm workspace':'Open workspace search'}><Search size={14} /><span>{language==='vi'?'Tìm kiếm':'Search anything'}</span><kbd><Command size={10} />K</kbd></button><div className="language-switch" role="group" aria-label="Language"><button aria-pressed={language==='en'} onClick={()=>setLanguage('en')}>EN</button><button aria-pressed={language==='vi'} onClick={()=>setLanguage('vi')}>VI</button></div><div className="theme-switch" role="group" aria-label="Appearance"><button aria-label="Light theme" aria-pressed={theme === 'light'} title="Light theme" onClick={() => setTheme('light')}><Sun size={14} /></button><button aria-label="Dark theme" aria-pressed={theme === 'dark'} title="Dark theme" onClick={() => setTheme('dark')}><Moon size={14} /></button></div><button className="icon-control notification-trigger" aria-label="Notifications" onClick={() => setNotificationsOpen(true)}><Bell size={17} /><i /></button><span className="topbar__divider" /><div className="account-anchor"><button className="account-trigger" aria-label="Workspace account menu" aria-expanded={accountOpen} onClick={() => setAccountOpen(value => !value)}><span className="avatar">D</span><ChevronDown size={12} /></button>{accountOpen && <div className="account-popover"><strong>Local workspace</strong><p>Workspace registry state is stored in this browser.</p><Button onClick={() => navigate('settings')}>Workspace settings</Button><Button variant="ghost" onClick={() => navigate('onboarding')}>Getting started</Button></div>}</div></div></header>
-      <main id="main-content" tabIndex={-1} className="content">{Page ? <Page {...shared} /> : <SettingsPage {...shared} theme={theme} setTheme={setTheme} preferences={preferences} setPreferences={setPreferences} />}</main>
+      <main id="main-content" tabIndex={-1} className="content"><PageErrorBoundary key={page + routePath.split("?")[0]} page={page} navigate={navigate}>{Page ? <Page {...shared} /> : <SettingsPage {...shared} theme={theme} setTheme={setTheme} preferences={preferences} setPreferences={setPreferences} />}</PageErrorBoundary></main>
     </div>
     <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} onNavigate={navigate} groups={groups} />
     {notificationsOpen && <Modal title="Notifications" onClose={() => setNotificationsOpen(false)}><div className="notification"><span className="notification__icon"><Check size={18} /></span><div><strong>Workspace is ready</strong><p>Pool, Dataset, Batch and Run registries are available.</p><small>System notification</small></div></div></Modal>}
