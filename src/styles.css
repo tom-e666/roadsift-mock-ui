@@ -722,3 +722,13 @@ th .help-tip{margin-left:4px}
 .data-browser .sample-state{max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .batches-table td:last-child{white-space:nowrap}
 @media(max-width:820px){.batch-review-banner{grid-template-columns:1fr}.explorer-source-lock{min-width:0}.review-decision-actions{width:100%;flex-wrap:wrap}}
+
+/* Keep Privacy configuration visually inside pipeline step 08. */
+.mining-stage-row--expandable{display:block;padding:0}
+.mining-stage-row--expandable>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 12px;cursor:pointer;list-style:none}
+.mining-stage-row--expandable>summary::-webkit-details-marker{display:none}
+.mining-stage-row--expandable>summary::after{content:'⌄';font-size:12px;color:var(--secondary);margin-left:4px;transition:transform .16s ease}
+.mining-stage-row--expandable[open]>summary::after{transform:rotate(180deg)}
+.mining-stage-expanded{padding:4px 12px 14px 44px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 72%,transparent)}
+.mining-stage-expanded .mining-privacy-fields{margin-top:10px}
+@media(max-width:760px){.mining-stage-row--expandable>summary{align-items:flex-start}.mining-stage-expanded{padding-left:12px}}
