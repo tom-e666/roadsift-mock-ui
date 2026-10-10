@@ -75,7 +75,7 @@ export default function App() {
   const navigate = (target, dataset) => {
     const raw = target.startsWith('/') ? target.slice(1) : target;
     const next = raw.split('?')[0];
-    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs)\/[^/]+$/.test(next) && next !== 'runs') return;
+    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs|pipelines)\/[^/]+$/.test(next) && next !== 'runs') return;
     if (dataset) setContextDataset(dataset);
     window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
