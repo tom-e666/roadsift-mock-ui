@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDown, X, Check, Command, FlaskConical } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette.jsx';
+import { PipelineDefinitions, initialPipelineDefinitions } from './PipelineDefinitions.jsx';
 import { Button, Modal } from './components/UI.jsx';
 import { groups, allPages, initialDatasets, initialRuns, initialPools, initialSelectionBatches, runners as initialRunners, modelRegistry as initialModels, strategies as initialAlgorithms } from './data.js';
 import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
@@ -50,6 +51,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [datasets, setDatasets] = useLocalState('roadsift-mock-datasets-v3', initialDatasets);
   const [runs, setRuns] = useLocalState('roadsift-mock-runs-v2', initialRuns);
+  const [definitions, setDefinitions] = useLocalState('roadsift-mock-pipeline-definitions-v1', initialPipelineDefinitions);
   const [pools, setPools] = useLocalState('roadsift-mock-pools-v1', initialPools);
   const [selectionBatches, setSelectionBatches] = useLocalState('roadsift-mock-batches-v1', initialSelectionBatches);
   const [runnerRegistry, setRunnerRegistry] = useLocalState('roadsift-mock-runners-v1', initialRunners);
@@ -67,7 +69,7 @@ export default function App() {
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
   const [contextDataset, setContextDataset] = useState(null);
-  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', Ingest:'Nhập dữ liệu', Mining:'Mining', 'Selection Batches':'Selection Batches', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
+  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', Ingest:'Nhập dữ liệu', Pipelines:'Định nghĩa pipeline', Launchpad:'Cấu hình chạy', 'Selection Batches':'Selection Batches', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
   const rawTitle = allPages.find(([id]) => id === page)?.[1];
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
@@ -109,8 +111,8 @@ export default function App() {
     },1400);
     return()=>clearTimeout(timer);
   },[runs,setRuns,setSelectionBatches]);
-  const shared = { navigate, notify, routePath, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
-  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, mining: Mining, batches: SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
+  const shared = { navigate, notify, routePath, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, definitions, setDefinitions, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
+  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, pipelines: PipelineDefinitions, mining: Mining, batches: SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
     <a href="#main-content" className="skip-link">Skip to content</a>
