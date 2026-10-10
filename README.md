@@ -35,3 +35,9 @@ Demo imports read file names and sizes only and do not upload files or parse dat
 ## Visual theme: Midnight Navy
 
 The RoadSift Dark appearance uses shared semantic tokens in `src/styles.css`, with `--bg: #0D111A`, `--surface: #171D2A`, `--surface-elevated: #222D3D`, `--line: #334155`, `--accent: #268DFF`, and `--status-success: #31C48D`. Use `--accent-action` for blue buttons with white text to preserve readable contrast. The existing Light appearance is unchanged. Pipeline stage hues are centralized as `--stage-*` tokens; do not hardcode stage colors into components. Apply colors by **semantic role**, not page identity, and never use success-green icons to imply a definition stage has executed.
+
+## Launchpad and Run Details
+
+- Launchpad (/mining) uses Inputs -> Stage Parameters -> Execution, conditional selection fields, run-scoped weight overrides, an advanced JSON editor and sticky run summary. Published definitions are listed, but only bundled Active Learning Selection v1 has a simulated local executor. Other published definitions cannot launch.
+- Run Details (/runs/:id) shows recorded run state, pipeline structure when captured, stage information, logs, artifact references, effective run configuration and links to Selection Batches. Historical runs without captured DAG information are explicitly labeled as illustrative.
+- Launch navigates immediately to the new Run Details page. Batch links open a registered selection batch for review. No real Kaggle submission or backend preflight happens in the preview.
