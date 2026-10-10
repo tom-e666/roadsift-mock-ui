@@ -37,6 +37,8 @@ try {
     ['Data Explorer', 'data-explorer', '/data-explorer'],
     ['Ingest', 'import', '/import'],
     ['Pipeline Definitions', 'pipelines', '/pipelines'],
+    ['Pipeline Editor - published', 'pipelines', '/pipelines/al-selection-v1'],
+    ['Pipeline Editor - draft', 'pipelines', '/pipelines/quality-screen-v1'],
     ['Mining', 'mining', '/mining'],
     ['Selection Batches', 'batches', '/batches'],
     ['Runs', 'history', '/history'],
@@ -58,6 +60,8 @@ try {
       window.location.search = path.includes('?')?'?'+path.split('?')[1]:'';
       const html = renderToStaticMarkup(React.createElement(components[id], { ...common, routePath: path }));
       if (!html || html.length < 50) throw new Error('Empty HTML');
+      if (id === 'pipelines' && path !== '/pipelines' && !html.includes('pipeline-graph-viewport')) throw new Error('Missing graph canvas');
+      if (id === 'pipelines' && path === '/pipelines' && !html.includes('pipeline-registry-table')) throw new Error('Missing pipeline registry');
       console.log('PASS', label, html.length, 'chars');
     } catch (error) {
       failures.push(label);
