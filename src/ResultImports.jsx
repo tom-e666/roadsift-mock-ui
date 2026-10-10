@@ -165,7 +165,7 @@ export function AnnotationReturnImport({batch,annotationImports=[],setAnnotation
     const item={id:'annotation_intake_'+Date.now().toString(36),batchId:batch.id,createdAt:new Date().toISOString(),
       fileName:source==='file'?fileName:null,uri:source==='uri'?sourceUri.trim():null,source,
       status:source==='file'?'Schema checked · needs reconciliation':'URI registered · unchecked',
-      summary:preview?.summary?{format:preview.summary.format,samples:preview.summary.samples,annotations:preview.summary.annotations,classes:preview.summary.classes}:null,
+      summary:source==='file'&&preview?.summary?{format:preview.summary.format,samples:preview.summary.samples,annotations:preview.summary.annotations,classes:preview.summary.classes}:null,
       warnings:source==='file'?preview.warnings:[],verifiedMembership:false,contentVerified:false,annotatedDatasetVersionId:null};
     setAnnotationImports(prev=>[...prev,item]);setRecord(item);
     notify?.('Saved local annotation intake record. No dataset version created.');
