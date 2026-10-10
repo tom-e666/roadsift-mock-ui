@@ -52,6 +52,7 @@ try {
     ['Runs', 'history', '/history'],
     ['Runs quick preview', 'history', '/history?selected=' + encodeURIComponent(runs[0].id)],
     ['Strategy Comparison', 'comparison', '/comparison'],
+    ['Strategy Comparison sample demo', 'comparison', '/comparison?demo=samples'],
     ['Settings', 'settings', '/settings'],
     ['System', 'system', '/system'],
     ['Onboarding', 'onboarding', '/onboarding'],
@@ -79,6 +80,7 @@ try {
       if (id === 'batch-workspace' && path.includes('view=handoff') && !path.includes('preview=') && (!html.includes('cr-page') || !html.includes('Review outcome') || !html.includes('Approved candidates') || !html.includes('Preview version workspace') || !html.includes('Create Curated Batch'))) throw new Error('Missing curated release workflow');
       if (id === 'batch-workspace' && path.includes('preview=version') && (!html.includes('Curated Batch') || !html.includes('cr-version') || !html.includes('Send for annotation') || !html.includes('Export dataset') || !html.includes('Illustrative version view'))) throw new Error('Missing post-finalize version preview and delivery triggers');
       if (id === 'comparison' && (!html.includes('rc-page') || !html.includes('Runs to compare') || !html.includes('Sample Differences') || !html.includes('Model Impact') || !html.includes('Selection Results'))) throw new Error('Missing run-first comparison workspace');
+      if (id === 'comparison' && path.includes('demo=samples') && (!html.includes('rc-overlap-groups') || !html.includes('Illustrative UI demonstration only') || !html.includes('Shared by both'))) throw new Error('Missing clearly labeled sample differences demonstration');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
       if (id === 'history' && path === '/history' && (!html.includes('run-list-link') || !html.includes('run-list-preview'))) throw new Error('Missing explicit run navigation or preview buttons');
       if (id === 'history' && path.includes('selected=') && !html.includes('Open Run Details')) throw new Error('Missing quick-preview navigation');
