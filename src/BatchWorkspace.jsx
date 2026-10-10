@@ -1,0 +1,195 @@
+import React, {useEffect,useMemo,useState} from 'react';
+import {ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock3, Database, Download, Edit3, FileCheck2, Filter, Grid2X2, Layers3, LockKeyhole, PackageCheck, Search, ShieldCheck, SlidersHorizontal, X, ZoomIn} from 'lucide-react';
+import {Button, Badge} from './components/UI.jsx';
+import {frames,count,date} from './data.js';
+import {SampleMedia} from './SampleMedia.jsx';
+import {QuickBoxEditor} from './QuickBoxEditor.jsx';
+import './batch-workspace.css';
+
+const REVIEW=['Pending','Approved','Rejected','Deferred'];
+const choices={Approved:'approved',Rejected:'rejected',Deferred:'deferred'};
+const formatDecision=v=>v?.decision||'Pending';
+function downloadPlan(name,data){
+  const uri=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  const a=document.createElement('a');a.href=uri;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(uri),1000);
+}
+function Metric({label,value,detail}){return <div className="bw-metric"><small>{label}</small><strong>{value}</strong><span>{detail}</span></div>}
+function Rule({ok,heading,detail}){return <div className={'bw-rule '+(ok?'is-good':'is-blocked')}><span>{ok?<CheckCircle2 size={18}/>:<CircleAlert size={18}/>}</span><div><strong>{heading}</strong><p>{detail}</p></div></div>}
+function Score({label,value}){return <div className="bw-score"><span>{label}</span><strong>{Number(value||0).toFixed(2)}</strong><div><i style={{width:Math.max(0,Math.min(100,Number(value||0)*100))+'%'}}/></div></div>}
+
+export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate,notify,routePath}){
+  const raw=routePath.split('?')[0].split('/')[2]||'';
+  const id=decodeURIComponent(raw);
+  const batch=selectionBatches.find(b=>b.id===id);
+  const viewFromUrl=new URLSearchParams(routePath.split('?')[1]||'').get('view');
+  const [view,setView]=useState(['grid','review','handoff'].includes(viewFromUrl)?viewFromUrl:'grid');
+  const [query,setQuery]=useState(''),[domain,setDomain]=useState('All'),[statusFilter,setStatusFilter]=useState('All'),[sort,setSort]=useState('uncertainty');
+  const [selectedIds,setSelectedIds]=useState([]);
+  const [activeId,setActiveId]=useState(null),[reason,setReason]=useState('');
+  const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false);
+  const [purpose,setPurpose]=useState('annotation'),[target,setTarget]=useState('manifest');
+  useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
+  useEffect(()=>{setSelectedIds([]);setActiveId(null);setEditMode(false)},[id]);
+  const openTab=next=>{setView(next);navigate('/batches/'+encodeURIComponent(id)+'?view='+next)};
+  const workspace=batch?.reviewWorkspace||{};
+  const decisions=workspace.decisions||{},edits=workspace.edits||{};
+  const isOpen=batch?.status==='In review';
+  const viewable=frames; // fixture gallery; NOT verified members of this batch
+  const filtered=useMemo(()=>viewable.filter(f=>
+    (domain==='All'||f.domain===domain) &&
+    (statusFilter==='All'||formatDecision(decisions[f.id])===statusFilter) &&
+    (String(f.id)+' '+f.video+' '+f.domain).toLowerCase().includes(query.toLowerCase())
+  ).sort((a,b)=>sort==='uncertainty'?b.uncertainty-a.uncertainty:
+    sort==='safety'?b.safety-a.safety:
+    sort==='id'?a.id.localeCompare(b.id):0),[viewable,query,domain,statusFilter,sort,decisions]);
+  const active=frames.find(x=>x.id===activeId)||filtered[0]||null;
+  const activeIndex=filtered.findIndex(x=>x.id===active?.id);
+  const selectedCount=selectedIds.length;
+  const progress=batch?Math.min(100,Math.round(100*(batch.review?.reviewed||0)/Math.max(1,batch.count))):0;
+  const reviewedInPreview=Object.values(decisions).filter(v=>v?.decision&&v.decision!=='Pending').length;
+  const updateWorkspace=change=>{
+    if(!batch||!isOpen){notify('This batch is not open for review');return;}
+    setSelectionBatches(list=>list.map(b=>{
+      if(b.id!==id)return b;
+      const previous=b.reviewWorkspace||{};
+      return {...b,updatedAt:new Date().toISOString(),
+        reviewWorkspace:{...previous,...change(previous)}};
+    }));
+  };
+  const decide=(ids,decision)=>{
+    if(!isOpen)return;
+    const reasonText=reason.trim();
+    if(decision==='Rejected'&&!reasonText){notify('Add a rejection reason first');return;}
+    updateWorkspace(old=>{
+      const next={...(old.decisions||{})};
+      ids.forEach(sampleId=>{next[sampleId]={decision,reason:decision==='Rejected'?reasonText:null,updatedAt:new Date().toISOString(),scope:'fixture-preview'};});
+      return {decisions:next};
+    });
+    notify(ids.length+' preview sample(s) marked '+decision+'. These decisions are not verified membership approvals.');
+    if(view==='review'&&ids.length===1){const position=filtered.findIndex(s=>s.id===ids[0]);setActiveId(filtered[(position+1)%filtered.length]?.id||ids[0]);}
+  };
+  const toggle=id=>setSelectedIds(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id]);
+  const nextSample=delta=>{if(filtered.length)setActiveId(filtered[(Math.max(0,activeIndex)+delta+filtered.length)%filtered.length].id)};
+  const saveBoxes=boxes=>{
+    if(!active)return;
+    updateWorkspace(old=>({edits:{...(old.edits||{}),[active.id]:boxes}}));
+    notify('Draft bounding boxes saved locally for '+active.id+'; not registered as ground truth.');
+  };
+  useEffect(()=>{
+    if(view!=='review'||!isOpen)return;
+    const handler=e=>{
+      if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||e.metaKey||e.ctrlKey||e.altKey)return;
+      if(e.key==='ArrowRight'){e.preventDefault();nextSample(1)}
+      if(e.key==='ArrowLeft'){e.preventDefault();nextSample(-1)}
+      if(editMode)return;
+      const action={a:'Approved',r:'Rejected',d:'Deferred'}[e.key.toLowerCase()];
+      if(action&&active){e.preventDefault();decide([active.id],action)}
+    };
+    window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
+  },[view,isOpen,active,activeIndex,filtered,editMode,reason,decisions]);
+  if(!batch)return <div className="page bw-page"><Button icon={ArrowLeft} onClick={()=>navigate('batches')}>Back to Selection Batches</Button><div className="bw-notice">Selection Batch not found.</div></div>;
+  const checks=[
+    {heading:'Source membership verified',ok:false,detail:'Batch membership API and full immutable membership snapshot are not connected in this mock.'},
+    {heading:'Review coverage confirmed',ok:false,detail:'The registered summary reports '+count(batch.review?.reviewed||0)+' / '+count(batch.count)+'. Preview decisions are stored separately and not counted as verified.'},
+    {heading:'Privacy clearance verified',ok:false,detail:'A sample-level pass/block ledger is required before any external export.'},
+    {heading:'Annotation validity for training',ok:purpose==='annotation',detail:purpose==='training'?'Confirmed annotation coverage and schema validation are required.':'Not required for annotation handoff.'},
+    {heading:'Manifest and artifact integrity',ok:false,detail:'Requires a server-created immutable snapshot and bytes-verified artifact digest.'}
+  ];
+  const ready=checks.every(x=>x.ok);
+  const exportPlan=()=>{
+    downloadPlan(batch.id+'-handoff-plan-preview.json',{
+      schemaVersion:'roadsift.handoff-preview.v1',previewOnly:true,notAnExport:true,
+      batchId:batch.id,purpose,format:target,sourceMembershipHash:batch.membershipHash,
+      requestedCount:batch.count,recordedReviewSummary:batch.review||null,
+      previewDecisions:decisions,previewAnnotationDrafts:edits,
+      blockers:checks.filter(x=>!x.ok).map(x=>x.heading)
+    });
+    notify('Downloaded preview configuration only; no curated batch or export was created.');
+  };
+  return <div className="page bw-page">
+    <div className="bw-breadcrumb"><button onClick={()=>navigate('batches')}><ArrowLeft size={15}/> Selection Batches</button><span>/</span>{batch.id}</div>
+    <div className="bw-header"><div><span className="bw-overline">CURATION / SELECTION BATCH</span><h1>{batch.name}</h1>
+      <div className="bw-subhead"><Badge>{batch.status}</Badge><span>{batch.id}</span><span>Source run: {batch.runId}</span><span>Target: EXACT-N {count(batch.count)}</span></div></div>
+      <Button onClick={()=>openTab('handoff')} icon={PackageCheck}>Finalize &amp; Handoff <ArrowRight size={15}/></Button>
+    </div>
+    <div className="bw-top-metrics">
+      <Metric label="Recorded review progress" value={progress+'%'} detail={count(batch.review?.reviewed||0)+' / '+count(batch.count)}/>
+      <Metric label="Approved (recorded)" value={count(batch.review?.approved||0)} detail="Batch registry aggregate"/>
+      <Metric label="Pending / deferred" value={count(Math.max(0,batch.count-(batch.review?.reviewed||0))+(batch.review?.deferred||0))} detail="Not yet clear for handoff"/>
+      <Metric label="Local preview decisions" value={count(reviewedInPreview)} detail="Fixture-only · not counted above"/>
+    </div>
+    <div className="bw-tabs" role="tablist" aria-label="Selection batch workspace">
+      {[['grid','Batch Grid',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Finalize & Handoff',PackageCheck]].map(([key,label,Icon])=>
+        <button key={key} type="button" role="tab" aria-selected={view===key} className={view===key?'active':''} onClick={()=>openTab(key)}><Icon size={16}/>{label}</button>)}
+    </div>
+    {view!=='handoff'&&<div className="bw-preview-warning"><CircleAlert size={16}/><span><strong>Demo sample gallery.</strong> These {frames.length} fixture frames are shared with Data Explorer, not verified members of {batch.id}. Review decisions and box drafts are local mock state; the registered batch counters remain unchanged.</span></div>}
+    {view==='grid'&&<>
+      <div className="bw-controls"><div className="bw-search"><Search size={15}/><input aria-label="Search gallery" placeholder="Search sample ID, video, domain…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+        <label>Domain <select value={domain} onChange={e=>setDomain(e.target.value)}><option>All</option>{[...new Set(frames.map(f=>f.domain))].map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Review status <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All</option>{REVIEW.map(x=><option key={x}>{x}</option>)}</select></label>
+        <label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option value="uncertainty">Uncertainty ↓</option><option value="safety">Safety ↓</option><option value="id">Sample ID</option></select></label>
+      </div>
+      {selectedCount>0&&<div className="bw-bulk"><strong>{selectedCount} preview samples selected</strong><input aria-label="Bulk rejection reason" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason (required for Reject)"/>
+        <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Approved')}>Approve</Button>
+        <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Deferred')}>Defer</Button>
+        <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Rejected')}>Reject</Button>
+        <Button onClick={()=>setSelectedIds([])}>Clear</Button></div>}
+      <div className="bw-grid">
+        {filtered.map(sample=><article key={sample.id} className={'bw-sample'+(selectedIds.includes(sample.id)?' is-selected':'')}>
+          <button className="bw-card-media" type="button" onClick={()=>{setActiveId(sample.id);openTab('review')}} aria-label={'Open Focus Review for '+sample.id}>
+            <SampleMedia sample={sample} overlay={false}/>
+            <span className="bw-score-pill">{sample.uncertainty.toFixed(2)}</span>
+          </button>
+          <label className="bw-check" onClick={e=>e.stopPropagation()}><input aria-label={'Select '+sample.id} type="checkbox" checked={selectedIds.includes(sample.id)} onChange={()=>toggle(sample.id)}/></label>
+          <div className="bw-card-details"><div><strong>{sample.id}</strong><small>{formatDecision(decisions[sample.id])}</small></div><p>{sample.domain} · {sample.weather} · Safety {sample.safety.toFixed(2)}</p></div>
+        </article>)}
+      </div>
+      {!filtered.length&&<p className="bw-empty">No preview samples match these filters.</p>}
+      <div className="bw-grid-footer"><span>{filtered.length} of {frames.length} fixture preview samples · not complete batch membership</span>
+        <Button onClick={()=>{setQuery('');setDomain('All');setStatusFilter('All');setSort('uncertainty')}}>Clear filters</Button></div>
+    </>}
+    {view==='review'&&<div className="bw-review">
+      <div className="bw-review-main">
+        <div className="bw-review-navigation"><div><strong>{active?.id||'No sample'}</strong><span>{active?.video||'—'} · {active?.domain||'—'}</span></div>
+          <div className="bw-review-switch"><button onClick={()=>nextSample(-1)} aria-label="Previous sample"><ChevronLeft size={17}/></button><span>{activeIndex+1} / {filtered.length}</span><button onClick={()=>nextSample(1)} aria-label="Next sample"><ChevronRight size={17}/></button></div></div>
+        {active?<QuickBoxEditor key={active.id} sample={active} initialBoxes={edits[active.id]||[]} editable={isOpen} onSave={saveBoxes}/>:<p className="bw-empty">No samples match the current filters. Return to Grid and clear filters.</p>}
+        <div className="bw-review-actionbar"><div><span>Selection decision</span><strong>{active?formatDecision(decisions[active.id]):'—'}</strong><small>Independent from annotation drafts</small></div>
+          <input aria-label="Rejection reason" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Rejection reason…"/>
+          <Button disabled={!isOpen||!active} onClick={()=>decide([active.id],'Deferred')}>Defer <kbd>D</kbd></Button>
+          <Button disabled={!isOpen||!active} onClick={()=>decide([active.id],'Rejected')}>Reject <kbd>R</kbd></Button>
+          <Button disabled={!isOpen||!active} variant="primary" onClick={()=>decide([active.id],'Approved')}>Approve <kbd>A</kbd></Button>
+        </div>
+      </div>
+      <aside className="bw-inspector"><header><h3>Sample Inspector</h3><Badge>{active?formatDecision(decisions[active.id]):'Pending'}</Badge></header>
+        <div className="bw-inspector-tabs">{[['scores','Selection'],['metadata','Metadata'],['privacy','Privacy']].map(([key,label])=>
+          <button key={key} className={inspectorTab===key?'active':''} onClick={()=>setInspectorTab(key)}>{label}</button>)}</div>
+        {active&&inspectorTab==='scores'&&<div className="bw-inspector-body"><div className="bw-primary-score"><small>Uncertainty</small><strong>{active.uncertainty.toFixed(3)}</strong></div>
+          <Score label="Safety" value={active.safety}/><Score label="Diversity" value={active.diversity}/><Score label="Redundancy" value={active.redundancy}/>
+          <p>Scores are fixture values. The full selection formula and production explanation are not connected.</p></div>}
+        {active&&inspectorTab==='metadata'&&<div className="bw-inspector-body"><dl>
+          <dt>Sample ID</dt><dd>{active.id}</dd><dt>Video</dt><dd>{active.video}</dd><dt>Timestamp</dt><dd>{active.time}</dd><dt>Domain</dt><dd>{active.domain}</dd><dt>Weather</dt><dd>{active.weather}</dd><dt>Quality</dt><dd>{active.quality}</dd><dt>Draft boxes</dt><dd>{(edits[active.id]||[]).length} local</dd>
+          </dl></div>}
+        {active&&inspectorTab==='privacy'&&<div className="bw-inspector-body"><Rule ok={false} heading="Privacy not verified" detail="Preview media and local edits have no sample-level backend privacy clearance. Approval cannot authorize export."/></div>}
+        <div className="bw-inspector-foot"><strong>Shortcut help</strong><p>←/→ navigation · A approve · R reject · D defer. Keys are disabled while editing box geometry or typing.</p></div>
+      </aside>
+    </div>}
+    {view==='handoff'&&<div className="bw-handoff">
+      <div className="bw-handoff-checks"><div className="bw-section-head"><h2>Readiness Checks</h2><Badge>Preview · blocked</Badge></div>
+        <p className="bw-intro">Finalize freezes approved membership into an immutable curated version. Export is a separate job. No server validation is available in this mock.</p>
+        {checks.map(check=><Rule key={check.heading} {...check}/>)}
+        <div className="bw-handoff-eligible"><span>Confirmed eligible samples</span><strong>Not verified</strong><small>Approved count ({count(batch.review?.approved||0)}) is not equivalent to privacy-cleared exportable membership.</small></div>
+      </div>
+      <aside className="bw-handoff-settings"><h2>Handoff Configuration</h2>
+        <label>Purpose<select value={purpose} onChange={e=>setPurpose(e.target.value)}><option value="annotation">Annotation handoff (labels optional)</option><option value="training">Training handoff (labels required)</option></select></label>
+        <label>Output format<select value={target} onChange={e=>setTarget(e.target.value)}><option value="manifest">Manifest + metadata</option><option value="zip">ZIP (images + manifest)</option><option value="coco">COCO annotations (2D)</option></select></label>
+        <div className="bw-handoff-destination"><small>Destination</small><strong>Cloudflare R2 · Not connected</strong><span>Configuration preview only; no upload or external CVAT job will run.</span></div>
+        <div className="bw-handoff-action"><LockKeyhole size={20}/><strong>Finalize unavailable</strong>
+          <p>Resolve server-side membership, review, privacy and artifact integrity checks before generating a Curated Batch.</p>
+          <button disabled={!ready} title="Requires authoritative server validation">Finalize Curated Batch</button>
+          <Button icon={Download} onClick={exportPlan}>Download handoff plan (preview)</Button>
+        </div>
+        {batch.review?.finalizedAt&&<p className="bw-existing"><CheckCircle2 size={15}/> Historical fixture shows a finalized review on {date(batch.review.finalizedAt)}; no new version is created here.</p>}
+      </aside>
+    </div>}
+  </div>;
+}
