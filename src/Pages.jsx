@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { RunDetails } from './RunDetails.jsx';
 import selectionRunnerSource from '../worker/selection_runner.py?raw';
 import { listSamplePreviews } from './mock-api.js';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Copy, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ChevronDown, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
@@ -709,7 +710,8 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
       createdBy:'mining-orchestrator',attempt:1,retryable:true,simulateFailure:false,
       contract:spec,configFingerprint,outputBatchId:null};
     setRuns(old=>[record,...old]);setSubmittedId(id);
-    notify('Selection run queued · local demo worker will process it');
+    notify('Selection run queued · local worker will process it');
+    navigate('/runs/'+encodeURIComponent(id));
   };
   const copySpec=async()=>{
     try{
@@ -814,8 +816,11 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
   </div>;
 }
 
-export function SelectionBatches({ selectionBatches, setSelectionBatches, datasets, pools, navigate, notify }) {
-  const [query,setQuery]=useState(''), [status,setStatus]=useState('All'), [selected,setSelected]=useState(null);
+export function SelectionBatches({ selectionBatches, setSelectionBatches, datasets, pools, navigate, notify, routePath }) {
+  const requestedBatch=new URLSearchParams((routePath||'').split('?')[1]||'').get('batch');
+  const [query,setQuery]=useState(''), [status,setStatus]=useState('All'),
+    [selected,setSelected]=useState(()=>selectionBatches.find(b=>b.id===requestedBatch)||null);
+  useEffect(()=>{if(requestedBatch)setSelected(selectionBatches.find(b=>b.id===requestedBatch)||null)},[requestedBatch]);
   const statuses=['All',...batchLifecycle.map(x=>x.label)];
   const results=selectionBatches.filter(b=>(status==='All'||b.status===status)&&(`${b.name} ${b.id} ${b.runId}`).toLowerCase().includes(query.toLowerCase()));
   const updateBatch=(id,fn)=>setSelectionBatches(list=>list.map(b=>b.id===id?fn(b):b));
@@ -855,7 +860,7 @@ export function SelectionBatches({ selectionBatches, setSelectionBatches, datase
   </div>;
 }
 
-export function History({runs,setRuns,navigate,notify,routePath}) {
+export function History({runs,setRuns,navigate,notify,routePath,selectionBatches,pools}) {
   const [query,setQuery]=useState('');
   const [filter,setFilter]=useState('All');
   const [detailTab,setDetailTab]=useState('overview');
@@ -918,15 +923,9 @@ export function History({runs,setRuns,navigate,notify,routePath}) {
         <details className="advanced-config"><summary>Identifiers</summary><div className="detail-stats"><StatRow label="Run ID" value={selected.id}/>{selected.configFingerprint&&<StatRow label="Config fingerprint" value={selected.configFingerprint}/>}</div></details>
       </div><footer><Button icon={Download} onClick={()=>exportRun(selected)}>Export</Button><Button variant="primary" icon={ArrowUpRight} onClick={()=>navigate('/runs/'+encodeURIComponent(selected.id))}>Open full page</Button></footer></aside>}
     </>}
-    {full&&(selected?<section className="run-full-detail">
-      <div className="dataset-detail-top"><Button icon={ArrowLeft} onClick={()=>navigate('/history?selected='+encodeURIComponent(selected.id))}>Back to runs</Button><div className="dataset-detail-actions"><Button icon={Download} onClick={()=>exportRun(selected)}>Export record</Button>{selected.status==='Failed'&&selected.retryable&&<Button disabled={!selected.contract||!selected.plannedBatch} onClick={()=>retry(selected)}>Retry run</Button>}</div></div>
-      <div className="dataset-detail-heading"><div><p className="eyebrow">Execution / {selected.type==='Import'?'Ingest':'Mining'}</p><h2>{selected.name}</h2><p>{selected.id}</p></div><Badge>{selected.status}</Badge></div>
-      <div className="dataset-detail-tabs" role="tablist" aria-label="Run details">{[['overview','Overview'],['config','Configuration'],['artifacts','Artifacts'],['logs','Logs']].map(([key,label])=><button role="tab" aria-selected={detailTab===key} key={key} className={detailTab===key?'active':''} onClick={()=>setDetailTab(key)}>{label}</button>)}</div>
-      {detailTab==='overview'&&<Panel title="Execution">{summary(selected)}{failure(selected)}{selected.retryOf&&<StatRow label="Retry of" value={selected.retryOf}/>}</Panel>}
-      {detailTab==='config'&&<Panel title="Job configuration">{selected.contract?<><div className="section-actions"><Button onClick={()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(JSON.stringify(selected.contract,null,2)).then(()=>notify('Configuration copied')).catch(()=>notify('Clipboard unavailable'))}}>Copy JSON</Button></div><pre className="mining-code-block"><code>{JSON.stringify(selected.contract,null,2)}</code></pre></>:<p className="run-empty-data">No job contract recorded for this run.</p>}</Panel>}
-      {detailTab==='artifacts'&&<Panel title="Outputs">{selected.outputBatchId&&<StatRow label="Selection Batch" value={selected.outputBatchId}/>}<StatRow label="Output" value={selected.output||'None'}/><p className="run-empty-data">Artifacts are not downloadable unless registered with a valid URI.</p></Panel>}
-      {detailTab==='logs'&&<Panel title="Execution events"><div className="run-events">{[['Started',selected.date],['Updated',selected.updatedAt],['Completed',selected.completedAt]].filter(x=>x[1]).map(([label,t])=><div key={label}><strong>{label}</strong><span>{date(t)}</span></div>)}</div>{!selected.errorMessage&&<p className="run-empty-data">No detailed worker logs registered.</p>}{selected.errorMessage&&<div className="registration-error"><X size={14}/>{selected.errorMessage}</div>}</Panel>}
-    </section>:<section className="run-full-detail"><Button icon={ArrowLeft} onClick={()=>navigate('history')}>Back to runs</Button><Empty title="Run not found" detail="This run is not in the current registry."/></section>)}
+    {full&&(selected?<RunDetails run={selected} selectionBatches={selectionBatches||[]} pools={pools||[]}
+      navigate={navigate} notify={notify} onRetry={retry} onExport={exportRun}/>:
+      <section className="run-full-detail"><Button icon={ArrowLeft} onClick={()=>navigate('history')}>Back to runs</Button><Empty title="Run not found" detail="This run is not in the current registry."/></section>)}
   </div>;
 }
 
