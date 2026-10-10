@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RunDetails } from './RunDetails.jsx';
 import { BatchRegistry } from './BatchRegistry.jsx';
+import { StrategyComparisonV2 } from './StrategyComparisonV2.jsx';
 import { SampleMedia } from './SampleMedia.jsx';
 import './launchpad.css';
 import selectionRunnerSource from '../worker/selection_runner.py?raw';
@@ -921,67 +922,8 @@ export function History({runs,setRuns,navigate,notify,routePath,selectionBatches
   </div>;
 }
 
-export function StrategyComparison({ navigate }) {
-  const [experimentId,setExperimentId]=useState(comparisonExperiments[0]?.id||'');
-  const [metric,setMetric]=useState('map');
-  const [selectedRound,setSelectedRound]=useState(8);
-  const exp=comparisonExperiments.find(x=>x.id===experimentId);
-  const rows=evaluationRegistry.filter(x=>x.experimentId===experimentId);
-  const arms=exp?.arms||[];
-  const record=(arm,round)=>rows.find(x=>x.armId===arm&&x.round===round);
-  const roundIds=[...new Set(rows.map(x=>x.round))].sort((a,b)=>a-b);
-  const checks=[
-    {label:'Same initial labeled dataset',ok:Boolean(exp?.initialDatasetVersionId&&arms.every(a=>!a.initialDatasetVersionId||a.initialDatasetVersionId===exp.initialDatasetVersionId))},
-    {label:'Same immutable candidate Pool snapshot',ok:Boolean(exp?.candidatePoolSnapshotId&&arms.every(a=>!a.candidatePoolSnapshotId||a.candidatePoolSnapshotId===exp.candidatePoolSnapshotId))},
-    {label:'Same training recipe and random seed',ok:Boolean(exp?.recipeId&&Number.isInteger(exp.trainingSeed)&&rows.every(x=>x.recipeId===exp.recipeId&&x.trainingSeed===exp.trainingSeed))},
-    {label:'Same fixed holdout',ok:Boolean(exp?.holdoutId&&rows.every(x=>x.holdoutId===exp.holdoutId))},
-    {label:'Same initial dataset in evaluation records',ok:Boolean(rows.length&&rows.every(x=>x.initialDatasetVersionId===exp.initialDatasetVersionId))},
-    {label:'Both strategies have paired rounds and EXACT-N budgets',ok:Boolean(roundIds.length===exp?.expectedRounds+1&&roundIds.every(r=>arms.every(a=>{const x=record(a.id,r);return x&&x.cumulativeLabeled===8000+r*exp.expectedRoundBudget&&x.budgetIncrement===(r===0?0:exp.expectedRoundBudget)})))},
-    {label:'Evaluation metrics and provenance present',ok:Boolean(rows.length&&roundIds.every(r=>arms.every(a=>{const x=record(a.id,r);return x&&Number.isFinite(x.metrics?.[metric])&&x.recordType==='synthetic_fixture'})))}
-  ];
-  const valid=checks.every(c=>c.ok);
-  const points=valid?roundIds.map(round=>({round,label:round?'R'+round:'Seed',samples:record(arms[0].id,round).cumulativeLabeled,
-    a:record(arms[0].id,round).metrics[metric],b:record(arms[1].id,round).metrics[metric]})):[];
-  const chosen=valid?(points.find(p=>p.round===selectedRound)||points.at(-1)):null;
-  const latest=points.at(-1);
-  const values=points.flatMap(p=>[p.a,p.b]);
-  const low=values.length?Math.min(...values)-.012:0,high=values.length?Math.max(...values)+.012:1;
-  const px=i=>64+i*(746/Math.max(1,points.length-1));
-  const py=v=>218-(v-low)/(high-low)*178;
-  const path=key=>points.map((p,i)=>`${i?'L':'M'}${px(i).toFixed(1)},${py(p[key]).toFixed(1)}`).join(' ');
-  const metrics=[['map','mAP50–95'],['recall','Recall'],['vru','VRU Recall'],['night','Night Recall'],['rain','Rain/Fog Recall']];
-  const selectedA=chosen?record(arms[0].id,chosen.round):null;
-  const selectedB=chosen?record(arms[1].id,chosen.round):null;
-  const sumCost=(arm,round)=>rows.filter(x=>x.armId===arm&&x.round<=round).reduce((n,x)=>n+x.annotationCostUsdIncrement,0);
-  const sumHours=(arm,round)=>rows.filter(x=>x.armId===arm&&x.round<=round).reduce((n,x)=>n+x.annotationHoursIncrement,0);
-  const delta=chosen?chosen.b-chosen.a:null;
-  const format=v=>Number.isFinite(v)?v.toFixed(3):'Missing';
-  const exportEvidence=()=>{
-    if(!exp)return;
-    downloadJSON(`${exp.id}.comparison.json`,{schemaVersion:'roadsift.comparison.v1',evidenceClass:exp.evidenceClass,
-      experiment:exp,evaluationRecords:rows,checks,eligible:valid,selectedMetric:metric});
-  };
-  return <div className="page comparison-page comparison-page--validated">
-    <PageHeader eyebrow="Active learning evaluation" title="Strategy Comparison" description="Compare acquisition strategies across evaluation rounds." actions={<><Button onClick={exportEvidence} icon={Download}>Export evidence</Button><Button icon={Pickaxe} onClick={()=>navigate('mining')}>New mining run</Button></>}/>
-    <div className="comparison-experiment-picker"><Field label="Experiment"><select value={experimentId} onChange={e=>{setExperimentId(e.target.value);setSelectedRound(8)}}>{comparisonExperiments.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></Field><div><Badge>Sample data</Badge></div></div>
-    <div className="comparison-contract comparison-contract--new"><span><small>Seed Dataset</small><strong>{exp?.initialDatasetVersionId||'Missing'}</strong></span><span><small>Pool snapshot</small><strong>{exp?.candidatePoolSnapshotId||'Incompatible'}</strong></span><span><small>Recipe</small><strong>{exp?.recipeId||'Missing'}</strong></span><span><small>Holdout</small><strong>{exp?.holdoutId||'Missing'}</strong></span></div>
-    <section className="comparison-validity"><div><h2>Validity checks</h2><p>{valid?'Common setup confirmed.':'Incompatible experiment records.'}</p></div><Badge>{valid?'Checks passed':'Blocked'}</Badge><div className="comparison-checks">{checks.map(c=><div className={c.ok?'pass':'fail'} key={c.label}><span>{c.ok?'✓':'×'}</span>{c.label}</div>)}</div></section>
-    {valid?<><section className="comparison-curve-panel"><div className="ops-section__header"><div><h2>Learning curve</h2><p>{points.length} evaluation checkpoints</p></div><Field label="Metric"><select value={metric} onChange={e=>setMetric(e.target.value)}>{metrics.map(([k,label])=><option key={k} value={k}>{label}</option>)}</select></Field></div>
-      <div className="comparison-line-legend"><span><i className="comparison-key-a"/>{arms[0]?.label}</span><span><i className="comparison-key-b"/>{arms[1]?.label}</span></div>
-      <div className="comparison-svg-wrap"><svg viewBox="0 0 860 270" role="img" aria-label={`${metrics.find(x=>x[0]===metric)?.[1]} across ${points.length} evaluated rounds`}>
-        {[0,.25,.5,.75,1].map(t=><g key={t}><line x1="64" x2="810" y1={218-t*178} y2={218-t*178} stroke="currentColor" opacity=".1"/><text x="55" y={222-t*178} textAnchor="end" fontSize="11" fill="currentColor" opacity=".55">{(low+t*(high-low)).toFixed(3)}</text></g>)}
-        <path d={path('a')} fill="none" stroke="#0071e3" strokeWidth="2.5"/><path d={path('b')} fill="none" stroke="#c17835" strokeWidth="2.5"/>
-        {points.map((p,i)=><g key={p.round}><circle cx={px(i)} cy={py(p.a)} r={chosen?.round===p.round?5.5:4} fill="#0071e3"/><circle cx={px(i)} cy={py(p.b)} r={chosen?.round===p.round?5.5:4} fill="#c17835"/><text x={px(i)} y="240" textAnchor="middle" fontSize="11" fill="currentColor">{p.label}</text><text x={px(i)} y="254" textAnchor="middle" fontSize="9" fill="currentColor" opacity=".55">{Math.round(p.samples/1000)}k</text></g>)}
-      </svg></div>
-      <div className="comparison-round-selector"><span>Inspect checkpoint</span>{points.map(p=><button key={p.round} className={chosen?.round===p.round?'active':''} onClick={()=>setSelectedRound(p.round)}>{p.label}</button>)}</div>
-    </section>
-    <div className="comparison-grid"><Panel title={`Checkpoint · ${chosen?.label}`} description="Matched cumulative labeled budget"><div className="comparison-checkpoint"><div><small>{arms[0].label}</small><strong>{format(chosen?.a)}</strong></div><div><small>{arms[1].label}</small><strong>{format(chosen?.b)}</strong></div><div><small>Δ B − A</small><strong>{delta>=0?'+':''}{format(delta)}</strong></div></div><StatRow label="Cumulative labeled" value={count(chosen?.samples||0)}/><StatRow label="Registered evaluations" value={`${selectedA?.id} · ${selectedB?.id}`}/></Panel>
-      <Panel title="Safety slice metrics" description="Fixed holdout metrics">{metrics.filter(x=>x[0]!=='map').map(([key,label])=><div className="comparison-slice-row" key={key}><span>{label}</span><strong>{format(selectedA?.metrics[key])}</strong><strong>{format(selectedB?.metrics[key])}</strong></div>)}</Panel></div>
-    <section className="comparison-table-card"><div><h3>Evaluation records</h3><p>Metrics by round</p></div><div className="table-scroll"><table><thead><tr><th>Round</th><th>Labeled frames</th><th>{arms[0].label}</th><th>{arms[1].label}</th><th>Δ B − A</th></tr></thead><tbody>{points.map(p=><tr key={p.round}><td>{p.label}</td><td>{count(p.samples)}</td><td>{format(p.a)}</td><td>{format(p.b)}</td><td>{p.round===0?'—':`${p.b-p.a>=0?'+':''}${format(p.b-p.a)}`}</td></tr>)}</tbody></table></div></section>
-    <section className="comparison-efficiency"><div className="ops-section__header"><div><h2>Labeling efficiency</h2><p>Cumulative cost and annotation hours.</p></div></div><div className="comparison-checkpoint">{arms.map(arm=><div key={arm.id}><small>{arm.label}</small><strong>${count(sumCost(arm.id,chosen.round))}</strong><span>{count(sumHours(arm.id,chosen.round))} annotation hours</span><span>{chosen.round?format((record(arm.id,chosen.round)?.metrics.map-record(arm.id,0)?.metrics.map)/Math.max(1,sumHours(arm.id,chosen.round))*1000):'—'} mAP gain / 1,000 h</span></div>)}</div></section>
-    <section className="comparison-validity"><div><h2>Decision</h2><p>Statistical evidence unavailable.</p></div><Badge>Inconclusive</Badge></section>
-    </>:<section className="comparison-blocked"><X size={22}/><h2>Comparison blocked</h2><p>Fix the experiment configuration to compare results.</p></section>}
-  </div>;
+export function StrategyComparison(props) {
+  return <StrategyComparisonV2 {...props}/>;
 }
 
 export function SettingsPage({ theme, setTheme, preferences, setPreferences, setDatasets, setPools, setSelectionBatches, setRuns, setRunnerRegistry, setModelRegistryState, setAlgorithmRegistry, notify, language='en', setLanguage }) {
