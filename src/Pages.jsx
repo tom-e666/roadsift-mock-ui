@@ -590,7 +590,9 @@ export function ImportData({notify,navigate,pools,contextDataset}) {
   </div>;
 }
 
-export function Mining({ notify, setRuns, runs, navigate, datasets, pools, contextDataset, runnerRegistry, modelRegistryState, algorithmRegistry }) {
+export function Mining({ notify, setRuns, runs, navigate, routePath, definitions, datasets, pools, contextDataset, runnerRegistry, modelRegistryState, algorithmRegistry }) {
+  const routeDefinitionId = new URLSearchParams((routePath || '').split('?')[1] || '').get('definition');
+  const launchDefinition = definitions?.find(d => d.id === routeDefinitionId && d.id === 'al-selection-v1' && d.status === 'published') || definitions?.find(d => d.id === 'al-selection-v1' && d.status === 'published');
   const [poolId,setPoolId]=useState(contextDataset?.kind==='pool'&&pools.some(p=>p.id===contextDataset.id)?contextDataset.id:pools[0]?.id||'');
   const [parentId,setParentId]=useState('');
   const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
@@ -698,7 +700,7 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
       review:{reviewed:0,approved:0,rejected:0,deferred:0,finalizedAt:null},
       handoff:{status:'Not started',destination:null,sentAt:null,manifestUri:null},
       annotationReturn:{status:'Not started',expected:0,returned:0,validation:null,uri:null,receivedAt:null}};
-    const record={id,type:'Mining',name:`${algorithm.name} · ${pool.name}`,status:'Queued',
+    const record={id,type:'Mining',pipelineDefinitionId:launchDefinition?.id || null,pipelineDefinitionVersion:launchDefinition?.version || null,pipelineDefinitionSnapshot:launchDefinition ? JSON.parse(JSON.stringify(launchDefinition)) : null,name:`${algorithm.name} · ${pool.name}`,status:'Queued',
       executionMode:'mock-worker',source:`${pool.name} p${pool.version}`,
       sourcePoolId:pool.id,dataset:parent?`${parent.name} v${parent.version}`:'None',
       output:'Pending worker execution',plannedBatch,frames:pool.eligible,
@@ -716,7 +718,8 @@ export function Mining({ notify, setRuns, runs, navigate, datasets, pools, conte
     }catch{notify('Clipboard permission unavailable. Use Download JSON instead.');}
   };
   return <div className="page mining-page mining-page--production">
-    <PageHeader eyebrow="Active learning operations" title="New Selection Run" description="Choose your data, configure selection and run it in the background." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
+    <PageHeader eyebrow="Pipelines / Launchpad" title="Launch Selection Run" description="Configure one execution of the published Selection definition. Input and parameters are captured per run." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
+    <div className="pipeline-launch-context"><div><GitBranch size={17}/><div><strong>{launchDefinition ? launchDefinition.name + " · v" + launchDefinition.version : "Selection pipeline · bundled execution contract"}</strong><span>Definition is versioned and read-only. This form configures the current selection run; execution is simulated locally.</span></div></div><Button onClick={()=>navigate("pipelines")}>View definitions</Button></div>
     <div className="mining-builder">
       <section className="mining-builder__main">
         <details className="panel mining-accordion" open>
@@ -898,6 +901,7 @@ export function History({runs,setRuns,navigate,notify,routePath}) {
     <StatRow label="Status" value={run.status}/>
     <StatRow label="Source" value={run.source||'Not registered'}/>
     <StatRow label="Output" value={run.output||'Pending'}/>
+    {run.pipelineDefinitionId&&<StatRow label="Definition" value={run.pipelineDefinitionId+" · v"+run.pipelineDefinitionVersion}/>}
     <StatRow label="Runner" value={run.executor||'Not assigned'}/>
     <StatRow label="Started" value={date(run.date)}/>
     {run.duration&&<StatRow label="Duration" value={run.duration}/>}
