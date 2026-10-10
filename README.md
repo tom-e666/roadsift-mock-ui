@@ -41,10 +41,10 @@ The RoadSift Dark appearance uses shared semantic tokens in `src/styles.css`, wi
 - **Pipeline Editor** (`/pipelines/:id`): immutable published versions; edit graph topology, implementation and stage defaults only in a new draft version.
 - **Launchpad** (`/mining`): launch-time Pool Snapshot, target EXACT-N, registered prediction model and compatible executor. Stage implementation, scoring policy and privacy gates are **inherited** from the published Pipeline Definition and cannot be edited in either Form or advanced JSON. Only the bundled Hybrid Active Learning Selection v1 definition is runnable in the local simulator.
 - **Runs** (`/history`, `/runs/:id`): direct navigation to details, quick preview option, read-only captured execution DAG and contextual inspector. Unknown stage status is not inferred from run-level success. Run batch links open the Batch Workspace directly.
-- **Selection Batches** (`/batches`): registry and batch overview. Each row opens `/batches/:id?view=grid`. The workspace has three tabs:
-  - **Batch Grid**: review-focused search, domain/status filters, score sorting and bulk decisions; gallery presentation is shared with Data Explorer rather than reimplemented.
-  - **Focus Review & Quick Edit**: CVAT-inspired 2D bounding-box editor supporting draw, select, drag, resize, class change, delete, undo/redo and locally saved draft edits; separate Approve/Reject/Defer actions. Reject requires a reason.
-  - **Finalize & Handoff**: annotation/training purposes, output format selection, explicit server-readiness blockers and download of a **preview handoff plan**.
+- **Selection Batches** (`/batches`): dedicated Registry with workflow filters, run lineage, progress, annotation status and direct Review/Handoff actions. Each batch opens `/batches/:id?view=grid`. The workspace contains:
+  - **Review Queue / Batch Grid**: compact contact sheet, status and domain filters, sample preview inspector, page-select and bulk review actions. The image display primitive is reused from Data Explorer.
+  - **Focus Review & Quick Edit**: CVAT-inspired vertical tool rail, center 2D canvas, object list, bounding box draw/move/resize/relabel, delete and undo/redo, plus separate Approve/Reject/Defer decisions. Draft edits survive page refresh in local mock state and warn before navigating with unsaved edits.
+  - **Finalize & Handoff**: Validate → Configure → Freeze version → Export stepper, independent annotation/training modes, source lineage and explicit blocking readiness checks. Finalize/Export are disabled without verifiable backend evidence; only a preview plan may be downloaded.
 
 ### Important demo and trust limitations
 
