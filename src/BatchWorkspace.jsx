@@ -29,6 +29,13 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const [activeId,setActiveId]=useState(null),[previewId,setPreviewId]=useState(null),[reason,setReason]=useState('');
   const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false),[editorDirty,setEditorDirty]=useState(false);
   const [purpose,setPurpose]=useState('annotation'),[target,setTarget]=useState('manifest');
+  const [destination,setDestination]=useState('download');
+  const [destinationPath,setDestinationPath]=useState('curated/'+id);
+  const [curatedName,setCuratedName]=useState('curated_'+id.replace(/[^a-zA-Z0-9_-]/g,'_'));
+  const [versionLabel,setVersionLabel]=useState('v1');
+  const [exportJobName,setExportJobName]=useState('export_'+id.replace(/[^a-zA-Z0-9_-]/g,'_'));
+  const [handoffNotes,setHandoffNotes]=useState('');
+  const [includes,setIncludes]=useState({metadata:true,images:false,reviewDecisions:false});
   useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
   useEffect(()=>{setSelectedIds([]);setActiveId(null);setEditMode(false)},[id]);
   useEffect(()=>{setEditMode(false);setEditorDirty(false)},[activeId,view]);
@@ -111,23 +118,55 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
     window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
   },[view,isOpen,active,activeIndex,filtered,editMode,reason,decisions]);
   if(!batch)return <div className="page bw-page"><Button icon={ArrowLeft} onClick={()=>navigate('batches')}>Back to Selection Batches</Button><div className="bw-notice">Selection Batch not found.</div></div>;
-  const checks=[
-    {heading:'Source membership verified',ok:false,detail:'Batch membership API and full immutable membership snapshot are not connected in this mock.'},
-    {heading:'Review coverage confirmed',ok:false,detail:'The registered summary reports '+count(batch.review?.reviewed||0)+' / '+count(batch.count)+'. Preview decisions are stored separately and not counted as verified.'},
-    {heading:'Privacy clearance verified',ok:false,detail:'A sample-level pass/block ledger is required before any external export.'},
-    {heading:'Annotation validity for training',ok:purpose==='annotation',detail:purpose==='training'?'Confirmed annotation coverage and schema validation are required.':'Not required for annotation handoff.'},
-    {heading:'Manifest and artifact integrity',ok:false,detail:'Requires a server-created immutable snapshot and bytes-verified artifact digest.'}
+  // Finalize validates approved membership; export validates frozen bytes and destination.
+  // These stages have different preconditions: a not-yet-created artifact cannot be verified before Freeze.
+  const pending=Math.max(0,batch.count-(batch.review?.reviewed||0));
+  const freezeChecks=[
+    {heading:'Immutable source membership',ok:false,detail:'A backend-verified sample ID list and pool snapshot are required; fixture gallery images are not source membership.'},
+    {heading:'Review decisions & membership accounting',ok:false,detail:'Official aggregate: '+count(batch.review?.reviewed||0)+'/'+count(batch.count)+' reviewed, '+count(pending)+' pending. Sample-level decisions and the final eligible subset must be reconciled.'},
+    {heading:'Privacy clearance for eligible samples',ok:false,detail:'A verified per-sample privacy pass/block ledger is required before releasing images outside the controlled workspace.'},
+    {heading:'Finalize policy / EXACT-N shortfall',ok:false,detail:'The backend must confirm whether the approved safe subset may be frozen below target or requires top-up.'}
   ];
-  const ready=checks.every(x=>x.ok);
+  const formatOptions=purpose==='training'
+    ?[['manifest','Manifest + metadata'],['zip','ZIP · images + labels'],['coco','COCO · verified 2D annotations'],['yolo','YOLO · verified 2D annotations']]
+    :[['manifest','Manifest + metadata'],['zip','ZIP · images + manifest']];
+  const effectiveIncludes={
+    manifest:true,sampleIds:true,metadata:includes.metadata,
+    sourceImages:target==='zip'||target==='coco'||target==='yolo'||includes.images,
+    reviewDecisions:includes.reviewDecisions,
+    verifiedAnnotations:purpose==='training'
+  };
+  const namePattern=/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
+  const configIssues=[
+    ...(!namePattern.test(curatedName)?['Curated name must be 1–64 letters, numbers, dots, hyphens or underscores.']:[]),
+    ...(!namePattern.test(versionLabel)?['Requested version label is invalid.']:[]),
+    ...(!namePattern.test(exportJobName)?['Export job name is invalid.']:[]),
+    ...(destination==='r2'&&!destinationPath.trim()?['Choose a destination prefix for R2.']:[])
+  ];
+  const freezeReady=freezeChecks.every(x=>x.ok)&&configIssues.length===0;
+  const exportChecks=[
+    {heading:'Curated version frozen',ok:false,detail:'An authoritative immutable curated version ID must exist.'},
+    {heading:'Manifest & artifact integrity',ok:false,detail:'After Freeze, verify generated manifest and output artifact bytes (SHA-256).'},
+    {heading:'Destination availability',ok:false,detail:destination==='r2'?'R2 bucket/prefix credentials and connectivity are not configured in this preview.':'Actual export jobs are not connected in this frontend preview.'},
+    {heading:'Verified annotation coverage',ok:purpose!=='training',detail:purpose==='training'?'Labels must pass schema, provenance and completeness validation before training export.':'Optional for annotation handoff.'}
+  ];
+  const exportReady=false; // Never create a real export without a validated frozen version and working backend.
   const exportPlan=()=>{
     downloadPlan(batch.id+'-handoff-plan-preview.json',{
-      schemaVersion:'roadsift.handoff-preview.v1',previewOnly:true,notAnExport:true,
-      batchId:batch.id,purpose,format:target,sourceMembershipHash:batch.membershipHash,
-      requestedCount:batch.count,recordedReviewSummary:batch.review||null,
-      previewDecisions:decisions,previewAnnotationDrafts:edits,
-      blockers:checks.filter(x=>!x.ok).map(x=>x.heading)
+      schemaVersion:'roadsift.handoff-preview.v2',previewOnly:true,notAnExport:true,
+      source:{batchId:batch.id,runId:batch.runId,poolSnapshot:batch.sourceSnapshot||null,
+        membershipHashRecorded:batch.membershipHash||null,requestedCount:batch.count,recordedReviewSummary:batch.review||null},
+      curatedVersionRequest:{name:curatedName,requestedLabel:versionLabel,notes:handoffNotes.trim()},
+      exportRequest:{name:exportJobName,purpose,format:target,destination:{type:destination,
+        ...(destination==='r2'?{prefix:destinationPath.trim()}: {})},
+        includes:effectiveIncludes,previewOnly:true},
+      // Preview decisions are deliberately not represented as verified selection membership or ground truth.
+      previewDecisionsIncluded:includes.reviewDecisions,
+      previewDecisionCount:includes.reviewDecisions?Object.keys(decisions).length:0,
+      validation:{freezeReady,exportReady,freezeBlockers:freezeChecks.filter(x=>!x.ok).map(x=>x.heading),
+        exportBlockers:exportChecks.filter(x=>!x.ok).map(x=>x.heading),configurationIssues:configIssues}
     });
-    notify('Downloaded preview configuration only; no curated batch or export was created.');
+    notify('Preview handoff plan downloaded; no curated version or export artifact was created.');
   };
   return <div className="page bw-page">
     <div className="bw-breadcrumb"><button onClick={()=>navigate('batches')}><ArrowLeft size={14}/> Selection Batches</button><span>/</span>{batch.id}</div>
