@@ -47,7 +47,8 @@ try {
     ['Selection Batches', 'batches', '/batches'],
     ['Batch Grid', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=grid'],
     ['Focus Review', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=review'],
-    ['Finalize & Handoff', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=handoff'],
+    ['Curated Batch release', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=handoff'],
+    ['Curated Version preview', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=handoff&preview=version'],
     ['Runs', 'history', '/history'],
     ['Runs quick preview', 'history', '/history?selected=' + encodeURIComponent(runs[0].id)],
     ['Strategy Comparison', 'comparison', '/comparison'],
@@ -75,8 +76,9 @@ try {
       if (id === 'batches' && (!html.includes('br-list') || !html.includes('Needs review') || !html.includes('Handoff') || html.includes('Finalize curated batch'))) throw new Error('Missing Batch Registry or exposes unverified finalize action');
       if (id === 'batch-workspace' && path.includes('view=grid') && (!html.includes('bw-queue-layout') || !html.includes('bw-grid') || !html.includes('bw-queue-preview') || !html.includes('Preview gallery') || !html.includes('Select page'))) throw new Error('Missing Review Queue contact sheet, preview inspector or provenance');
       if (id === 'batch-workspace' && path.includes('view=review') && (!html.includes('qb-studio-layout') || !html.includes('qb-objects') || !html.includes('Sample Inspector') || !html.includes('Save Draft'))) throw new Error('Missing CVAT-lite editor, object panel or review inspector');
-      if (id === 'batch-workspace' && path.includes('view=handoff') && (!html.includes('Finalize readiness') || !html.includes('Eligible sample membership') || !html.includes('Privacy clearance') || !html.includes('Technical validation details') || !html.includes('Before Export') || !html.includes('bw-handoff-stepper') || !html.includes('Handoff purpose') || !html.includes('Export destination') || !html.includes('Requested version label') || !html.includes('Curated batch name') || !html.includes('Review decision records') || !html.includes('Manifest &amp; sample IDs') || !html.includes('Finalize Curated Batch') || !html.includes('Create export job'))) throw new Error('Missing simplified Handoff summary or gated output configuration');
-      if (id === 'comparison' && (!html.includes('sc-page') || !html.includes('Key metrics comparison') || !html.includes('Selection overlap') || !html.includes('Synthetic fixture') || !html.includes('Learning curve'))) throw new Error('Missing evidence-first comparison workspace');
+      if (id === 'batch-workspace' && path.includes('view=handoff') && !path.includes('preview=') && (!html.includes('cr-page') || !html.includes('Review outcome') || !html.includes('Approved candidates') || !html.includes('Preview version workspace') || !html.includes('Create Curated Batch'))) throw new Error('Missing curated release workflow');
+      if (id === 'batch-workspace' && path.includes('preview=version') && (!html.includes('Curated Batch') || !html.includes('cr-version') || !html.includes('Send for annotation') || !html.includes('Export dataset') || !html.includes('Illustrative version view'))) throw new Error('Missing post-finalize version preview and delivery triggers');
+      if (id === 'comparison' && (!html.includes('rc-page') || !html.includes('Runs to compare') || !html.includes('Sample Differences') || !html.includes('Model Impact') || !html.includes('Selection Results'))) throw new Error('Missing run-first comparison workspace');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
       if (id === 'history' && path === '/history' && (!html.includes('run-list-link') || !html.includes('run-list-preview'))) throw new Error('Missing explicit run navigation or preview buttons');
       if (id === 'history' && path.includes('selected=') && !html.includes('Open Run Details')) throw new Error('Missing quick-preview navigation');
@@ -90,9 +92,16 @@ try {
   // Cross-domain fixtures must not claim comparable metrics when the pool snapshot differs.
   try{
     const html=renderToStaticMarkup(React.createElement(views.StrategyComparison,{...common}));
-    if(!html.includes('Matched comparison configuration')||!html.includes('Not recorded'))throw new Error('Comparison fixture lacks evidence labels');
-    console.log('PASS Comparison fixtures show protocol compatibility and explicit missing evidence');
+    if(!html.includes('Not directly comparable')||!html.includes('Not recorded'))throw new Error('Comparison lacks run comparability warnings or evidence labels');
+    console.log('PASS Comparison run scope warnings and explicit missing evidence');
   }catch(error){failures.push('Comparison provenance');console.error('FAIL Comparison provenance',error.stack||error);}
+  // Deliberately compare a cross-domain pair: model impact and sample overlap are not inferred.
+  try {
+    const component=await server.ssrLoadModule('/src/RunComparisonWorkspace.jsx');
+    const html=renderToStaticMarkup(React.createElement(component.RunComparisonWorkspace,{...common}));
+    if (!html.includes('Not directly comparable') || !html.includes('Not recorded'))throw new Error('Unmatched run summaries shown as comparable');
+    console.log('PASS Unmatched run scope is not marked comparable');
+  }catch(error){failures.push('Comparison scope guard');console.error('FAIL Comparison scope guard',error.stack||error)}
   // A run with a persisted definition must render only its declared dependencies.
   // A recorded stage event may change that node status; no other node may inherit run-level success.
   try {
