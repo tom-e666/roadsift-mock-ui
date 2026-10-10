@@ -15,7 +15,7 @@ export function ModelEvaluation({navigate,routePath='',evaluationImports=[],setE
   const [recordId,setRecordId]=useState(params.get('record')||records[0]?.id||'');
   const [query,setQuery]=useState(''),[statusFilter,setStatusFilter]=useState('all');
   const [tab,setTab]=useState('metrics');
-  const [drawer,setDrawer]=useState(params.get('import')==='1');
+  const [drawer,setDrawer]=useState(params.get('import')==='1'||routePath.startsWith('/evaluations/import'));
   const selected=records.find(r=>r.id===recordId)||records[0];
   const listed=records.filter(r=>(statusFilter==='all'||(statusFilter==='fixture'&&r.sourceType==='fixture')||(statusFilter==='local'&&r.sourceType==='local'))
     &&([r.id,r.modelVersionId,r.datasetVersionId,r.holdoutId,r.experimentId].join(' ').toLowerCase().includes(query.toLowerCase())));
