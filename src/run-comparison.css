@@ -92,3 +92,11 @@
 .rc-example-banner{display:flex;align-items:center;gap:9px;font-size:11px;padding:11px;background:var(--grouped);color:var(--muted);border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
 @media(max-width:1050px){.rc-scope-status{flex-direction:column}.rc-overlap-groups,.rc-impact-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.rc-run-cards{grid-template-columns:1fr}.rc-run-picker,.rc-metric-section,.rc-differences,.rc-impact{padding:13px}.rc-header h1{font-size:21px}.rc-membership-status{flex-direction:column;width:100%}}
+
+.rc-demo-button{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));color:var(--accent);padding:11px 15px;font-size:11px;font-weight:700;border-radius:7px;display:flex;gap:8px;align-items:center;margin-top:4px}
+.rc-overlap-demo{display:grid;gap:14px}
+.rc-demo-warning{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;border:1px solid color-mix(in srgb,var(--status-warning) 38%,var(--line));background:color-mix(in srgb,var(--status-warning) 7%,var(--surface));font-size:11px;color:var(--muted);line-height:1.5}
+.rc-demo-warning svg{color:var(--status-warning);flex-shrink:0}
+.rc-demo-warning span{flex:1}.rc-demo-warning strong{color:var(--text)}
+.rc-demo-warning button{color:var(--accent);border:0;background:transparent;white-space:nowrap;font-size:11px;font-weight:700}
+@media(max-width:600px){.rc-demo-warning{flex-wrap:wrap}.rc-overlap-groups{grid-template-columns:1fr}}
