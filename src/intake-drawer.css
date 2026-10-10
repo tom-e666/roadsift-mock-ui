@@ -1,0 +1,38 @@
+.id-overlay{position:fixed;inset:0;z-index:650;background:#02060ac7;display:flex;justify-content:flex-end}
+.id-panel{height:100%;width:min(470px,100%);background:var(--surface);box-shadow:-20px 0 50px #0007;border-left:1px solid var(--line);display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0}
+.id-header{display:flex;align-items:start;justify-content:space-between;gap:10px;padding:21px 22px;border-bottom:1px solid var(--line)}
+.id-header>div{min-width:0}.id-eyebrow{font-size:10px;letter-spacing:.1em;font-weight:700;color:var(--tertiary)}
+.id-header h2{font-size:20px;margin:8px 0 6px;letter-spacing:-.026em}
+.id-header p{color:var(--muted);font-size:11px;line-height:1.5}
+.id-header>button{border:0;background:transparent;color:var(--muted);padding:5px}
+.id-body{padding:18px 21px 25px;overflow-y:auto;display:grid;align-content:start;gap:18px}
+.id-context{background:var(--grouped);border:1px solid var(--line);padding:12px;border-radius:8px;display:grid;gap:6px}
+.id-context small{font-size:10px;color:var(--tertiary)}.id-context strong{font-size:12px}.id-context span{font-size:10px;color:var(--muted)}
+.id-section{display:grid;gap:12px;border-bottom:1px solid var(--line);padding-bottom:17px}
+.id-section h3{font-size:12px}
+.id-segments{display:flex;border:1px solid var(--line);background:var(--grouped);padding:3px;gap:4px;justify-self:start;border-radius:7px}
+.id-segments button{border:0;background:transparent;padding:8px 13px;border-radius:5px;font-size:11px;color:var(--muted)}
+.id-segments button.active{background:var(--surface);color:var(--accent);font-weight:700}
+.id-upload{border:1px dashed color-mix(in srgb,var(--accent) 40%,var(--line));border-radius:8px;background:color-mix(in srgb,var(--accent) 4%,var(--surface));min-height:122px;padding:18px;display:grid;place-items:center;gap:8px;text-align:center;cursor:pointer}
+.id-upload>svg{color:var(--accent)}.id-upload strong{font-size:12px}.id-upload span{font-size:10px;color:var(--muted)}
+.id-upload input{position:absolute;width:1px;height:1px;opacity:0}
+.id-field,.id-fields label{display:grid;gap:7px;color:var(--muted);font-size:11px}
+.id-field input,.id-field select,.id-field textarea,.id-fields select{background:var(--grouped);border:1px solid var(--line);color:var(--text);padding:10px;border-radius:6px;font-size:11px;min-width:0;width:100%;outline-offset:2px}
+.id-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.id-evidence{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:11px}
+.id-evidence span{color:var(--status-warning);background:color-mix(in srgb,var(--status-warning) 10%,var(--surface));border-radius:5px;padding:5px}
+.id-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.id-totals>div{display:grid;gap:7px;border:1px solid var(--line);border-radius:6px;padding:9px;min-width:0}
+.id-totals small{color:var(--muted);font-size:9px;overflow-wrap:anywhere}.id-totals strong{font-size:15px;overflow-wrap:anywhere}
+.id-hint,.id-error{display:flex;gap:7px;align-items:start;color:var(--muted);font-size:10px;line-height:1.5}
+.id-hint svg{color:var(--status-warning);flex-shrink:0}
+.id-error{color:var(--status-danger)}.id-error svg{flex-shrink:0}
+.id-constraints{padding:12px;background:var(--grouped);border-radius:8px;display:flex;align-items:start;gap:10px}
+.id-constraints>svg{color:var(--tertiary);flex-shrink:0}
+.id-constraints strong{font-size:11px}.id-constraints p{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.6}
+.id-panel footer{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;border-top:1px solid var(--line);padding:16px 20px}
+.id-panel footer button{border-radius:7px;padding:10px 14px;font-size:11px;font-weight:700}
+.id-cancel{border:1px solid var(--line);background:var(--grouped);color:var(--text)}
+.id-primary{background:var(--accent);border:1px solid var(--accent);color:#fff;display:flex;align-items:center;gap:7px}
+.id-primary:disabled{opacity:.42;cursor:not-allowed}
+@media(max-width:490px){.id-fields{grid-template-columns:1fr}.id-header,.id-body{padding-inline:14px}}
