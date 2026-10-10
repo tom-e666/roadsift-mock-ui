@@ -45,6 +45,7 @@ try {
     ['Run Details - failed fixture', 'history', '/runs/' + encodeURIComponent(runs.find(r=>r.status==='Failed')?.id || runs[0].id)],
     ['Selection Batches', 'batches', '/batches'],
     ['Runs', 'history', '/history'],
+    ['Runs quick preview', 'history', '/history?selected=' + encodeURIComponent(runs[0].id)],
     ['Strategy Comparison', 'comparison', '/comparison'],
     ['Settings', 'settings', '/settings'],
     ['System', 'system', '/system'],
@@ -67,11 +68,37 @@ try {
       if (id === 'pipelines' && path === '/pipelines' && !html.includes('pipeline-registry-table')) throw new Error('Missing pipeline registry');
       if (id === 'mining' && !html.includes('lp-builder')) throw new Error('Missing launchpad builder');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
+      if (id === 'history' && path === '/history' && (!html.includes('run-list-link') || !html.includes('run-list-preview'))) throw new Error('Missing explicit run navigation or preview buttons');
+      if (id === 'history' && path.includes('selected=') && !html.includes('Open Run Details')) throw new Error('Missing quick-preview navigation');
+      if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-no-graph')) throw new Error('Unrecorded fixture should not show an invented execution DAG');
       console.log('PASS', label, html.length, 'chars');
     } catch (error) {
       failures.push(label);
       console.error('FAIL', label, error.stack || error);
     }
+  }
+  // A run with a persisted definition must render only its declared dependencies.
+  // A recorded stage event may change that node status; no other node may inherit run-level success.
+  try {
+    const definition = definitions.find(d => d.id === 'al-selection-v1');
+    if (!definition?.stages?.length) throw new Error('Missing test definition');
+    const first = definition.stages.find(s => s.enabled);
+    const testRun = {
+      ...runs[0], id:'test_captured_dag', name:'Snapshot-bound test execution', status:'Running',
+      pipelineDefinitionSnapshot:definition, pipelineDefinitionVersion:definition.version,
+      stageEvents:[{stageId:first.id,status:'Complete',duration:'9s'}]
+    };
+    const html = renderToStaticMarkup(React.createElement(views.History,{
+      ...common, runs:[testRun,...runs],routePath:'/runs/test_captured_dag'
+    }));
+    if (!html.includes('rd-execution-node') || !html.includes('rd-execution-edges')) throw new Error('Captured DAG was not rendered');
+    if (!html.includes('rd-node-dot is-done')) throw new Error('Recorded stage status not reflected');
+    if (!html.includes('No stage event')) throw new Error('Missing stage evidence must be reported as missing');
+    if (html.includes('rd-no-graph')) throw new Error('Captured DAG incorrectly shown as absent');
+    console.log('PASS Captured DAG with mixed recorded and unknown stage evidence');
+  } catch (error) {
+    failures.push('Captured DAG evidence');
+    console.error('FAIL Captured DAG evidence', error.stack||error);
   }
   if (failures.length) {
     console.error('Route render failures:', failures.join(', '));
