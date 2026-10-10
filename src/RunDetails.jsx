@@ -134,7 +134,7 @@ export function RunDetails({run,selectionBatches=[],pools=[],navigate,notify,onR
     <div className="rd-grid">
       <main className="rd-primary">
         <div className="rd-tabs" role="tablist" aria-label="Run detail views">
-          {[['graph','Pipeline Progress'],['logs','Logs'],['artifacts','Artifacts']].map(([key,label)=>
+          {[['graph','Pipeline Progress'],['logs','Logs'],['artifacts','Artifacts']].map(([key,label])=>
             <button key={key} role="tab" type="button" aria-selected={tab===key} className={tab===key?'active':''}
               onClick={()=>{setTab(key);setSelectedId(null);}}>{label}</button>)}
         </div>
