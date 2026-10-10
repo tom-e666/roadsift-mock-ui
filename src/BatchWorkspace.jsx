@@ -119,7 +119,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
         <div className="bw-subhead"><span>{batch.id}</span><span className="bw-meta-separator">·</span><span>Run {batch.runId}</span><span className="bw-meta-separator">·</span><span>{count(batch.count)} selected samples</span></div>
       </div>
       <div className="bw-header-actions">
-        <Button onClick={()=>openTab('handoff')}>Finalize &amp; Handoff</Button>
+        <Button onClick={()=>openTab('handoff')}>Curated Batch</Button>
         <Button variant="primary" onClick={()=>openTab('review')} icon={Edit3}>Open Focus Review</Button>
       </div>
     </header>
