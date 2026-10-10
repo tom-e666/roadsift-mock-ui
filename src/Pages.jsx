@@ -858,43 +858,35 @@ export function SelectionBatches({ selectionBatches, setSelectionBatches, datase
   useEffect(()=>{if(requestedBatch)setSelected(selectionBatches.find(b=>b.id===requestedBatch)||null)},[requestedBatch]);
   const statuses=['All',...batchLifecycle.map(x=>x.label)];
   const results=selectionBatches.filter(b=>(status==='All'||b.status===status)&&(`${b.name} ${b.id} ${b.runId}`).toLowerCase().includes(query.toLowerCase()));
-  const updateBatch=(id,fn)=>setSelectionBatches(list=>list.map(b=>b.id===id?fn(b):b));
-  const syncSelected=next=>{setSelected(next);updateBatch(next.id,()=>next);};
-  const finalizeReview=()=>{
-    if(!selected) return;
-    const now=new Date().toISOString(), rejected=Math.max(selected.review?.rejected||0,Math.round(selected.count*.025));
-    const approved=selected.count-rejected;
-    const next={...selected,status:'Curated',updatedAt:now,review:{reviewed:selected.count,approved,rejected,deferred:0,finalizedAt:now},audit:[...(selected.audit||[]),{at:now,actor:'data.ops@roadsift',event:'Curated membership finalized'}]};
-    syncSelected(next);notify('Curated membership finalized');
-  };
-  const createHandoff=()=>{
-    if(!selected) return;
-    const now=new Date().toISOString();
-    const next={...selected,status:'Handed off',updatedAt:now,handoff:{status:'Sent',destination:`CVAT · Job #${String(Date.now()).slice(-4)}`,sentAt:now,manifestUri:`r2://roadsift/handoffs/${selected.id}.json`},annotationReturn:{...(selected.annotationReturn||{}),status:'Not started',expected:selected.review?.approved||selected.count,returned:0},audit:[...(selected.audit||[]),{at:now,actor:'data.ops@roadsift',event:'Handoff sent to external annotation'}]};
-    syncSelected(next);notify('Handoff created');
-  };
-  const registerReturn=()=>{
-    if(!selected) return;
-    const now=new Date().toISOString(), expected=selected.annotationReturn?.expected||selected.review?.approved||selected.count;
-    const next={...selected,status:'Annotation returned',updatedAt:now,annotationReturn:{status:'Validated',expected,returned:expected,validation:'Passed',uri:`r2://roadsift/annotation-returns/${selected.id}/annotations.json`,receivedAt:now},audit:[...(selected.audit||[]),{at:now,actor:'annotation-import',event:'Annotation return validated'}]};
-    syncSelected(next);notify('Annotation return registered');
-  };
   const poolOf=b=>pools.find(p=>p.id===b.sourcePoolId);
   const datasetOf=b=>datasets.find(d=>d.id===b.baseDatasetId);
   const reviewPct=b=>Math.round(((b.review?.reviewed||0)/Math.max(1,b.count))*100);
   return <div className="page batches-page"><PageHeader eyebrow="Curation operations" title="Selection Batches" description="Review, freeze, hand off and reconcile the immutable outputs of Mining runs." actions={<Button icon={Pickaxe} onClick={()=>navigate('mining')}>New mining run</Button>}/>
     <div className="history-toolbar"><div className="search-field"><Search size={16}/><input placeholder="Batch ID, run, dataset…" value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={status} onChange={e=>setStatus(e.target.value)}>{statuses.map(s=><option key={s}>{s}</option>)}</select><Badge>{results.length} batches</Badge></div>
-    <section className="catalog"><div className="table-scroll"><table className="dataset-table batches-table"><thead><tr><th>Batch</th><th>Status</th><th>Source</th><th>Base dataset</th><th>Membership</th><th>Review</th><th>Handoff</th><th>Updated</th><th>Explore</th></tr></thead><tbody>{results.map(b=><tr key={b.id} tabIndex="0" role="button" onClick={()=>setSelected(b)}><td><div className="dataset-name-cell"><strong>{b.name}</strong><small>{b.id}</small></div></td><td><Badge>{b.status}</Badge></td><td>{poolOf(b)?.name||b.sourcePoolId}</td><td>{datasetOf(b)?.name||b.baseDatasetId}</td><td>{count(b.count)}</td><td><div className="batch-review-cell"><strong>{reviewPct(b)}%</strong><span>{count(b.review?.reviewed||0)} / {count(b.count)}</span></div></td><td>{b.handoff?.status||'Not started'}</td><td>{date(b.updatedAt)}</td><td onClick={e=>e.stopPropagation()}><Button onClick={()=>navigate(`data-explorer?batchId=${encodeURIComponent(b.id)}&mode=${b.status==='In review'?'review':'explore'}`)}>{b.status==='In review'?'Continue Review':'Open in Explorer'}</Button></td></tr>)}</tbody></table></div></section>
-    {selected&&<Modal sheet title="Selection Batch" onClose={()=>setSelected(null)} footer={<><Button icon={Download} onClick={()=>{downloadJSON(`${selected.id}.metadata.json`,{schemaVersion:selected.schemaVersion,batch:selected});notify('Batch metadata exported')}}>Export metadata</Button>{selected.status==='Annotation returned'&&<Button variant="primary" icon={ArrowRight} onClick={()=>navigate('datasets')}>Register Dataset version</Button>}</>}>
-      <div className="detail-heading"><div className="detail-heading__meta"><Badge>{selected.status}</Badge><code>{selected.id}</code></div><h2>{selected.name}</h2><p>Immutable Mining output tracked through review, annotation handoff and Dataset materialization.</p></div>
-      <details className="detail-section" open><summary><div><strong>Overview</strong><span>Identity, lineage and immutable membership.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Mining run" value={selected.runId}/><StatRow label="Pool snapshot" value={selected.sourceSnapshot}/><StatRow label="Base dataset" value={datasetOf(selected)?`${datasetOf(selected).name} v${datasetOf(selected).version}`:selected.baseDatasetId}/><StatRow label="Strategy" value={selected.strategy}/><StatRow label="Membership" value={count(selected.count)}/><StatRow label="Owner" value={selected.owner}/><StatRow label="Schema" value={selected.schemaVersion}/><StatRow label="Membership hash" value={selected.membershipHash}/><StatRow label="Manifest" value={selected.manifestUri}/></div></div></details>
-      <details className="detail-section" open><summary><div><strong>Human review</strong><span>Approve, reject and defer decisions before membership is frozen.</span></div><Badge>{reviewPct(selected)}%</Badge></summary><div className="detail-section__body"><div className="batch-progress"><i style={{width:`${reviewPct(selected)}%`}}/></div><div className="batch-review-stats"><div><span>Reviewed</span><strong>{count(selected.review?.reviewed||0)}</strong></div><div><span>Approved</span><strong>{count(selected.review?.approved||0)}</strong></div><div><span>Rejected</span><strong>{count(selected.review?.rejected||0)}</strong></div><div><span>Deferred</span><strong>{count(selected.review?.deferred||0)}</strong></div></div>{selected.status==='In review'&&<div className="section-actions"><Button onClick={()=>navigate(`data-explorer?batchId=${encodeURIComponent(selected.id)}&mode=review`)}>Continue Review in Explorer</Button><Button variant="primary" onClick={finalizeReview}>Finalize curated batch</Button></div>}</div></details>
-      <details className="detail-section" open><summary><div><strong>Annotation handoff</strong><span>External annotation ownership and return reconciliation.</span></div></summary><div className="detail-section__body"><div className="detail-stats"><StatRow label="Handoff status" value={selected.handoff?.status||'Not started'}/><StatRow label="Destination" value={selected.handoff?.destination||'—'}/><StatRow label="Sent" value={selected.handoff?.sentAt?date(selected.handoff.sentAt):'—'}/><StatRow label="Return status" value={selected.annotationReturn?.status||'Not started'}/><StatRow label="Expected / returned" value={`${count(selected.annotationReturn?.expected||0)} / ${count(selected.annotationReturn?.returned||0)}`}/><StatRow label="Validation" value={selected.annotationReturn?.validation||'—'}/></div>{selected.status==='Curated'&&<div className="section-actions"><Button variant="primary" onClick={createHandoff}>Create handoff</Button></div>}{selected.status==='Handed off'&&<div className="section-actions"><Button onClick={registerReturn}>Register annotation return</Button></div>}{selected.annotationReturn?.validation==='Warning'&&<div className="registration-error"><X size={18}/><div><strong>Return mismatch</strong><p>{count((selected.annotationReturn.expected||0)-(selected.annotationReturn.returned||0))} expected samples are missing. Reconcile before Dataset registration.</p></div></div>}</div></details>
-      <details className="detail-section"><summary><div><strong>Audit trail</strong><span>Who changed this Batch and when.</span></div></summary><div className="detail-section__body"><div className="audit-list">{(selected.audit||[]).slice().reverse().map((a,i)=><div key={i}><span>{date(a.at)}</span><strong>{a.event}</strong><small>{a.actor}</small></div>)}</div></div></details>
+    <section className="catalog"><div className="table-scroll"><table className="dataset-table batches-table"><thead><tr><th>Batch</th><th>Status</th><th>Source</th><th>Base dataset</th><th>Membership</th><th>Review</th><th>Handoff</th><th>Updated</th><th>Workspace</th></tr></thead><tbody>{results.map(b=><tr key={b.id} tabIndex="0" role="button" onClick={()=>setSelected(b)}><td><div className="dataset-name-cell"><strong>{b.name}</strong><small>{b.id}</small></div></td><td><Badge>{b.status}</Badge></td><td>{poolOf(b)?.name||b.sourcePoolId}</td><td>{datasetOf(b)?.name||b.baseDatasetId}</td><td>{count(b.count)}</td><td><div className="batch-review-cell"><strong>{reviewPct(b)}%</strong><span>{count(b.review?.reviewed||0)} / {count(b.count)}</span></div></td><td>{b.handoff?.status||'Not started'}</td><td>{date(b.updatedAt)}</td><td onClick={e=>e.stopPropagation()}><Button variant="primary" onClick={()=>navigate('/batches/'+encodeURIComponent(b.id)+'?view=grid')}>Open Workspace</Button></td></tr>)}</tbody></table></div></section>
+    {selected&&<Modal sheet title="Selection Batch" onClose={()=>setSelected(null)} footer={<>
+      <Button icon={Download} onClick={()=>{downloadJSON(selected.id+'.metadata.json',{schemaVersion:selected.schemaVersion,batch:selected});notify('Batch metadata exported')}}>Export metadata</Button>
+      <Button variant="primary" icon={ArrowRight} onClick={()=>navigate('/batches/'+encodeURIComponent(selected.id)+'?view=grid')}>Open Workspace</Button>
+    </>}>
+      <div className="detail-heading"><div className="detail-heading__meta"><Badge>{selected.status}</Badge><code>{selected.id}</code></div><h2>{selected.name}</h2>
+        <p>Selection Batch overview. Review, quick-edit drafts, and validation-gated handoff are available in its workspace.</p></div>
+      <div className="detail-stats">
+        <StatRow label="Mining run" value={selected.runId}/>
+        <StatRow label="Source Pool Snapshot" value={selected.sourceSnapshot}/>
+        <StatRow label="Membership" value={count(selected.count)}/>
+        <StatRow label="Membership hash (recorded)" value={selected.membershipHash||'Not recorded'}/>
+        <StatRow label="Reviewed (recorded)" value={count(selected.review?.reviewed||0)}/>
+        <StatRow label="Approved (recorded)" value={count(selected.review?.approved||0)}/>
+        <StatRow label="Privacy clearance" value="Not validated by this mock"/>
+        <StatRow label="Handoff record" value={selected.handoff?.status||'Not started'}/>
+      </div>
+      <div className="section-actions">
+        <Button onClick={()=>navigate('/batches/'+encodeURIComponent(selected.id)+'?view=review')}>Open Focus Review</Button>
+        <Button onClick={()=>navigate('/batches/'+encodeURIComponent(selected.id)+'?view=handoff')}>Check Finalize &amp; Handoff</Button>
+      </div>
     </Modal>}
   </div>;
 }
-
 export function History({runs,setRuns,navigate,notify,routePath,selectionBatches,pools}) {
   const [query,setQuery]=useState('');
   const [filter,setFilter]=useState('All');
