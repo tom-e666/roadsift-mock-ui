@@ -68,39 +68,56 @@ export function QuickBoxEditor({sample,initialBoxes=[],onSave,onToolChange=()=>{
     setLabel(value);
     if(selected&&editable){keep();setBoxes(old=>old.map(b=>b.id===selected?{...b,label:value}:b));setDirty(true);}
   };
-  return <div className="qb-editor">
-    <div className="qb-toolbar">
-      <div className="qb-tools" role="group" aria-label="Quick edit tools">
-        <button type="button" disabled={!editable} aria-pressed={tool==='select'} title="Select / move box" onClick={()=>{setTool('select');onToolChange(false)}}><MousePointer2 size={16}/> Select</button>
-        <button type="button" disabled={!editable} aria-pressed={tool==='draw'} title="Draw bounding box" onClick={()=>{setTool('draw');onToolChange(true)}}><Square size={16}/> Box</button>
-        <button type="button" disabled={!editable||!selected} onClick={remove} title="Delete box"><Trash2 size={16}/></button>
-        <button type="button" disabled={!editable||!undoStack.length} onClick={()=>historyMove(undoStack,setUndoStack,redoStack,setRedoStack)} title="Undo"><Undo2 size={16}/></button>
-        <button type="button" disabled={!editable||!redoStack.length} onClick={()=>historyMove(redoStack,setRedoStack,undoStack,setUndoStack)} title="Redo"><Redo2 size={16}/></button>
+  return <div className="qb-editor qb-studio">
+    <div className="qb-studio-layout">
+      <aside className="qb-rail" role="toolbar" aria-label="CVAT-inspired annotation tools">
+        <button type="button" disabled={!editable} aria-pressed={tool==='select'} title="Select and move (V)" onClick={()=>{setTool('select');onToolChange(false)}}><MousePointer2 size={18}/><small>Select</small></button>
+        <button type="button" disabled={!editable} aria-pressed={tool==='draw'} title="Draw box (B)" onClick={()=>{setTool('draw');onToolChange(true)}}><Square size={18}/><small>Box</small></button>
+        <span className="qb-rail-divider"/>
+        <button type="button" disabled={!editable||!selected} title="Delete selected box" onClick={remove}><Trash2 size={17}/><small>Delete</small></button>
+        <button type="button" disabled={!editable||!undoStack.length} title="Undo" onClick={()=>historyMove(undoStack,setUndoStack,redoStack,setRedoStack)}><Undo2 size={17}/><small>Undo</small></button>
+        <button type="button" disabled={!editable||!redoStack.length} title="Redo" onClick={()=>historyMove(redoStack,setRedoStack,undoStack,setUndoStack)}><Redo2 size={17}/><small>Redo</small></button>
+      </aside>
+      <div className="qb-stage-column">
+        <div className="qb-toolbar">
+          <div className="qb-toolbar-title"><strong>Image canvas</strong><small>{sample.id} · {editable?'Quick Edit':'Read only'}</small></div>
+          <div className="qb-tools"><button type="button" onClick={()=>setZoom(z=>Math.max(1,z-.2))} aria-label="Zoom out"><ZoomOut size={15}/></button>
+            <span className="qb-zoom-label">{Math.round(zoom*100)}%</span>
+            <button type="button" onClick={()=>setZoom(z=>Math.min(2,z+.2))} aria-label="Zoom in"><ZoomIn size={15}/></button>
+            <button type="button" onClick={()=>setZoom(1)}>Fit</button></div>
+        </div>
+        <div className="qb-canvas-viewport">
+          <div className="qb-stage" style={{transform:'scale('+zoom+')'}}>
+            <SampleMedia sample={sample} large/>
+            <svg ref={canvas} viewBox="0 0 1000 562" preserveAspectRatio="none" className="qb-svg"
+              onPointerDown={e=>onStart(e)} onPointerMove={onMove} onPointerUp={onEnd} onPointerCancel={onEnd}>
+              {boxes.map(box=><g key={box.id}>
+                <rect x={box.x} y={box.y} width={box.w} height={box.h}
+                  fill={selected===box.id?'#268dff1d':'transparent'} stroke={selected===box.id?'#fff':'#52a7ff'} strokeWidth="2.5"
+                  onPointerDown={e=>{e.stopPropagation();onStart(e,box.id);}}/>
+                <rect x={box.x} y={Math.max(0,box.y-23)} width={Math.max(54,box.label.length*13)} height="21" fill="#1769a9" pointerEvents="none"/>
+                <text x={box.x+6} y={Math.max(16,box.y-7)} fontSize="15" fill="white" pointerEvents="none">{box.label}</text>
+                {selected===box.id&&editable&&tool==='select'&&<rect x={box.x+box.w-7} y={box.y+box.h-7} width="14" height="14" fill="white" stroke="#268dff" strokeWidth="2"
+                  onPointerDown={e=>{e.stopPropagation();onStart(e,box.id,'corner');}}/>}
+              </g>)}
+            </svg>
+          </div>
+        </div>
+        <div className="qb-footer"><span>{dirty?'Unsaved draft changes · ':''}{tool==='draw'?'Drag to draw a box':'Select a box to move / resize'} · No imported model predictions</span>
+          <button type="button" disabled={!editable||!dirty} onClick={()=>{onSave(boxes.map(b=>({...b})));setDirty(false)}}><Save size={15}/> Save Draft</button></div>
       </div>
-      <div className="qb-tools"><select value={selected?(boxes.find(b=>b.id===selected)?.label||label):label} disabled={!editable} aria-label="Selected box class" onChange={e=>relabel(e.target.value)}>{DEFAULT_CLASSES.map(c=><option key={c} value={c}>{c}</option>)}</select>
-        <button type="button" onClick={()=>setZoom(z=>Math.min(2,z+.2))} aria-label="Zoom in"><ZoomIn size={15}/></button>
-        <button type="button" onClick={()=>setZoom(z=>Math.max(1,z-.2))} aria-label="Zoom out"><ZoomOut size={15}/></button>
-        <button type="button" onClick={()=>setZoom(1)}>Fit</button>
-      </div>
+      <aside className="qb-objects" aria-label="Draft annotation objects">
+        <header><div><strong>Objects</strong><small>Human draft layer</small></div><span>{boxes.length}</span></header>
+        <div className="qb-object-scroll">
+          {boxes.length?boxes.map((box,i)=><button type="button" key={box.id} className={'qb-object'+(selected===box.id?' is-selected':'')}
+            onClick={()=>{setSelected(box.id);setTool('select');onToolChange(false)}}>
+            <span className="qb-object-icon"><Square size={14}/></span><span><strong>{box.label}</strong><small>Box {i+1} · {Math.round(box.w)} × {Math.round(box.h)}</small></span></button>):
+            <p className="qb-empty-objects">No draft boxes yet. Choose <strong>Box</strong> in the toolbar and drag over the image.</p>}
+        </div>
+        {selected&&<div className="qb-object-properties"><strong>Selected object</strong><label>Class<select value={boxes.find(b=>b.id===selected)?.label||label} disabled={!editable} aria-label="Selected object class" onChange={e=>relabel(e.target.value)}>{DEFAULT_CLASSES.map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+          <span>Selection handles let you move and resize geometry.</span></div>}
+        <footer>Drafts are separate from model predictions and become valid annotations only after a review workflow.</footer>
+      </aside>
     </div>
-    <div className="qb-canvas-viewport">
-      <div className="qb-stage" style={{transform:'scale('+zoom+')'}}>
-        <SampleMedia sample={sample} large/>
-        <svg ref={canvas} viewBox="0 0 1000 562" preserveAspectRatio="none" className="qb-svg"
-          onPointerDown={e=>onStart(e)} onPointerMove={onMove} onPointerUp={onEnd} onPointerCancel={onEnd}>
-          {boxes.map(box=><g key={box.id}>
-            <rect x={box.x} y={box.y} width={box.w} height={box.h}
-              fill={selected===box.id?'#268dff1d':'transparent'} stroke={selected===box.id?'#fff':'#52a7ff'} strokeWidth="2.5"
-              onPointerDown={e=>{e.stopPropagation();onStart(e,box.id);}}/>
-            <rect x={box.x} y={Math.max(0,box.y-23)} width={Math.max(54,box.label.length*13)} height="21" fill="#1769a9" pointerEvents="none"/>
-            <text x={box.x+6} y={Math.max(16,box.y-7)} fontSize="15" fill="white" pointerEvents="none">{box.label}</text>
-            {selected===box.id&&editable&&tool==='select'&&<rect x={box.x+box.w-7} y={box.y+box.h-7} width="14" height="14" fill="white" stroke="#268dff" strokeWidth="2"
-              onPointerDown={e=>{e.stopPropagation();onStart(e,box.id,'corner');}}/>}
-          </g>)}
-        </svg>
-      </div>
-    </div>
-    <div className="qb-footer"><span>{boxes.length} draft boxes · {editable?(tool==='draw'?'Drag to draw a box':'Select a box to move or resize'):'Read-only'} · No model predictions imported</span>
-      <button type="button" disabled={!editable||!dirty} onClick={()=>{onSave(boxes.map(b=>({...b})));setDirty(false)}}><Save size={15}/> Save Draft</button></div>
   </div>;
 }
