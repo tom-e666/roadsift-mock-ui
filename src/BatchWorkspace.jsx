@@ -5,6 +5,7 @@ import {frames,count,date} from './data.js';
 import {SampleMedia} from './SampleMedia.jsx';
 import {QuickBoxEditor} from './QuickBoxEditor.jsx';
 import {CuratedRelease} from './CuratedRelease.jsx';
+import {AnnotationReturnImport} from './ResultImports.jsx';
 import './batch-workspace.css';
 
 const REVIEW=['Pending','Approved','Rejected','Deferred'];
@@ -18,18 +19,18 @@ function Metric({label,value,detail}){return <div className="bw-metric"><small>{
 function Rule({ok,heading,detail}){return <div className={'bw-rule '+(ok?'is-good':'is-blocked')}><span>{ok?<CheckCircle2 size={18}/>:<CircleAlert size={18}/>}</span><div><strong>{heading}</strong><p>{detail}</p></div></div>}
 function Score({label,value}){return <div className="bw-score"><span>{label}</span><strong>{Number(value||0).toFixed(2)}</strong><div><i style={{width:Math.max(0,Math.min(100,Number(value||0)*100))+'%'}}/></div></div>}
 
-export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate,notify,routePath}){
+export function BatchWorkspace({selectionBatches=[],setSelectionBatches,annotationImports=[],setAnnotationImports=()=>{},navigate,notify,routePath}){
   const raw=routePath.split('?')[0].split('/')[2]||'';
   const id=decodeURIComponent(raw);
   const batch=selectionBatches.find(b=>b.id===id);
   const viewFromUrl=new URLSearchParams(routePath.split('?')[1]||'').get('view');
-  const [view,setView]=useState(['grid','review','handoff'].includes(viewFromUrl)?viewFromUrl:'grid');
+  const [view,setView]=useState(['grid','review','handoff','return'].includes(viewFromUrl)?viewFromUrl:'grid');
   const [query,setQuery]=useState(''),[domain,setDomain]=useState('All'),[statusFilter,setStatusFilter]=useState('All'),[sort,setSort]=useState('uncertainty');
   const [page,setPage]=useState(1),[pageSize,setPageSize]=useState(20);
   const [selectedIds,setSelectedIds]=useState([]);
   const [activeId,setActiveId]=useState(null),[previewId,setPreviewId]=useState(null),[reason,setReason]=useState('');
   const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false),[editorDirty,setEditorDirty]=useState(false);
-  useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
+  useEffect(()=>{if(viewFromUrl&&['grid','review','handoff','return'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
   useEffect(()=>{setSelectedIds([]);setActiveId(null);setEditMode(false)},[id]);
   useEffect(()=>{setEditMode(false);setEditorDirty(false)},[activeId,view]);
   const openTab=next=>{
@@ -136,7 +137,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
       </div>
     </section>
     <div className="bw-tabs" role="tablist" aria-label="Selection batch workspace">
-      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Curated Batch',PackageCheck]].map(([key,label,Icon])=>
+      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Curated Batch',PackageCheck],['return','Annotation Return',Download]].map(([key,label,Icon])=>
         <button key={key} type="button" role="tab" aria-selected={view===key} className={view===key?'active':''} onClick={()=>openTab(key)}><Icon size={15}/>{label}</button>)}
     </div>
     {view!=='handoff'&&<div className="bw-data-note"><CircleAlert size={14}/><span><strong>Preview gallery</strong> · {frames.length} illustrative frames, not verified members of this batch. Local review edits do not change official progress.</span></div>}
@@ -242,6 +243,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
       </aside>
     </div>}
     {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} notify={notify} initialPreview={new URLSearchParams(routePath.split('?')[1]||'').get('preview')==='version'}/>}
+    {view==='return'&&<AnnotationReturnImport key={id} batch={batch} annotationImports={annotationImports} setAnnotationImports={setAnnotationImports} navigate={navigate} notify={notify}/>}
 
   </div>;
 }
