@@ -312,22 +312,45 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
         </div>)}
       </nav>
       <div className="bw-handoff">
-        <section className="bw-handoff-checks">
-          <div className="bw-section-head"><h2>1. Readiness checks</h2><span className="bw-blocked-count">{freezeChecks.filter(x=>!x.ok).length} blockers</span></div>
-          <p className="bw-intro">Freeze conditions are evaluated against authoritative sample membership and review decisions. Artifact integrity is checked after the version is created, not before it exists.</p>
-          {freezeChecks.map(check=><Rule key={check.heading} {...check}/>)}
-          <div className="bw-handoff-eligible"><span>Candidate membership for curation</span><strong>Not verified</strong>
-            <small>Recorded approved {count(batch.review?.approved||0)} · Deferred {count(batch.review?.deferred||0)} · Pending {count(pending)}. Selection EXACT-N does not guarantee an EXACT-N handoff.</small></div>
-          <div className="bw-handoff-lineage"><h3>Source lineage</h3><dl>
-            <div><dt>Selection batch</dt><dd>{batch.id}</dd></div>
-            <div><dt>Mining run</dt><dd>{batch.runId}</dd></div>
-            <div><dt>Pool snapshot</dt><dd>{batch.sourceSnapshot||'Not recorded'}</dd></div>
-            <div><dt>Recorded membership hash</dt><dd>{batch.membershipHash||'Not recorded'}</dd></div>
-          </dl></div>
-          <div className="bw-export-checks"><div className="bw-section-head"><h2>4. Export checks</h2><span className="bw-blocked-count">{exportChecks.filter(x=>!x.ok).length} blockers</span></div>
-            <p className="bw-intro">These requirements belong to delivery. A frozen version and its verified artifacts are needed before export.</p>
-            {exportChecks.map(check=><Rule key={check.heading} {...check}/>)}
+        <section className="bw-handoff-checks bw-handoff-summary">
+          <div className="bw-section-head"><h2>Finalize readiness</h2><span className="bw-pending-label">2 verifications needed</span></div>
+          <p className="bw-intro">RoadSift will freeze the approved, eligible subset. These are the only readiness items a reviewer needs to track here.</p>
+          <div className="bw-eligible-summary">
+            <div><small>Selected</small><strong>{count(batch.count)}</strong></div>
+            <div><small>Approved</small><strong>{count(batch.review?.approved||0)}</strong></div>
+            <div><small>Deferred</small><strong>{count(batch.review?.deferred||0)}</strong></div>
+            <div><small>Pending</small><strong>{count(pending)}</strong></div>
           </div>
+          <div className="bw-readiness-simple">
+            <div className="bw-ready-row">
+              <CheckCircle2 size={19} className="bw-ready-icon is-recorded"/>
+              <div><strong>Review summary</strong><p>{count(batch.review?.reviewed||0)} / {count(batch.count)} recorded as reviewed. The final approved subset still needs authoritative confirmation.</p></div>
+              <span className="bw-ready-state is-recorded">Recorded</span>
+            </div>
+            <div className="bw-ready-row">
+              <CircleAlert size={19} className="bw-ready-icon"/>
+              <div><strong>Eligible sample membership</strong><p>Verify the exact approved sample IDs against the saved pool snapshot.</p></div>
+              <span className="bw-ready-state">Needs verification</span>
+            </div>
+            <div className="bw-ready-row">
+              <CircleAlert size={19} className="bw-ready-icon"/>
+              <div><strong>Privacy clearance</strong><p>Confirm eligible samples satisfy the export privacy policy.</p></div>
+              <span className="bw-ready-state">Needs verification</span>
+            </div>
+          </div>
+          <div className="bw-finalize-explainer"><LockKeyhole size={18}/><div><strong>Finalize becomes available after validation.</strong><p>RoadSift must also reconcile any EXACT-N shortfall under the configured policy. No production preflight is connected in this demo.</p></div></div>
+          <details className="bw-readiness-details"><summary>Technical validation details <span>{freezeChecks.length+exportChecks.length} rules <ChevronDown size={15}/></span></summary>
+            <div className="bw-details-group"><h3>Before Freeze</h3>{freezeChecks.map(check=><Rule key={check.heading} {...check}/>)}</div>
+            <div className="bw-details-group"><h3>Before Export</h3>{exportChecks.map(check=><Rule key={check.heading} {...check}/>)}</div>
+          </details>
+          <details className="bw-readiness-details"><summary>Source lineage <ChevronDown size={15}/></summary>
+            <div className="bw-handoff-lineage"><dl>
+              <div><dt>Selection batch</dt><dd>{batch.id}</dd></div>
+              <div><dt>Mining run</dt><dd>{batch.runId}</dd></div>
+              <div><dt>Pool snapshot</dt><dd>{batch.sourceSnapshot||'Not recorded'}</dd></div>
+              <div><dt>Recorded membership hash</dt><dd>{batch.membershipHash||'Not recorded'}</dd></div>
+            </dl></div>
+          </details>
         </section>
         <aside className="bw-handoff-settings">
           <h2>2. Handoff configuration</h2>
