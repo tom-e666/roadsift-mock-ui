@@ -762,100 +762,92 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
       await navigator.clipboard.writeText(json);notify('Job specification copied');
     }catch{notify('Clipboard permission unavailable. Use Download JSON instead.');}
   };
-  return <div className="page mining-page mining-page--production">
-    <PageHeader eyebrow="Pipelines / Launchpad" title="Launch Selection Run" description="Configure one execution of the published Selection definition. Input and parameters are captured per run." actions={<Button icon={HistoryIcon} onClick={()=>navigate('history')}>Runs</Button>}/>
-    <div className="pipeline-launch-context"><div><GitBranch size={17}/><div><strong>{launchDefinition ? launchDefinition.name + " · v" + launchDefinition.version : "Selection pipeline · bundled execution contract"}</strong><span>Definition is versioned and read-only. This form configures the current selection run; execution is simulated locally.</span></div></div><Button onClick={()=>navigate("pipelines")}>View definitions</Button></div>
-    <div className="mining-builder">
-      <section className="mining-builder__main">
-        <details className="panel mining-accordion" open>
-          <summary className="mining-accordion__summary"><strong>1. Data source</strong><small>{pool?.name||'Choose Pool'} · {parent?parent.name+' v'+parent.version:'No parent dataset'}</small></summary>
-          <div className="panel__body mining-field-stack">
-            <Field label="Candidate Pool Snapshot *" help="Choose an immutable set of unlabeled samples."><select value={poolId} onChange={event=>setPoolId(event.target.value)}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></Field>
-            <Field label="Parent Dataset Version · Optional" help="Track which labeled Dataset this selection round extends. Not needed for independent mining."><select value={parentId} onChange={event=>setParentId(event.target.value)}><option value="">None · independent selection</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></Field>
-            <div className="mining-source-meta"><StatRow label="Pool snapshot" value={pool?.snapshot||'Missing'}/><StatRow label="Available samples" value={count(pool?.eligible||0)}/></div>
-          </div>
-        </details>
-        <details className="panel mining-accordion" open={needsPredictions}>
-          <summary className="mining-accordion__summary"><strong>2. Prediction model</strong><small>{needsPredictions?(model?.name||'Choose registered model'):'Not required by this algorithm'}</small></summary>
-          <div className="panel__body mining-field-stack">
-            <p className="mining-muted-explainer">Uncertainty-based algorithms need registered model predictions. Random and diversity-only selection do not.</p>
-            <Field label="Registered model" help="Model registration is managed in System; the model artifact is selected here."><select value={modelId} onChange={e=>setModelId(e.target.value)} disabled={!needsPredictions}><option value="">{needsPredictions?'Choose model':'No model required'}</option>{candidateModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version} · {date(m.createdAt)}</option>)}</select></Field>
-            {needsPredictions&&<div className="mining-model-ref"><StatRow label="Registered" value={date(model?.createdAt)}/><StatRow label="Model version" value={model?.version||'—'}/><StatRow label="Trained with" value={model?.datasetVersionId||'Unknown'}/><StatRow label="Artifact" value={model?.artifactUri||'Missing'}/></div>}
-            <p className="mining-muted-explainer">Need a different model? Register it in System → Registered models.</p>
-          </div>
-        </details>
-        <details className="panel mining-accordion" open>
-          <summary className="mining-accordion__summary"><strong>3. Selection pipeline</strong><small>{algorithm?.name||'Choose algorithm'} · EXACT-{validBudget?count(n):'invalid'}</small></summary>
-          <div className="panel__body mining-field-stack">
-            <div className="register-grid">
-              <Field label="Selection strategy *"><select value={algorithmId} onChange={e=>setAlgorithmId(e.target.value)}>{algorithmRegistry.filter(a=>a.enabled!==false).map(a=><option key={a.id} value={a.id}>{a.name} · v{a.version}</option>)}</select></Field>
-              <Field label="Selection budget · EXACT-N *"><input type="number" step="1" min="1" value={budget} onChange={e=>setBudget(e.target.value)}/></Field>
+  return <div className="page lp-page">
+    <div className="lp-header"><div><div className="lp-eyebrow">PIPELINES / LAUNCHPAD</div><h1>Launch Pipeline Run</h1><p>Set inputs and run-level overrides without changing the published definition.</p></div><Button icon={HistoryIcon} onClick={()=>navigate('history')}>View Runs</Button></div>
+    <section className="lp-definition"><div className="lp-def-icon"><GitBranch size={19}/></div><div className="lp-def-main">
+      <label htmlFor="lp-definition">Pipeline Definition</label>
+      <select id="lp-definition" value={launchDefinition?.id||''} onChange={e=>{setDefinitionId(e.target.value);setConfigMode('form');}}>
+        {availableDefinitions.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}
+      </select>
+      <span>Published v{launchDefinition?.version||'—'} · {launchDefinition?.stages?.filter(x=>x.enabled).length||0} stages · Run settings do not mutate the definition</span>
+    </div><Button onClick={()=>navigate('pipelines/'+(launchDefinition?.id||'al-selection-v1'))}>View definition</Button></section>
+    <div className="lp-builder">
+      <div className="lp-main">
+        {!canExecuteDefinition&&<div className="lp-warning"><CircleAlert size={18}/><div><strong>Execution adapter unavailable</strong><p>You can inspect this definition's inputs and parameters, but this preview only simulates runs for Active Learning Selection v1. No unsupported workflow will be launched.</p></div></div>}
+        <div className="lp-mode-row"><h2>Run Configuration</h2><div role="tablist" aria-label="Configuration mode" className="lp-mode">
+          <button role="tab" aria-selected={configMode==='form'} className={configMode==='form'?'active':''} onClick={()=>setConfigMode('form')}>Form</button>
+          <button role="tab" aria-selected={configMode==='json'} className={configMode==='json'?'active':''} onClick={openJSON}>JSON</button>
+        </div></div>
+        {configMode==='json'?<section className="lp-panel"><header><FileText size={17}/><h3>Advanced Run Configuration</h3></header>
+          <p className="lp-help">Edit inputs and permitted overrides. Configuration is validated before applying. Editing JSON does not modify the pipeline definition.</p>
+          <textarea className="lp-json-editor" spellCheck={false} aria-label="JSON Run Configuration" value={jsonDraft} onChange={e=>setJsonDraft(e.target.value)} />
+          {jsonIssue&&<p className="lp-json-error"><X size={15}/>{jsonIssue}</p>}
+          <div className="lp-json-buttons"><Button onClick={()=>{setJsonDraft(effectiveJSON);setJsonIssue('')}}>Reset</Button><Button variant="primary" onClick={applyJSON}>Apply configuration</Button></div>
+        </section>:<>
+          <section className="lp-panel"><header><Database size={18}/><h3>1. Inputs</h3><small>Choose immutable source versions</small></header>
+            <div className="lp-panel-body">
+              <div className="lp-input-group"><label htmlFor="lp-pool">Candidate Pool Snapshot *</label><select id="lp-pool" value={poolId} onChange={e=>setPoolId(e.target.value)}>{pools.map(p=><option key={p.id} value={p.id}>{p.name} · p{p.version} · {count(p.eligible)} eligible</option>)}</select></div>
+              <div className="lp-input-group"><label htmlFor="lp-parent">Parent Dataset Version · Optional</label><select id="lp-parent" value={parentId} onChange={e=>setParentId(e.target.value)}><option value="">None · independent selection</option>{datasets.map(d=><option key={d.id} value={d.id}>{d.name} · v{d.version}</option>)}</select></div>
+              <div className="lp-inline-meta"><span>Snapshot: <strong>{pool?.snapshot||'Missing'}</strong></span><span>Eligible: <strong>{count(pool?.eligible||0)}</strong></span></div>
             </div>
-            <p className="mining-muted-explainer">{algorithm?.description}</p>
-            <div className="mining-stage-list">
-              <div className="mining-stage-row"><div className="mining-stage-name"><span>01</span><strong>Eligibility filter</strong><small>Exclude labeled, reserved and ineligible samples</small></div><span className="mining-stage-status">Always on</span></div>
-              <div className="mining-stage-row"><div className="mining-stage-name"><span>02</span><strong>Deduplication</strong><small>Reduce duplicate candidate frames</small></div><select aria-label="Deduplication algorithm" value={dedupId} onChange={e=>setDedupId(e.target.value)}>{miningPlugins.dedup.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
-              <div className="mining-stage-row"><div className="mining-stage-name"><span>03</span><strong>Prediction</strong><small>{needsPredictions?'Inference using registered detector':'Skipped · no model required'}</small></div><span className="mining-stage-status">{needsPredictions?'Enabled':'Skipped'}</span></div>
-              <div className="mining-stage-row"><div className="mining-stage-name"><span>04</span><strong>Embedding</strong><small>{needsEmbeddings?'Visual features for similarity and diversity':'Skipped for this configuration'}</small></div>{needsEmbeddings?<select aria-label="Embedding model" value={embeddingId} onChange={e=>setEmbeddingId(e.target.value)}>{miningPlugins.embedding.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>:<span className="mining-stage-status">Skipped</span>}</div>
-              {needsUncertainty&&<div className="mining-stage-row"><div className="mining-stage-name"><span>05</span><strong>Uncertainty scoring</strong><small>Convert model predictions to acquisition scores</small></div><select aria-label="Uncertainty method" value={uncertaintyId} onChange={e=>setUncertaintyId(e.target.value)}>{miningPlugins.uncertainty.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
-              {needsDiversity&&<div className="mining-stage-row"><div className="mining-stage-name"><span>06</span><strong>Diversity selection</strong><small>Promote domain coverage in selected frames</small></div><select aria-label="Diversity method" value={diversityId} onChange={e=>setDiversityId(e.target.value)}>{miningPlugins.diversity.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
-              <div className="mining-stage-row"><div className="mining-stage-name"><span>07</span><strong>Final selection</strong><small>Return exactly N eligible samples</small></div><span className="mining-stage-status">{algorithm?.name||'—'}</span></div>
-              <details className="mining-stage-row mining-stage-row--expandable" open>
-                <summary><div className="mining-stage-name"><span>08</span><strong>Privacy Anonymization</strong><small>Detect and mask sensitive regions before curated export · fail closed</small></div><span className="mining-stage-status">{privacyModel?privacyModel.name+' · v'+privacyModel.version:'Select model'}</span></summary>
-                <div className="mining-stage-expanded">
-                  <div className="mining-privacy-fields"><Field label="Privacy detector model *"><select value={privacyModelId} onChange={e=>setPrivacyModelId(e.target.value)}><option value="">Choose a registered privacy detector</option>{privacyModels.map(m=><option key={m.id} value={m.id}>{m.name} · v{m.version}{m.fixture?' · Demo fixture':''}</option>)}</select></Field><Field label="Sensitive regions"><select value={privacyScope} onChange={e=>setPrivacyScope(e.target.value)}><option value="faces-plates">Faces + license plates (recommended)</option><option value="faces-plates-persons">Faces + plates + entire persons</option></select></Field><Field label="Masking method"><select value={privacyMethod} onChange={e=>setPrivacyMethod(e.target.value)}><option value="gaussian-blur">Gaussian blur</option><option value="pixelation">Pixelation</option><option value="solid-mask">Solid mask</option></select></Field></div>
-                  {privacyModel&&<div className="mining-source-meta"><StatRow label="Model artifact" value={privacyModel.artifactUri}/><StatRow label="Registry status" value={privacyModel.fixture?'Demo fixture · not a real model':'Registered'}/></div>}
-                  <p className="mining-muted-explainer">Verification is mandatory and fail-closed. Raw frames stay access-controlled; unverified exports are blocked. Full-person masking may harm pedestrian training.</p>
-                </div>
-              </details>
+          </section>
+          <section className="lp-panel"><header><SlidersHorizontal size={18}/><h3>2. Stage Parameters</h3><small>Defaults and run overrides</small></header>
+            <div className="lp-panel-body">
+              {canExecuteDefinition?<><div className="lp-input-row">
+                <div className="lp-input-group"><label htmlFor="lp-strategy">Selection Strategy *</label><select id="lp-strategy" value={algorithmId} onChange={e=>{setAlgorithmId(e.target.value);setOverrides({})}}>{algorithmRegistry.filter(a=>a.enabled!==false).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+                <div className="lp-input-group"><label htmlFor="lp-budget">Target Samples · EXACT-N *</label><input id="lp-budget" type="number" min="1" step="1" value={budget} onChange={e=>setBudget(e.target.value)}/></div>
+              </div>
+              <p className="lp-help">{algorithm?.description||'Registered selection algorithm'}</p>
+              {needsPredictions&&<div className="lp-input-group"><label htmlFor="lp-model">Prediction Model *</label><select id="lp-model" value={modelId} onChange={e=>setModelId(e.target.value)}><option value="">Choose registered model</option>{candidateModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></div>}
+              <details className="lp-advanced"><summary>Stage implementation overrides <span>Advanced <ChevronDown size={15}/></span></summary><div className="lp-advanced-grid">
+                <div className="lp-input-group"><label>Quality & Dedup</label><select value={dedupId} onChange={e=>setDedupId(e.target.value)}>{miningPlugins.dedup.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+                {needsEmbeddings&&<div className="lp-input-group"><label>Embedding</label><select value={embeddingId} onChange={e=>setEmbeddingId(e.target.value)}>{miningPlugins.embedding.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
+                {needsUncertainty&&<div className="lp-input-group"><label>Uncertainty</label><select value={uncertaintyId} onChange={e=>setUncertaintyId(e.target.value)}>{miningPlugins.uncertainty.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
+                {needsDiversity&&<div className="lp-input-group"><label>Diversity</label><select value={diversityId} onChange={e=>setDiversityId(e.target.value)}>{miningPlugins.diversity.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
+              </div></details>
+              {algorithmId==='hybrid'&&<details className="lp-advanced"><summary>Scoring weights <span>{Object.keys(overrides).length?'Overridden':'Default'} <ChevronDown size={15}/></span></summary>
+                <div className="lp-weights">{Object.entries(weights).map(([key,value])=><div key={key} className="lp-input-group"><label>{key}</label><input type="number" step="0.01" value={String(value)} onChange={e=>setOverrides(v=>({...v,[key]:Number(e.target.value)}))}/></div>)}</div>
+                <p className="lp-help">Overrides apply to this run only. Reference weights come from the registered strategy.</p>
+              </details>}
+              <details className="lp-advanced"><summary>Privacy & Export Gate <span>Required <ChevronDown size={15}/></span></summary><div className="lp-advanced-grid">
+                <div className="lp-input-group"><label>Privacy Detector *</label><select value={privacyModelId} onChange={e=>setPrivacyModelId(e.target.value)}><option value="">Choose detector</option>{privacyModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></div>
+                <div className="lp-input-group"><label>Masking Method</label><select value={privacyMethod} onChange={e=>setPrivacyMethod(e.target.value)}><option value="gaussian-blur">Gaussian Blur</option><option value="pixelation">Pixelation</option><option value="solid-mask">Solid Mask</option></select></div>
+                <div className="lp-input-group"><label>Sensitive Regions</label><select value={privacyScope} onChange={e=>setPrivacyScope(e.target.value)}><option value="faces-plates">Faces + Plates</option><option value="faces-plates-persons">Faces + Plates + Persons</option></select></div>
+              </div><p className="lp-help">Verification remains mandatory and fail-closed; raw frames are preserved.</p></details>
+              </>:<div className="lp-definition-stages">
+                {(launchDefinition?.stages||[]).filter(s=>s.enabled).map(stage=><div key={stage.id}><div><strong>{stage.label}</strong><small>{stage.implementation}</small></div>
+                {Object.entries({...stage.params,...(stageParams[stage.id]||{})}).map(([key,val])=><div key={key} className="lp-input-group"><label>{key.replaceAll('_',' ')}</label>
+                  {typeof val==='boolean'?<input type="checkbox" checked={val} onChange={e=>setStageParams(p=>({...p,[stage.id]:{...p[stage.id],[key]:e.target.checked}}))}/>:
+                    <input type={typeof val==='number'?'number':'text'} value={String(val)} onChange={e=>setStageParams(p=>({...p,[stage.id]:{...p[stage.id],[key]:typeof val==='number'?Number(e.target.value):e.target.value}}))}/>}
+                </div>)}</div>)}
+                <p className="lp-help">Only parameter defaults in this definition are shown. This pipeline does not have an executable worker in the preview.</p>
+              </div>}
             </div>
-            {algorithmId==='hybrid'&&<details className="advanced-config"><summary>Scoring weights · Advanced</summary><div className="strategy-params">{Object.entries(algorithm?.weights||{}).map(([key,value])=><div key={key}><span>{key}</span><strong>{Number(value).toFixed(2)}</strong></div>)}</div><p className="mining-muted-explainer">Weights are pinned to algorithm version {algorithm?.version}. To change them, register a new configuration version.</p></details>}
-            <p className="mining-muted-explainer">Pipeline components are selectable from registered mock implementations; these controls define the job specification, not on-the-fly plugin installation.</p>
-          </div>
-        </details>
-        <details className="panel mining-accordion" open>
-          <summary className="mining-accordion__summary"><strong>4. Execution</strong><small>{runnerId==='auto'?'Automatic runner selection':'Manual runner selection'} · {resolvedRunner?.name||'No available runner'}</small></summary>
-          <div className="panel__body mining-field-stack">
-            <Field label="Where should this job run?"><select value={runnerId} onChange={e=>setRunnerId(e.target.value)}><option value="auto">Automatic · recommended</option>{runnerRegistry.map(r=><option key={r.id} value={r.id}>{r.name} · {r.fixture?'Demo resource':r.status}</option>)}</select></Field>
-            <div className="mining-source-meta"><StatRow label="Selected runner" value={resolvedRunner?.name||'Unavailable'}/><StatRow label="Supports this pipeline" value={resolvedRunner&&supported(resolvedRunner)?'Yes':'No'}/><StatRow label="Current active jobs" value={resolvedRunner?String(activeCount(resolvedRunner)):'—'}/><StatRow label="Available worker slots" value={resolvedRunner?String(freeSlots(resolvedRunner)):'0'}/></div>
-            <p className="mining-muted-explainer">Runners are registered and managed under System. The API would queue this job and a worker would execute it asynchronously.</p>
-            <p className="mining-demo-note">Execution backend not connected.</p>
-          </div>
-        </details>
-      </section>
-      <aside className="mining-builder__side">
-        <Panel title="Ready to run?" description="A short summary of your selection request.">
-          <div className="mining-review-summary">
-            <div><span>Candidate pool</span><strong>{pool?.name||'Not selected'}</strong></div>
-            <div><span>Parent dataset</span><strong>{parent?parent.name+' v'+parent.version:'None (optional)'}</strong></div>
-            <div><span>Strategy</span><strong>{algorithm?.name||'Not selected'}</strong></div>
-            <div><span>Target samples</span><strong>{validBudget?count(n):'Invalid budget'}</strong></div>
-            <div><span>Prediction model</span><strong>{needsPredictions?(model?.name||'Not selected'):'Not needed'}</strong></div>
-            <div><span>Privacy model</span><strong>{privacyModel?.name||'Not selected'}{privacyModel?.fixture?' · Demo':''}</strong></div>
-            <div><span>Execution</span><strong>{resolvedRunner?.name||'Unavailable'}</strong></div>
-          </div>
-          <div className="mining-check-summary"><strong>{ready?'Configuration ready':checks.filter(x=>!x.ok).length+' issue(s) to resolve'}</strong>
-            {checks.filter(x=>!x.ok).map(x=><div key={x.label}><X size={13}/><span>{x.label} <em>({x.where})</em></span></div>)}
-            {ready&&<p>No blocking issues found in the local fixture registry.</p>}
-          </div>
-          <div className="submit-note"><strong>What happens next?</strong><span>Submit starts a selection run. When processing succeeds, the system creates a Selection Batch for human review.</span></div>
-          <Button className="wide" variant="primary" icon={Play} disabled={!ready} onClick={submit}>Run selection</Button>
-          <p className="mining-simulation-disclaimer">Local job preview; no remote execution.</p>
-        </Panel>
-      </aside>
-    </div>
-    <details className="panel mining-code-panel" open><summary className="mining-accordion__summary"><strong>Job preview</strong><small>Python worker / JSON contract · read-only</small></summary>
-      <div className="panel__body">
-        <div className="mining-code-actions"><Button onClick={()=>setPreviewFormat('python')} variant={previewFormat==='python'?'primary':'secondary'}>Python Runner</Button><Button onClick={()=>setPreviewFormat('json')} variant={previewFormat==='json'?'primary':'secondary'}>JSON Job Spec</Button></div>
-        <p className="mining-muted-explainer">{previewFormat==='python'?'Versioned Python worker source used as the export. It validates EXACT-N and blocks unsafe export; a real selection/privacy adapter must be installed for execution.':'Structured job request for the RoadSift API, including the required privacy policy.'}</p>
-        <div className="mining-code-actions"><Button onClick={async()=>{try{await navigator.clipboard.writeText(previewFormat==='python'?pythonPreview:json);notify('Preview copied');}catch{notify('Clipboard unavailable');}}}>Copy {previewFormat==='python'?'Python':'JSON'}</Button>{previewFormat==='python'?<Button icon={Download} onClick={()=>{const blob=new Blob([pythonPreview],{type:'text/x-python'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='roadsift-mining-worker.py';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Download Python</Button>:<Button icon={Download} onClick={()=>downloadJSON('selection-job-spec.json',spec)}>Download JSON</Button>}</div>
-        <div className="mining-preview-file">{previewFormat==='python'?'worker/selection_runner.py':'selection-job-spec.json'} <span>{previewFormat==='python'?'Actual repository source · requires backend adapter':'Configuration generated from this form'}</span></div><pre className="mining-code-block"><code>{previewFormat==='python'?pythonPreview:json}</code></pre>
-        {previewFormat==='python'&&<p className="mining-muted-explainer">Kaggle: download both files, install the worker adapter and call <code>python selection_runner.py --spec selection-job-spec.json --adapter your_package.worker:WorkerAdapter</code>. Without that adapter execution fails explicitly; this mock does not run inference.</p>}
+          </section>
+          <section className="lp-panel"><header><Cpu size={18}/><h3>3. Execution</h3><small>Choose a compatible executor</small></header><div className="lp-panel-body">
+            <div className="lp-input-group"><label htmlFor="lp-runner">Executor</label><select id="lp-runner" value={runnerId} onChange={e=>setRunnerId(e.target.value)}><option value="auto">Automatic · recommended</option>{runnerRegistry.map(r=><option key={r.id} value={r.id}>{r.name} · {r.status}</option>)}</select></div>
+            <div className="lp-inline-meta"><span>Assigned runner: <strong>{resolvedRunner?.name||'Unavailable'}</strong></span><span>Free slots: <strong>{resolvedRunner?freeSlots(resolvedRunner):0}</strong></span></div>
+            <p className="lp-help">Executor compatibility checks use the local registry. No remote GPU job is submitted from this preview.</p>
+          </div></section>
+        </>}
       </div>
-    </details>
-    {submitted&&<div className="mining-result"><div className="mining-result__head"><span className="completion-card__icon"><Check size={20}/></span><div><small>Selection Run · {submitted.status}</small><h3>{submitted.id}</h3><p>{submitted.executor} · EXACT-{count(submitted.budget)}</p></div><Badge>{submitted.status}</Badge></div>
-      <div className="section-actions"><Button onClick={()=>navigate('history')}>Open Run details</Button>{submitted.status==='Complete'&&<Button variant="primary" onClick={()=>navigate('batches')}>Open Selection Batch</Button>}</div>
-    </div>}
+      <aside className="lp-summary"><div className="lp-summary-card"><header><h3>Run Summary</h3><small>Effective selection request</small></header>
+        <div className="lp-summary-fields"><div><span>Definition</span><strong>{launchDefinition?.name||'—'} · v{launchDefinition?.version||'—'}</strong></div>
+          <div><span>Input</span><strong>{pool?.name||'Not selected'}</strong></div>
+          <div><span>Strategy</span><strong>{canExecuteDefinition?algorithm?.name||'Not selected':'Definition-specific'}</strong></div>
+          <div><span>Target samples</span><strong>{validBudget?count(n):'Invalid'}</strong></div>
+          <div><span>Prediction model</span><strong>{needsPredictions?model?.name||'Missing':'Not needed'}</strong></div>
+          <div><span>Executor</span><strong>{resolvedRunner?.name||'Unavailable'}</strong></div>
+          <div><span>Run overrides</span><strong>{(budget!==String(miningConfig.defaultBudget)?1:0)+Object.keys(overrides).length+(algorithmId!==miningConfig.defaultStrategyId?1:0)} modified</strong></div>
+        </div>
+        <div className="lp-preflight"><strong>{canExecuteDefinition?(ready?'Local preflight passed':checks.filter(x=>!x.ok).length+' issues to resolve'):'No executor for this definition'}</strong>
+          {canExecuteDefinition&&checks.filter(x=>!x.ok).map(c=><div key={c.label}><CircleAlert size={13}/>{c.label}</div>)}
+          {ready&&<p>Validated against mock registry only. No backend preflight was performed.</p>}
+        </div>
+        <Button icon={Play} variant="primary" className="lp-launch-button" disabled={!ready} onClick={submit}>Launch Run <ArrowRight size={15}/></Button>
+        <p className="lp-note">Launch creates a simulated local run, then opens its Run Details page.</p>
+      </div></aside>
+    </div>
   </div>;
 }
 
