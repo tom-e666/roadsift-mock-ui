@@ -8,6 +8,7 @@ const server = await createServer({ server: { middlewareMode: true }, appType: '
 try {
   const views = await server.ssrLoadModule('/src/Pages.jsx');
   const pipelineViews = await server.ssrLoadModule('/src/PipelineDefinitions.jsx');
+  const curationViews = await server.ssrLoadModule('/src/BatchWorkspace.jsx');
   const fixtures = await server.ssrLoadModule('/src/data.js');
   const datasets = fixtures.initialDatasets;
   const pools = fixtures.initialPools;
@@ -44,6 +45,9 @@ try {
     ['Run Details - complete fixture', 'history', '/runs/' + encodeURIComponent(runs[0].id)],
     ['Run Details - failed fixture', 'history', '/runs/' + encodeURIComponent(runs.find(r=>r.status==='Failed')?.id || runs[0].id)],
     ['Selection Batches', 'batches', '/batches'],
+    ['Batch Grid', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=grid'],
+    ['Focus Review', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=review'],
+    ['Finalize & Handoff', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=handoff'],
     ['Runs', 'history', '/history'],
     ['Runs quick preview', 'history', '/history?selected=' + encodeURIComponent(runs[0].id)],
     ['Strategy Comparison', 'comparison', '/comparison'],
@@ -54,7 +58,7 @@ try {
   const components = {
     pools: views.Pools, datasets: views.Datasets, 'data-explorer': views.Explorer,
     import: views.ImportData, pipelines: pipelineViews.PipelineDefinitions, mining: views.Mining, batches: views.SelectionBatches,
-    history: views.History, comparison: views.StrategyComparison, settings: views.SettingsPage,
+    history: views.History, 'batch-workspace': curationViews.BatchWorkspace, comparison: views.StrategyComparison, settings: views.SettingsPage,
     system: views.SystemPage, onboarding: views.Onboarding,
   };
   const failures = [];
@@ -67,6 +71,11 @@ try {
       if (id === 'pipelines' && path !== '/pipelines' && !html.includes('pipeline-graph-viewport')) throw new Error('Missing graph canvas');
       if (id === 'pipelines' && path === '/pipelines' && !html.includes('pipeline-registry-table')) throw new Error('Missing pipeline registry');
       if (id === 'mining' && !html.includes('lp-builder')) throw new Error('Missing launchpad builder');
+      if (id === 'mining' && path === '/mining' && (html.includes('Stage implementation overrides') || !html.includes('Run Parameters'))) throw new Error('Launchpad must inherit stage implementations');
+      if (id === 'batches' && (!html.includes('Open Workspace') || html.includes('Finalize curated batch'))) throw new Error('Selection batch list still exposes unverified finalize action');
+      if (id === 'batch-workspace' && path.includes('view=grid') && (!html.includes('bw-grid') || !html.includes('Demo sample gallery'))) throw new Error('Missing batch grid or preview evidence notice');
+      if (id === 'batch-workspace' && path.includes('view=review') && (!html.includes('qb-editor') || !html.includes('Sample Inspector'))) throw new Error('Missing Focus Review and Quick Edit');
+      if (id === 'batch-workspace' && path.includes('view=handoff') && (!html.includes('Readiness Checks') || !html.includes('Finalize unavailable'))) throw new Error('Missing fail-closed handoff');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
       if (id === 'history' && path === '/history' && (!html.includes('run-list-link') || !html.includes('run-list-preview'))) throw new Error('Missing explicit run navigation or preview buttons');
       if (id === 'history' && path.includes('selected=') && !html.includes('Open Run Details')) throw new Error('Missing quick-preview navigation');
