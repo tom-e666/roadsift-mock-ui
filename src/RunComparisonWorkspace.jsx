@@ -53,10 +53,16 @@ function SampleTile({sampleId}){
   const sample=frames.find(f=>f.id===sampleId);
   return <div className="rc-sample-tile">{sample?<SampleMedia sample={sample}/>:<div className="rc-no-media"><Database size={16}/><span>No loaded image</span></div>}<span>{sampleId}</span></div>;
 }
-function Differences({items,navigate}){
+function Differences({items,navigate,initialDemo=false}){
   const [candidateId,setCandidateId]=useState(items[1]?.run.id||'');
+  const [demo,setDemo]=useState(initialDemo);
   const candidate=items.find(x=>x.run.id===candidateId)||items[1];
-  const a=members(items[0]?.batch),b=members(candidate?.batch);
+  const rawA=members(items[0]?.batch),rawB=members(candidate?.batch);
+  // This optional interactive gallery deliberately uses synthetic fixture subsets.
+  // It must never be used as evidence about the selected mining runs.
+  const exampleA=frames.filter((_,i)=>i%3!==0).slice(0,18).map(f=>f.id);
+  const exampleB=frames.filter((_,i)=>i%3!==1).slice(0,18).map(f=>f.id);
+  const a=demo?exampleA:rawA,b=demo?exampleB:rawB;
   const supported=Array.isArray(a)&&Array.isArray(b);
   const sa=new Set(a||[]),sb=new Set(b||[]);
   const common=(a||[]).filter(id=>sb.has(id)),onlyA=(a||[]).filter(id=>!sb.has(id)),onlyB=(b||[]).filter(id=>!sa.has(id));
@@ -69,10 +75,13 @@ function Differences({items,navigate}){
           {x.batch&&<button type="button" onClick={()=>navigate('/batches/'+encodeURIComponent(x.batch.id)+'?view=grid')}>Open batch <ArrowUpRight size={13}/></button>}</div>)}
       </div>
       <small>When source manifests are connected, this pane will show Common, Baseline-only and Candidate-only samples, with actual media previews.</small>
-    </div>:<div className="rc-overlap-groups">
+      <button className="rc-demo-button" type="button" onClick={()=>setDemo(true)}>Preview sample-comparison layout using illustrative frames <ArrowRight size={15}/></button>
+    </div>:<div className="rc-overlap-demo">
+      {demo&&<div className="rc-demo-warning"><Info size={16}/><span><strong>Illustrative UI demonstration only.</strong> These image groups were constructed from generic fixture frames, not selected-run membership. Counts and overlap here are not experimental results.</span><button type="button" onClick={()=>setDemo(false)}>Exit demo</button></div>}
+      <div className="rc-overlap-groups">
       {[[common,'Shared by both'],[onlyA,'Baseline only'],[onlyB,'Candidate only']].map(([ids,title])=><div key={title}><header><h4>{title}</h4><strong>{count(ids.length)}</strong></header><div className="rc-difference-list">{ids.slice(0,24).map(id=><SampleTile sampleId={id} key={id}/>)}</div>
         {ids.length>24&&<p>Showing 24 of {count(ids.length)} IDs</p>}{ids.length===0&&<p>No samples in this group.</p>}</div>)}
-    </div>}
+      </div></div>}
   </section>;
 }
 function Impact({items,onBenchmark}){
@@ -84,10 +93,11 @@ function Impact({items,onBenchmark}){
         <small>Model impact results will appear here only after the exact versions are linked and validation passes.</small></div></div>
   </section>;
 }
-export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[]}){
+export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],routePath=''}){
+  const sampleDemo=new URLSearchParams(routePath.split('?')[1]||'').get('demo')==='samples';
   const selectable=runs.filter(r=>r.type==='Mining'&&r.status==='Complete');
   const [selectedIds,setSelectedIds]=useState(()=>selectable.slice(0,2).map(r=>r.id));
-  const [tab,setTab]=useState('selection');
+  const [tab,setTab]=useState(sampleDemo?'samples':'selection');
   const [benchmark,setBenchmark]=useState(false);
   const [showAdd,setShowAdd]=useState(false),[search,setSearch]=useState('');
   const ids=selectedIds.filter(id=>selectable.some(r=>r.id===id));
@@ -127,7 +137,7 @@ export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[]}){
       {tabs.map(([id,label])=><button type="button" role="tab" aria-selected={tab===id} className={tab===id?'is-active':''} onClick={()=>setTab(id)} key={id}>{label}</button>)}
     </nav>
     {tab==='selection'&&<MetricTable items={chosen} comparable={scopeComparable}/>}
-    {tab==='samples'&&<Differences key={ids.join('|')} items={chosen} navigate={navigate}/>}
+    {tab==='samples'&&<Differences key={ids.join('|')} items={chosen} navigate={navigate} initialDemo={sampleDemo}/>}
     {tab==='impact'&&<Impact items={chosen} onBenchmark={()=>setBenchmark(true)}/>}
     <footer className="rc-footer"><Info size={15}/> These are fixture run summaries. Stable membership and linked evaluation are needed for reproducible comparisons.</footer>
   </div>;
