@@ -75,7 +75,8 @@ try {
       if (id === 'batches' && (!html.includes('br-list') || !html.includes('Needs review') || !html.includes('Handoff') || html.includes('Finalize curated batch'))) throw new Error('Missing Batch Registry or exposes unverified finalize action');
       if (id === 'batch-workspace' && path.includes('view=grid') && (!html.includes('bw-queue-layout') || !html.includes('bw-grid') || !html.includes('bw-queue-preview') || !html.includes('Preview gallery') || !html.includes('Select page'))) throw new Error('Missing Review Queue contact sheet, preview inspector or provenance');
       if (id === 'batch-workspace' && path.includes('view=review') && (!html.includes('qb-studio-layout') || !html.includes('qb-objects') || !html.includes('Sample Inspector') || !html.includes('Save Draft'))) throw new Error('Missing CVAT-lite editor, object panel or review inspector');
-      if (id === 'batch-workspace' && path.includes('view=handoff') && (!html.includes('Readiness checks') || !html.includes('Export checks') || !html.includes('bw-handoff-stepper') || !html.includes('Handoff purpose') || !html.includes('Export destination') || !html.includes('Requested version label') || !html.includes('Curated batch name') || !html.includes('Review decision records') || !html.includes('Manifest &amp; sample IDs') || !html.includes('Finalize Curated Batch') || !html.includes('Create export job'))) throw new Error('Missing handoff configuration, separate freeze/export checks or gated actions');
+      if (id === 'batch-workspace' && path.includes('view=handoff') && (!html.includes('Finalize readiness') || !html.includes('Eligible sample membership') || !html.includes('Privacy clearance') || !html.includes('Technical validation details') || !html.includes('Export checks') || !html.includes('bw-handoff-stepper') || !html.includes('Handoff purpose') || !html.includes('Export destination') || !html.includes('Requested version label') || !html.includes('Curated batch name') || !html.includes('Review decision records') || !html.includes('Manifest &amp; sample IDs') || !html.includes('Finalize Curated Batch') || !html.includes('Create export job'))) throw new Error('Missing simplified Handoff summary or gated output configuration');
+      if (id === 'comparison' && (!html.includes('sc-page') || !html.includes('Key metrics comparison') || !html.includes('Selection overlap') || !html.includes('Synthetic fixture') || !html.includes('Learning curve'))) throw new Error('Missing evidence-first comparison workspace');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
       if (id === 'history' && path === '/history' && (!html.includes('run-list-link') || !html.includes('run-list-preview'))) throw new Error('Missing explicit run navigation or preview buttons');
       if (id === 'history' && path.includes('selected=') && !html.includes('Open Run Details')) throw new Error('Missing quick-preview navigation');
@@ -86,6 +87,12 @@ try {
       console.error('FAIL', label, error.stack || error);
     }
   }
+  // Cross-domain fixtures must not claim comparable metrics when the pool snapshot differs.
+  try{
+    const html=renderToStaticMarkup(React.createElement(views.StrategyComparison,{...common}));
+    if(!html.includes('Matched comparison configuration')||!html.includes('Not recorded'))throw new Error('Comparison fixture lacks evidence labels');
+    console.log('PASS Comparison fixtures show protocol compatibility and explicit missing evidence');
+  }catch(error){failures.push('Comparison provenance');console.error('FAIL Comparison provenance',error.stack||error);}
   // A run with a persisted definition must render only its declared dependencies.
   // A recorded stage event may change that node status; no other node may inherit run-level success.
   try {
