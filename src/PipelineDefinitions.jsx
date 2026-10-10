@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, CircleDot, Copy, FileCode2, GitBranch, LockKeyhole, Maximize2, Minus, MousePointer2, Plus, Save, Search, Settings2, Workflow, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, CircleDot, Copy, GitBranch, LockKeyhole, Maximize2, Minus, MousePointer2, Plus, Save, Search, Settings2, Workflow, X } from 'lucide-react';
 import { Button } from './components/UI.jsx';
 import './pipelines.css';
 
@@ -124,6 +124,39 @@ const ioContracts = {
   privacy:['Selected samples','Anonymized samples + verification'],
   output:['Approved safe selection','Reviewable batch manifest']
 };
+const stageCategories = [
+  ['All','All'],['Source','Source'],['Preprocessing','Preprocessing'],
+  ['Mining','Mining'],['Selection','Selection'],['Privacy','Privacy'],['Output','Output']
+];
+const stageCategory = {
+  source:'Source',eligibility:'Preprocessing',dedup:'Preprocessing',domain:'Mining',
+  prediction:'Mining',embedding:'Mining',uncertainty:'Mining',diversity:'Mining',
+  selection:'Selection',privacy:'Privacy',output:'Output'
+};
+const stageConfig = stage => ({
+  label:stage.label,implementation:stage.implementation,enabled:stage.enabled,
+  dependsOn:[...stage.dependsOn],params:stage.params || {}
+});
+function checkStageConfigJSON(json, stage, stages) {
+  if(!stage) return {error:'Select a stage first.',config:null};
+  try {
+    const data=JSON.parse(json);
+    if(!data||typeof data!=='object'||Array.isArray(data))throw Error('Expected a JSON object.');
+    const keys=Object.keys(data);
+    if(keys.some(k=>!['label','implementation','enabled','dependsOn','params'].includes(k)))throw Error('Only label, implementation, enabled, dependsOn and params are editable.');
+    if(typeof data.label!=='string'||!data.label.trim())throw Error('label must be a non-empty string.');
+    if(!stageCatalog[stage.type]?.implementation.includes(data.implementation))throw Error('Choose a registered implementation for this stage.');
+    if(typeof data.enabled!=='boolean')throw Error('enabled must be a boolean.');
+    if(required.has(stage.type)&&!data.enabled)throw Error('Required stages cannot be disabled.');
+    if(!Array.isArray(data.dependsOn)||data.dependsOn.some(k=>typeof k!=='string'))throw Error('dependsOn must be an array of stage IDs.');
+    if(new Set(data.dependsOn).size!==data.dependsOn.length)throw Error('Duplicate dependencies are not allowed.');
+    if(data.dependsOn.includes(stage.id))throw Error('A stage cannot depend on itself.');
+    if(data.dependsOn.some(k=>!stages.some(n=>n.id===k&&n.enabled)))throw Error('Dependencies must reference enabled stages.');
+    if(stage.type==='source'&&data.dependsOn.length)throw Error('Source cannot have upstream dependencies.');
+    if(data.params===null||typeof data.params!=='object'||Array.isArray(data.params))throw Error('params must be a JSON object.');
+    return {error:null,config:data};
+  }catch(error){return {error:error.message,config:null};}
+}
 function nextDraft(definitions, from, newFamily = false) {
   const familyId = newFamily ? 'custom-' + Date.now().toString(36) : from.familyId;
   const version = newFamily ? 1 : Math.max(0,...definitions.filter(d => d.familyId === familyId).map(d => d.version)) + 1;
@@ -138,12 +171,15 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
   const active = definitions.find(d => d.id === routeId);
   const [draft,setDraft] = useState(() => copy(active || definitions[0] || initialPipelineDefinitions[0]));
   const [selectedStage,setSelectedStage] = useState(null);
-  const [pane,setPane] = useState('stage');
-  const [tab,setTab] = useState('graph');
+  const [inspectorMode,setInspectorMode] = useState('form');
+  const [stageJSON,setStageJSON] = useState('');
+  const [versionOpen,setVersionOpen] = useState(false);
+  const [validationOpen,setValidationOpen] = useState(false);
   const [query,setQuery] = useState('');
   const [pickerOpen,setPickerOpen] = useState(false);
-  const [addOpen,setAddOpen] = useState(false);
-  const [stageType,setStageType] = useState('domain');
+  const [catalogOpen,setCatalogOpen] = useState(false);
+  const [catalogQuery,setCatalogQuery] = useState('');
+  const [catalogFilter,setCatalogFilter] = useState('All');
   const [zoom,setZoom] = useState(1);
   const [pan,setPan] = useState({x:0,y:0});
   const canvasRef = React.useRef(null);
@@ -151,9 +187,18 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
   useEffect(()=>{
     if (active) setDraft(copy(active));
     setSelectedStage(null);
-    setPickerOpen(false);setAddOpen(false);setTab('graph');setPane('stage');
+    setPickerOpen(false);setCatalogOpen(false);setVersionOpen(false);setValidationOpen(false);setInspectorMode('form');
   },[routeId]);
   const selected = draft.stages.find(n=>n.id===selectedStage) || null;
+  useEffect(()=>{
+    if(selected) setStageJSON(JSON.stringify(stageConfig(selected),null,2));
+    setInspectorMode('form');
+  },[selectedStage]);
+  const jsonCheck = useMemo(()=>checkStageConfigJSON(stageJSON,selected,draft.stages),[stageJSON,selectedStage,draft.stages]);
+  const filteredStages = Object.entries(stageCatalog).filter(([type,item])=>
+    (catalogFilter==='All'||stageCategory[type]===catalogFilter) &&
+    (item.title+' '+item.description+' '+type).toLowerCase().includes(catalogQuery.toLowerCase())
+  );
   const problems = useMemo(()=>validate(draft),[draft]);
   const layoutKey = draft.stages.map(n=>[n.id,n.enabled,n.dependsOn.join(',')].join(':')).join('|');
   const layout = useMemo(()=>graphLayout(draft.stages),[layoutKey]);
@@ -172,7 +217,7 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     setPan({x:(w-layout.width*z)/2,y:(h-layout.height*z)/2});
   };
   useEffect(() => {
-    if(!inEditor || tab!=='graph') return;
+    if(!inEditor) return;
     const el=canvasRef.current;
     if(!el)return;
     const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(()=>fitView()):null;
@@ -180,9 +225,9 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     fitView();
     if(!observer){window.addEventListener('resize',fitView);return()=>window.removeEventListener('resize',fitView);}
     return()=>observer.disconnect();
-  },[routeId,layout.width,layout.height,selectedStage!==null,tab]);
+  },[routeId,layout.width,layout.height,selectedStage!==null,catalogOpen]);
   useEffect(()=>{
-    if(!inEditor||tab!=='graph')return;
+    if(!inEditor)return;
     const el=canvasRef.current;
     if(!el)return;
     const wheel=e=>{
@@ -197,9 +242,9 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     };
     el.addEventListener('wheel',wheel,{passive:false});
     return()=>el.removeEventListener('wheel',wheel);
-  },[routeId,tab,zoom]);
+  },[routeId,zoom]);
   useEffect(()=>{
-    const esc=e=>{if(e.key==='Escape'){setSelectedStage(null);setPickerOpen(false);setAddOpen(false);}};
+    const esc=e=>{if(e.key==='Escape'){setSelectedStage(null);setPickerOpen(false);setCatalogOpen(false);setVersionOpen(false);setValidationOpen(false);}};
     window.addEventListener('keydown',esc);
     return()=>window.removeEventListener('keydown',esc);
   },[]);
@@ -225,7 +270,7 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     if(drag?.id===e.pointerId){
       const distance=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
       dragRef.current=null;
-      if(distance<5){setSelectedStage(null);setAddOpen(false);}
+      if(distance<5){setSelectedStage(null);}
     }
     if(e.currentTarget.hasPointerCapture?.(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
   };
@@ -256,15 +301,33 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     setDraft(d=>({...d,stages:d.stages.filter(n=>n.id!==selected.id).map(n=>({...n,dependsOn:n.dependsOn.filter(x=>x!==selected.id)}))}));
     setSelectedStage(null);
   };
-  const addStage=()=>{
-    const existing=draft.stages.filter(n=>n.type===stageType);
-    const suffix=existing.length+1,id=stageType+(existing.length?'-'+suffix:'');
-    const firstUpstream=selected?.enabled?selected.id:'eligibility';
-    const newNode=asStage(stageType,[firstUpstream],existing.length? suffix:0);
+  const addStage=type=>{
+    if(!editable)return;
+    if(required.has(type) && draft.stages.some(n=>n.type===type)) {
+      notify('Required stage already exists in this definition');
+      return;
+    }
+    const suffix=1+Math.max(0,...draft.stages.filter(n=>n.type===type).map(n=>{
+      const m=n.id.match(/-(\d+)$/);return m?Number(m[1]):1;
+    }));
+    const id=draft.stages.some(n=>n.id===type)?type+'-'+suffix:type;
+    const upstream=selected?.enabled?selected.id:'eligibility';
+    const newNode=asStage(type,[upstream]);
     newNode.id=id;
-    if(existing.length)newNode.label=stageCatalog[stageType].title+' '+suffix;
+    if(id!==type)newNode.label=stageCatalog[type].title+' '+suffix;
     setDraft(d=>({...d,stages:[...d.stages,newNode]}));
-    setSelectedStage(id);setPane('stage');setAddOpen(false);
+    setSelectedStage(id);setInspectorMode('form');setCatalogOpen(false);
+  };
+  const applyStageJSON=()=>{
+    if(!editable||jsonCheck.error||!jsonCheck.config)return;
+    changeNode(jsonCheck.config);
+    setInspectorMode('form');
+    notify('Stage configuration applied to the draft');
+  };
+  const copyDefinition=()=>{
+    if(!navigator.clipboard?.writeText){notify('Clipboard unavailable');return;}
+    navigator.clipboard.writeText(JSON.stringify(draft,null,2))
+      .then(()=>notify('Definition JSON copied')).catch(()=>notify('Clipboard unavailable'));
   };
   const filtered=definitions.filter(d=>(d.name+' '+d.id+' '+d.description).toLowerCase().includes(query.toLowerCase()));
   if(!inEditor) return <div className="page pipeline-registry-page">
