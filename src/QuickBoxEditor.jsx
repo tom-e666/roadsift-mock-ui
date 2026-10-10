@@ -8,7 +8,7 @@ function at(evt,element){
   const r=element.getBoundingClientRect();
   return {x:clamp((evt.clientX-r.left)/r.width*1000,0,1000),y:clamp((evt.clientY-r.top)/r.height*562,0,562)};
 }
-export function QuickBoxEditor({sample,initialBoxes=[],onSave,editable=true}){
+export function QuickBoxEditor({sample,initialBoxes=[],onSave,onToolChange=()=>{},editable=true}){
   const [boxes,setBoxes]=useState(initialBoxes);
   const [selected,setSelected]=useState(null);
   const [tool,setTool]=useState('select');
@@ -71,8 +71,8 @@ export function QuickBoxEditor({sample,initialBoxes=[],onSave,editable=true}){
   return <div className="qb-editor">
     <div className="qb-toolbar">
       <div className="qb-tools" role="group" aria-label="Quick edit tools">
-        <button type="button" disabled={!editable} aria-pressed={tool==='select'} title="Select / move box" onClick={()=>setTool('select')}><MousePointer2 size={16}/> Select</button>
-        <button type="button" disabled={!editable} aria-pressed={tool==='draw'} title="Draw bounding box" onClick={()=>setTool('draw')}><Square size={16}/> Box</button>
+        <button type="button" disabled={!editable} aria-pressed={tool==='select'} title="Select / move box" onClick={()=>{setTool('select');onToolChange(false)}}><MousePointer2 size={16}/> Select</button>
+        <button type="button" disabled={!editable} aria-pressed={tool==='draw'} title="Draw bounding box" onClick={()=>{setTool('draw');onToolChange(true)}}><Square size={16}/> Box</button>
         <button type="button" disabled={!editable||!selected} onClick={remove} title="Delete box"><Trash2 size={16}/></button>
         <button type="button" disabled={!editable||!undoStack.length} onClick={()=>historyMove(undoStack,setUndoStack,redoStack,setRedoStack)} title="Undo"><Undo2 size={16}/></button>
         <button type="button" disabled={!editable||!redoStack.length} onClick={()=>historyMove(redoStack,setRedoStack,undoStack,setUndoStack)} title="Redo"><Redo2 size={16}/></button>
