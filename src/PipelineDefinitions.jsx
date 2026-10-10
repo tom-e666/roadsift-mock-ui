@@ -221,7 +221,12 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     setPan({x:drag.pan.x+e.clientX-drag.x,y:drag.pan.y+e.clientY-drag.y});
   };
   const onPointerUp=e=>{
-    if(dragRef.current?.id===e.pointerId)dragRef.current=null;
+    const drag=dragRef.current;
+    if(drag?.id===e.pointerId){
+      const distance=Math.hypot(e.clientX-drag.x,e.clientY-drag.y);
+      dragRef.current=null;
+      if(distance<5){setSelectedStage(null);setAddOpen(false);}
+    }
     if(e.currentTarget.hasPointerCapture?.(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
@@ -384,7 +389,7 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
         </div>
       </aside>}
     </div>:<section className="pipeline-editor-detail">
-      {tab==='json'&&<><div className="pipeline-editor-detail-head"><div><FileCode2 size={19}/><h2>Definition JSON</h2></div><Button onClick={()=>navigator.clipboard?.writeText(JSON.stringify(draft,null,2)).then(()=>notify('JSON copied')).catch(()=>notify('Clipboard unavailable'))}>Copy</Button></div><pre>{JSON.stringify(draft,null,2)}</pre><p>Read-only definition snapshot. Use Graph to modify stages; run parameters belong in Launchpad.</p></>}
+      {tab==='json'&&<><div className="pipeline-editor-detail-head"><div><FileCode2 size={19}/><h2>Definition JSON</h2></div><Button onClick={()=>{if(!navigator.clipboard?.writeText){notify('Clipboard unavailable');return;}navigator.clipboard.writeText(JSON.stringify(draft,null,2)).then(()=>notify('JSON copied')).catch(()=>notify('Clipboard unavailable'));}}>Copy</Button></div><pre>{JSON.stringify(draft,null,2)}</pre><p>Read-only definition snapshot. Use Graph to modify stages; run parameters belong in Launchpad.</p></>}
       {tab==='versions'&&<><h2>Version history</h2><p>Published versions are immutable. Create a new draft to make changes.</p><div className="pipeline-version-list">{definitions.filter(d=>d.familyId===active.familyId).sort((a,b)=>b.version-a.version).map(d=><button key={d.id} onClick={()=>navigate('pipelines/'+encodeURIComponent(d.id))}><strong>{d.name} · v{d.version}</strong><span>{statusLabel(d)} · {dateLabel(d.updatedAt)}</span><ArrowRight size={16}/></button>)}</div></>}
       {tab==='validation'&&<><h2>Validation</h2><p>Structural checks for required stages, dependencies and acyclic graph.</p>{problems.length?<div className="pipeline-problem-list">{problems.map((p,i)=><p key={i}><CircleAlert size={16}/>{p}</p>)}</div>:<div className="pipeline-validation-ok"><CheckCircle2 size={20}/><div><strong>Graph checks passed</strong><p>Stage references, required steps and cycles are valid. Backend runtime compatibility has not been verified.</p></div></div>}</>}
     </section>}
