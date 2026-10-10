@@ -122,7 +122,7 @@ export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],eva
     <StrategyComparisonV2 navigate={navigate}/></div>;
   return <div className="page rc-page">
     <header className="rc-header"><div><span className="rc-eyebrow">ANALYTICS / SELECTION STRATEGIES</span><h1>Compare selection runs</h1>
-      <p>Choose two or more runs, inspect their selection results, then explore what they selected differently.</p></div><div className="rc-header-actions"><button type="button" className="rc-outline" onClick={()=>navigate('/evaluations/import')}>Import Evaluation Results <ArrowRight size={15}/></button>
+      <p>Choose two or more runs, inspect their selection results, then explore what they selected differently.</p></div><div className="rc-header-actions"><button type="button" className="rc-outline" onClick={()=>navigate('/model-evaluation?import=1')}>Import Evaluation Results <ArrowRight size={15}/></button>
         <button type="button" className="rc-outline" onClick={()=>setBenchmark(true)}>Example benchmark <ArrowUpRight size={15}/></button></div></header>
     <section className="rc-run-picker"><div className="rc-picker-header"><div><h2>Runs to compare</h2><p>2–5 completed selection runs. The first run is the baseline.</p></div>
       <button className="rc-add-button" disabled={ids.length>=5||addable.length===0} onClick={()=>setShowAdd(v=>!v)}><Plus size={15}/> Add run</button></div>
@@ -145,7 +145,7 @@ export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],eva
     </nav>
     {tab==='selection'&&<MetricTable items={chosen} comparable={scopeComparable}/>}
     {tab==='samples'&&<Differences key={ids.join('|')} items={chosen} navigate={navigate} initialDemo={sampleDemo}/>}
-    {tab==='impact'&&<Impact items={chosen} evaluationImports={evaluationImports} onImport={()=>navigate('/evaluations/import')} onBenchmark={()=>setBenchmark(true)}/>}
+    {tab==='impact'&&<Impact items={chosen} evaluationImports={evaluationImports} onImport={()=>navigate('/model-evaluation?import=1')} onBenchmark={()=>setBenchmark(true)}/>}
     <footer className="rc-footer"><Info size={15}/> These are fixture run summaries. Stable membership and linked evaluation are needed for reproducible comparisons.</footer>
   </div>;
 }
