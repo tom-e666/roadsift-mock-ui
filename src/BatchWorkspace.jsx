@@ -26,7 +26,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const [query,setQuery]=useState(''),[domain,setDomain]=useState('All'),[statusFilter,setStatusFilter]=useState('All'),[sort,setSort]=useState('uncertainty');
   const [page,setPage]=useState(1),[pageSize,setPageSize]=useState(20);
   const [selectedIds,setSelectedIds]=useState([]);
-  const [activeId,setActiveId]=useState(null),[reason,setReason]=useState('');
+  const [activeId,setActiveId]=useState(null),[previewId,setPreviewId]=useState(null),[reason,setReason]=useState('');
   const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false);
   const [purpose,setPurpose]=useState('annotation'),[target,setTarget]=useState('manifest');
   useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
@@ -57,6 +57,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
     else pageSamples.forEach(item=>next.add(item.id));
     return [...next];
   });
+  const preview=filtered.find(x=>x.id===previewId)||filtered[0]||null;
   const active=frames.find(x=>x.id===activeId)||filtered[0]||null;
   const activeIndex=filtered.findIndex(x=>x.id===active?.id);
   const selectedCount=selectedIds.length;
@@ -186,8 +187,8 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
           <Button onClick={()=>setSelectedIds([])}>Clear</Button>
         </div>}
         <div className="bw-grid">
-          {pageSamples.map(sample=><article key={sample.id} className={'bw-sample'+(selectedIds.includes(sample.id)?' is-selected':'')}>
-            <button className="bw-card-media" type="button" onClick={()=>{setActiveId(sample.id);openTab('review')}} aria-label={'Inspect and quick-edit '+sample.id}>
+          {pageSamples.map(sample=><article key={sample.id} className={'bw-sample'+(selectedIds.includes(sample.id)?' is-selected':'')+(preview?.id===sample.id?' is-inspected':'')}>
+            <button className="bw-card-media" type="button" onClick={()=>setPreviewId(sample.id)} onDoubleClick={()=>{setActiveId(sample.id);openTab('review')}} aria-label={'Preview '+sample.id+' (double click for Focus Review)'}>
               <SampleMedia sample={sample} overlay={false}/>
               <span className="bw-score-pill" title="Uncertainty score">{sample.uncertainty.toFixed(2)}</span>
             </button>
@@ -209,6 +210,22 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
           </div>
         </footer>
       </section>
+      <aside className="bw-queue-preview" aria-label="Selected sample preview">
+        <div className="bw-queue-preview-head"><h3>Sample details</h3><small>Fixture preview</small></div>
+        {preview?<><SampleMedia sample={preview} large/>
+          <div className="bw-queue-preview-info"><strong>{preview.id}</strong><span className={'bw-review-tag is-'+formatDecision(decisions[preview.id]).toLowerCase()}>{formatDecision(decisions[preview.id])}</span></div>
+          <dl className="bw-preview-meta">
+            <dt>Domain</dt><dd>{preview.domain}</dd>
+            <dt>Weather</dt><dd>{preview.weather}</dd>
+            <dt>Uncertainty</dt><dd>{preview.uncertainty.toFixed(2)}</dd>
+            <dt>Safety</dt><dd>{preview.safety.toFixed(2)}</dd>
+            <dt>Privacy</dt><dd>Not verified</dd>
+            <dt>Draft boxes</dt><dd>{(edits[preview.id]||[]).length}</dd>
+          </dl>
+          <Button variant="primary" onClick={()=>{setActiveId(preview.id);openTab('review')}}>Open in Focus Review <ArrowRight size={15}/></Button>
+          <p className="bw-preview-help">Demo media and scores only. This preview does not establish batch membership or privacy clearance.</p>
+        </>:<p className="bw-empty">No preview sample selected.</p>}
+      </aside>
     </div>}
     {view==='review'&&<div className="bw-review">
       <div className="bw-review-main">
