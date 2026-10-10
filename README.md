@@ -36,8 +36,20 @@ Demo imports read file names and sizes only and do not upload files or parse dat
 
 The RoadSift Dark appearance uses shared semantic tokens in `src/styles.css`, with `--bg: #0D111A`, `--surface: #171D2A`, `--surface-elevated: #222D3D`, `--line: #334155`, `--accent: #268DFF`, and `--status-success: #31C48D`. Use `--accent-action` for blue buttons with white text to preserve readable contrast. The existing Light appearance is unchanged. Pipeline stage hues are centralized as `--stage-*` tokens; do not hardcode stage colors into components. Apply colors by **semantic role**, not page identity, and never use success-green icons to imply a definition stage has executed.
 
-## Launchpad and Run Details
+## Launchpad, Runs and Curation Workspace
 
-- Launchpad (/mining) uses Inputs -> Stage Parameters -> Execution, conditional selection fields, run-scoped weight overrides, an advanced JSON editor and sticky run summary. Published definitions are listed, but only bundled Active Learning Selection v1 has a simulated local executor. Other published definitions cannot launch.
-- Run Details (/runs/:id) shows recorded run state, pipeline structure when captured, stage information, logs, artifact references, effective run configuration and links to Selection Batches. Historical runs without captured DAG information are explicitly labeled as illustrative.
-- Launch navigates immediately to the new Run Details page. Batch links open a registered selection batch for review. No real Kaggle submission or backend preflight happens in the preview.
+- **Pipeline Editor** (`/pipelines/:id`): immutable published versions; edit graph topology, implementation and stage defaults only in a new draft version.
+- **Launchpad** (`/mining`): launch-time Pool Snapshot, target EXACT-N, registered prediction model and compatible executor. Stage implementation, scoring policy and privacy gates are **inherited** from the published Pipeline Definition and cannot be edited in either Form or advanced JSON. Only the bundled Hybrid Active Learning Selection v1 definition is runnable in the local simulator.
+- **Runs** (`/history`, `/runs/:id`): direct navigation to details, quick preview option, read-only captured execution DAG and contextual inspector. Unknown stage status is not inferred from run-level success. Run batch links open the Batch Workspace directly.
+- **Selection Batches** (`/batches`): registry and batch overview. Each row opens `/batches/:id?view=grid`. The workspace has three tabs:
+  - **Batch Grid**: review-focused search, domain/status filters, score sorting and bulk decisions; gallery presentation is shared with Data Explorer rather than reimplemented.
+  - **Focus Review & Quick Edit**: CVAT-inspired 2D bounding-box editor supporting draw, select, drag, resize, class change, delete, undo/redo and locally saved draft edits; separate Approve/Reject/Defer actions. Reject requires a reason.
+  - **Finalize & Handoff**: annotation/training purposes, output format selection, explicit server-readiness blockers and download of a **preview handoff plan**.
+
+### Important demo and trust limitations
+
+The current gallery contains **fixture sample images, not verified members** of the selected immutable batch. The local `reviewWorkspace.decisions` and `reviewWorkspace.edits` maps persist in browser state only; they are **not counted** in server-verified batch aggregate review totals, and box drafts are **not ground-truth annotations**. Privacy verification, sample membership and content-hashed artifacts require a backend. Therefore the Handoff view does **not** claim to create an immutable Curated Batch or export a real ZIP from fixture data: Finalize is disabled until those checks can be performed. The Download handoff plan action exports preview JSON marked `notAnExport: true`.
+
+The initial 2D editor is not a replacement for CVAT's full annotation stack or 3D point-cloud labeling. The media viewer and review state are separate so a point-cloud renderer can be added later. No CVAT instance is hosted in this mock.
+
+Build with `npm run build`; route rendering tests are in `scripts/route-smoke.mjs`.
