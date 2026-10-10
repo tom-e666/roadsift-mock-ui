@@ -44,7 +44,7 @@ The RoadSift Dark appearance uses shared semantic tokens in `src/styles.css`, wi
 - **Selection Batches** (`/batches`): dedicated Registry with workflow filters, run lineage, progress, annotation status and direct Review/Handoff actions. Each batch opens `/batches/:id?view=grid`. The workspace contains:
   - **Review Queue / Batch Grid**: compact contact sheet, status and domain filters, sample preview inspector, page-select and bulk review actions. The image display primitive is reused from Data Explorer.
   - **Focus Review & Quick Edit**: CVAT-inspired vertical tool rail, center 2D canvas, object list, bounding box draw/move/resize/relabel, delete and undo/redo, plus separate Approve/Reject/Defer decisions. Draft edits survive page refresh in local mock state and warn before navigating with unsaved edits.
-  - **Finalize & Handoff**: Validate → Configure → Freeze version → Export stepper, independent annotation/training modes, source lineage and explicit blocking readiness checks. Finalize/Export are disabled without verifiable backend evidence; only a preview plan may be downloaded.
+  - **Finalize & Handoff**: Validate → Configure → Freeze version → Export. Configure annotation/training purpose, manifest/ZIP/verified-label format, local download or future R2 destination, requested curated name/version label, export job name, notes, and included media/metadata/audit records. Freeze validates membership, review, privacy and shortfall policy; export separately validates the frozen version, artifact integrity, annotations and destination. Both actions are disabled without backend evidence. Downloading the preview JSON creates no curated version or export job.
 
 ### Important demo and trust limitations
 
