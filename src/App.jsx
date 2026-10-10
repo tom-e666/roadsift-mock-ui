@@ -3,7 +3,8 @@ import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDo
 import { CommandPalette } from './components/CommandPalette.jsx';
 import { PipelineDefinitions, initialPipelineDefinitions } from './PipelineDefinitions.jsx';
 import { BatchWorkspace } from './BatchWorkspace.jsx';
-import { EvaluationResultImport } from './ResultImports.jsx';
+import { AnnotationJobs } from './AnnotationJobs.jsx';
+import { ModelEvaluation } from './ModelEvaluation.jsx';
 import { Button, Modal } from './components/UI.jsx';
 import { groups, allPages, initialDatasets, initialRuns, initialPools, initialSelectionBatches, runners as initialRunners, modelRegistry as initialModels, strategies as initialAlgorithms } from './data.js';
 import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
@@ -12,7 +13,9 @@ function readState(key, fallback) { try { const value = JSON.parse(localStorage.
 function useLocalState(key, initial) { const [value, setValue] = useState(() => readState(key, initial)); useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* Continue without persistence if storage is unavailable. */ } }, [key, value]); return [value, setValue]; }
 function currentPage() { const path = window.location.pathname.split('/')[1] || 'datasets'; if (path === 'pools' && window.location.pathname.split('/')[2]) return 'pools';
   if (path === 'runs') return 'history';
-  if (path === 'evaluations') return 'comparison';
+  if (path === 'evaluations') return 'model-evaluation';
+  if (path === 'annotation-jobs') return 'annotation-jobs';
+  if (path === 'model-evaluation') return 'model-evaluation';
   return ({ 'frame-selection': 'mining', 'label-dataset': 'datasets', 'train-model': 'datasets', 'model-metrics': 'datasets', projects: 'history', lineage: 'datasets', labeling: 'datasets', pal: 'mining', documentation: 'onboarding' })[path] || (allPages.some(([id]) => id === path) ? path : 'datasets'); }
 
 class PageErrorBoundary extends React.Component {
@@ -74,15 +77,15 @@ export default function App() {
   const [preferences, setPreferences] = useLocalState('roadsift-mock-preferences', { compact: false, animations: true });
   const [language, setLanguage] = useLocalState('roadsift-language', 'en');
   const [contextDataset, setContextDataset] = useState(null);
-  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', Ingest:'Nhập dữ liệu', Pipelines:'Định nghĩa pipeline', Launchpad:'Cấu hình chạy', 'Selection Batches':'Selection Batches', Runs:'Lịch sử chạy', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
+  const navVi = { Pools:'Pools', Datasets:'Bộ dữ liệu', 'Data Explorer':'Data Explorer', Ingest:'Nhập dữ liệu', Pipelines:'Định nghĩa pipeline', Launchpad:'Cấu hình chạy', 'Selection Batches':'Selection Batches', 'Annotation Jobs':'Công việc gán nhãn', Runs:'Lịch sử chạy', 'Model Evaluation':'Đánh giá mô hình', 'Strategy Comparison':'So sánh chiến lược', Settings:'Cài đặt', System:'Hệ thống', Onboarding:'Hướng dẫn bắt đầu' };
   const rawTitle = allPages.find(([id]) => id === page)?.[1];
   const title = language === 'vi' ? (navVi[rawTitle] || rawTitle) : rawTitle;
   const navigate = (target, dataset) => {
     const raw = target.startsWith('/') ? target.slice(1) : target;
     const next = raw.split('?')[0];
-    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs|pipelines|batches)\/[^/]+$/.test(next) && next !== 'runs' && next !== 'evaluations/import') return;
+    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs|pipelines|batches|annotation-jobs|model-evaluation)\/[^/]+$/.test(next) && next !== 'runs' && next !== 'evaluations/import') return;
     if (dataset) setContextDataset(dataset);
-    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next.startsWith('pipelines/')?'pipelines':next.startsWith('batches/')?'batches':next==='evaluations/import'?'comparison':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
+    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next.startsWith('pipelines/')?'pipelines':next.startsWith('batches/')?'batches':next==='evaluations/import'?'model-evaluation':next.startsWith('annotation-jobs/')?'annotation-jobs':next.startsWith('model-evaluation/')?'model-evaluation':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
   useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname + window.location.search);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
   useEffect(() => { document.title = `RoadSift · ${title}`; }, [title]);
@@ -117,7 +120,7 @@ export default function App() {
     return()=>clearTimeout(timer);
   },[runs,setRuns,setSelectionBatches]);
   const shared = { navigate, notify, routePath, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, annotationImports, setAnnotationImports, evaluationImports, setEvaluationImports, runs, setRuns, definitions, setDefinitions, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
-  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, pipelines: PipelineDefinitions, mining: Mining, batches: routePath.startsWith('/batches/')?BatchWorkspace:SelectionBatches, history: History, comparison: routePath.startsWith('/evaluations/import')?EvaluationResultImport:StrategyComparison, system: SystemPage, onboarding: Onboarding };
+  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, pipelines: PipelineDefinitions, mining: Mining, batches: routePath.startsWith('/batches/')?BatchWorkspace:SelectionBatches, history: History, 'annotation-jobs': AnnotationJobs, 'model-evaluation': ModelEvaluation, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
     <a href="#main-content" className="skip-link">Skip to content</a>
