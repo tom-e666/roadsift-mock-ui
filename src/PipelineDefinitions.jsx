@@ -211,10 +211,11 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     const el=canvasRef.current;
     if(!el) return;
     const w=el.clientWidth,h=el.clientHeight;
+    const availableHeight=h-(catalogOpen?Math.min(240,h*.45):0);
     if(w<1||h<1)return;
-    const z=Math.min(1.15,Math.max(.23,Math.min((w-56)/layout.width,(h-56)/layout.height)));
+    const z=Math.min(1.15,Math.max(.23,Math.min((w-56)/layout.width,(availableHeight-56)/layout.height)));
     setZoom(z);
-    setPan({x:(w-layout.width*z)/2,y:(h-layout.height*z)/2});
+    setPan({x:(w-layout.width*z)/2,y:(availableHeight-layout.height*z)/2});
   };
   useEffect(() => {
     if(!inEditor) return;
@@ -462,34 +463,63 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
         </section>}
       </section>
       {selected&&<aside className="pipeline-node-inspector" aria-label="Selected stage inspector">
-        <header className="pipeline-inspector-heading"><div><span>STAGE INSPECTOR</span><strong>{selected.label}</strong><small>{selected.id}</small></div><button aria-label="Close stage inspector" onClick={()=>setSelectedStage(null)}><X size={17}/></button></header>
-        <div className="pipeline-inspector-tabs" role="tablist" aria-label="Stage settings">
-          {[['stage','Settings'],['dependencies','Dependencies'],['io','I/O']].map(([id,label])=><button key={id} role="tab" aria-selected={pane===id} className={pane===id?'active':''} onClick={()=>setPane(id)}>{label}</button>)}
+        <header className="pipeline-inspector-heading">
+          <div><span>STAGE INSPECTOR</span><strong>{selected.label}</strong><small>Stage ID · {selected.id}</small></div>
+          <button aria-label="Close stage inspector" onClick={()=>setSelectedStage(null)}><X size={17}/></button>
+        </header>
+        <div className="pipeline-inspector-mode" role="tablist" aria-label="Stage configuration editor">
+          <button role="tab" aria-selected={inspectorMode==='form'} className={inspectorMode==='form'?'active':''}
+            onClick={()=>setInspectorMode('form')}>Form</button>
+          <button role="tab" aria-selected={inspectorMode==='json'} className={inspectorMode==='json'?'active':''}
+            onClick={()=>{setStageJSON(JSON.stringify(stageConfig(selected),null,2));setInspectorMode('json');}}>JSON</button>
         </div>
-        <div className="pipeline-inspector-scroll">
-          {pane==='stage'&&<>
-            <p className="pipeline-inspector-lead">{stageCatalog[selected.type]?.description}</p>
-            <div className="pipeline-inspector-field"><label htmlFor="pipeline-stage-label">Display name</label><input id="pipeline-stage-label" disabled={!editable} value={selected.label} onChange={e=>changeNode({label:e.target.value})}/></div>
-            <div className="pipeline-inspector-field"><label htmlFor="pipeline-stage-implementation">Implementation</label><select id="pipeline-stage-implementation" disabled={!editable} value={selected.implementation} onChange={e=>changeNode({implementation:e.target.value})}>{(stageCatalog[selected.type]?.implementation||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></div>
-            <label className="pipeline-inspector-switch"><span>{required.has(selected.type)?'Required stage':'Enabled'}</span>{required.has(selected.type)?<LockKeyhole size={15}/>:<input type="checkbox" disabled={!editable} checked={selected.enabled} onChange={e=>changeNode({enabled:e.target.checked})}/>}</label>
-            {editable&&!required.has(selected.type)&&<button className="pipeline-inspector-remove" onClick={removeStage}><X size={14}/> Remove stage</button>}
-          </>}
-          {pane==='dependencies'&&<>
-            <p className="pipeline-inspector-lead">Choose upstream stages. Cycles and missing dependencies block publishing.</p>
-            {draft.stages.filter(n=>n.id!==selected.id&&n.enabled).map(n=><label className="pipeline-dependency" key={n.id}><input type="checkbox" disabled={!editable||selected.type==='source'} checked={selected.dependsOn.includes(n.id)} onChange={()=>changeNode({dependsOn:selected.dependsOn.includes(n.id)?selected.dependsOn.filter(x=>x!==n.id):[...selected.dependsOn,n.id]})}/><span><strong>{n.label}</strong><small>{n.id}</small></span></label>)}
-          </>}
-          {pane==='io'&&<>
-            <p className="pipeline-inspector-lead">Expected interface for this stage type. Compatibility requires an executor implementation.</p>
-            <div className="pipeline-io-box"><span>INPUT</span><strong>{ioContracts[selected.type]?.[0] || 'Unspecified'}</strong></div>
-            <div className="pipeline-io-box"><span>OUTPUT</span><strong>{ioContracts[selected.type]?.[1] || 'Unspecified'}</strong></div>
-            <p className="pipeline-contract-caveat">Illustrative stage contracts. These are not backend-validated.</p>
-          </>}
-        </div>
+        {inspectorMode==='form'?<div className="pipeline-inspector-scroll">
+          <p className="pipeline-inspector-lead">{stageCatalog[selected.type]?.description}</p>
+          <details className="pipeline-inspector-group" open>
+            <summary>General & Configuration <ChevronDown size={14}/></summary>
+            <div className="pipeline-inspector-group-body">
+              <div className="pipeline-inspector-field"><label htmlFor="pipeline-stage-label">Display name</label><input id="pipeline-stage-label" disabled={!editable} value={selected.label} onChange={e=>changeNode({label:e.target.value})}/></div>
+              <div className="pipeline-inspector-field"><label htmlFor="pipeline-stage-implementation">Implementation</label><select id="pipeline-stage-implementation" disabled={!editable} value={selected.implementation} onChange={e=>changeNode({implementation:e.target.value})}>{(stageCatalog[selected.type]?.implementation||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></div>
+              <label className="pipeline-inspector-switch"><span>{required.has(selected.type)?'Required stage':'Enabled'}</span>{required.has(selected.type)?<LockKeyhole size={15}/>:<input type="checkbox" disabled={!editable} checked={selected.enabled} onChange={e=>changeNode({enabled:e.target.checked})}/>}</label>
+              {Object.entries(selected.params||{}).map(([name,value])=>
+                <div className="pipeline-inspector-field" key={name}>
+                  <label htmlFor={'pipeline-param-'+name}>{name.replaceAll('_',' ')}</label>
+                  {typeof value==='boolean'?<label className="pipeline-param-toggle"><input id={'pipeline-param-'+name} type="checkbox" disabled={!editable} checked={value} onChange={e=>changeNode({params:{...selected.params,[name]:e.target.checked}})}/><span>{value?'Enabled':'Disabled'}</span></label>:
+                    <input id={'pipeline-param-'+name} disabled={!editable} type={typeof value==='number'?'number':'text'} value={String(value)} onChange={e=>changeNode({params:{...selected.params,[name]:typeof value==='number'?Number(e.target.value):e.target.value}})}/>}
+                </div>)}
+              {!Object.keys(selected.params||{}).length&&<p className="pipeline-param-hint">No additional stage parameters configured. Use JSON for advanced parameter keys.</p>}
+            </div>
+          </details>
+          <details className="pipeline-inspector-group">
+            <summary>Dependencies <span>{selected.dependsOn.length} upstream</span><ChevronDown size={14}/></summary>
+            <div className="pipeline-inspector-group-body">
+              <p className="pipeline-inspector-lead">Dependencies must reference enabled stages. Invalid edges block publishing.</p>
+              {draft.stages.filter(n=>n.id!==selected.id&&n.enabled).map(n=><label className="pipeline-dependency" key={n.id}><input type="checkbox" disabled={!editable||selected.type==='source'} checked={selected.dependsOn.includes(n.id)} onChange={()=>changeNode({dependsOn:selected.dependsOn.includes(n.id)?selected.dependsOn.filter(x=>x!==n.id):[...selected.dependsOn,n.id]})}/><span><strong>{n.label}</strong><small>{n.id}</small></span></label>)}
+            </div>
+          </details>
+          <details className="pipeline-inspector-group">
+            <summary>Input / Output Contract <ChevronDown size={14}/></summary>
+            <div className="pipeline-inspector-group-body">
+              <div className="pipeline-io-box"><span>INPUT</span><strong>{ioContracts[selected.type]?.[0] || 'Unspecified'}</strong></div>
+              <div className="pipeline-io-box"><span>OUTPUT</span><strong>{ioContracts[selected.type]?.[1] || 'Unspecified'}</strong></div>
+              <p className="pipeline-contract-caveat">Illustrative interface; backend compatibility has not been verified.</p>
+            </div>
+          </details>
+          {editable&&!required.has(selected.type)&&<button className="pipeline-inspector-remove" onClick={removeStage}><X size={14}/> Remove stage</button>}
+        </div>:<div className="pipeline-inspector-scroll pipeline-inspector-json-content">
+          <p className="pipeline-inspector-lead">Edit this stage's configuration. Its ID and type remain unchanged. The entire pipeline definition can be copied from Version history.</p>
+          <label htmlFor="pipeline-stage-json">Stage configuration</label>
+          <textarea id="pipeline-stage-json" spellCheck={false} disabled={!editable} value={stageJSON}
+            onChange={e=>setStageJSON(e.target.value)} aria-invalid={Boolean(jsonCheck.error)} />
+          <div className={'pipeline-json-status'+(jsonCheck.error?' is-invalid':'')}>
+            {jsonCheck.error?<><CircleAlert size={15}/><span>{jsonCheck.error}</span></>:<><CheckCircle2 size={15}/><span>JSON structure valid · Runtime not verified</span></>}
+          </div>
+          <div className="pipeline-json-actions">
+            <Button disabled={!editable} onClick={()=>setStageJSON(JSON.stringify(stageConfig(selected),null,2))}>Reset</Button>
+            <Button variant="primary" disabled={!editable||Boolean(jsonCheck.error)} onClick={applyStageJSON}>Apply configuration</Button>
+          </div>
+        </div>}
       </aside>}
-    </div>:<section className="pipeline-editor-detail">
-      {tab==='json'&&<><div className="pipeline-editor-detail-head"><div><FileCode2 size={19}/><h2>Definition JSON</h2></div><Button onClick={()=>{if(!navigator.clipboard?.writeText){notify('Clipboard unavailable');return;}navigator.clipboard.writeText(JSON.stringify(draft,null,2)).then(()=>notify('JSON copied')).catch(()=>notify('Clipboard unavailable'));}}>Copy</Button></div><pre>{JSON.stringify(draft,null,2)}</pre><p>Read-only definition snapshot. Use Graph to modify stages; run parameters belong in Launchpad.</p></>}
-      {tab==='versions'&&<><h2>Version history</h2><p>Published versions are immutable. Create a new draft to make changes.</p><div className="pipeline-version-list">{definitions.filter(d=>d.familyId===active.familyId).sort((a,b)=>b.version-a.version).map(d=><button key={d.id} onClick={()=>navigate('pipelines/'+encodeURIComponent(d.id))}><strong>{d.name} · v{d.version}</strong><span>{statusLabel(d)} · {dateLabel(d.updatedAt)}</span><ArrowRight size={16}/></button>)}</div></>}
-      {tab==='validation'&&<><h2>Validation</h2><p>Structural checks for required stages, dependencies and acyclic graph.</p>{problems.length?<div className="pipeline-problem-list">{problems.map((p,i)=><p key={i}><CircleAlert size={16}/>{p}</p>)}</div>:<div className="pipeline-validation-ok"><CheckCircle2 size={20}/><div><strong>Graph checks passed</strong><p>Stage references, required steps and cycles are valid. Backend runtime compatibility has not been verified.</p></div></div>}</>}
-    </section>}
+    </div>
   </div>;
 }
