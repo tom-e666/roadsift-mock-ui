@@ -84,16 +84,22 @@ function Differences({items,navigate,initialDemo=false}){
       </div></div>}
   </section>;
 }
-function Impact({items,onBenchmark}){
+function Impact({items,onBenchmark,onImport,evaluationImports=[]}){
+  const local=evaluationImports.filter(r=>r.runId&&items.some(x=>x.run.id===r.runId));
   return <section className="rc-impact"><div className="rc-pane-head"><div><h3>Model Impact</h3><p>Training value must be evaluated separately from selection scores.</p></div><Badge>Evidence required</Badge></div>
     <div className="rc-impact-grid"><div className="rc-impact-empty"><BarChart3 size={32}/><h4>No paired holdout evaluation linked</h4><p>The selected mining runs do not contain compatible training/evaluation records. This is not evidence of improvement or degradation.</p>
         <button type="button" onClick={onBenchmark}>Open separate synthetic benchmark example <ArrowRight size={15}/></button></div>
       <div className="rc-impact-protocol"><h4>Evidence required</h4><div><CheckCircle2 size={15}/>Same fixed evaluation holdout</div><div><CheckCircle2 size={15}/>Controlled training recipe and seed</div>
         <div><CheckCircle2 size={15}/>Paired metrics + uncertainty intervals</div><div><CheckCircle2 size={15}/>Annotation cost accounting</div>
         <small>Model impact results will appear here only after the exact versions are linked and validation passes.</small></div></div>
+    <div className="rc-intake">
+      <header><div><h4>Evaluation result intake</h4><p>Local schema-checked records are not paired evaluation evidence.</p></div><button onClick={onImport}>Import Evaluation Results <ArrowRight size={14}/></button></header>
+      {local.length?local.map(r=><div key={r.id} className="rc-intake-row"><span><strong>{r.id}</strong><small>{r.modelVersionId} · {r.datasetVersionId} · {r.holdoutId}</small></span><span className="rc-intake-state">{r.status}</span></div>):
+        <p className="rc-intake-empty">No locally imported evaluation records linked to the selected runs.</p>}
+    </div>
   </section>;
 }
-export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],routePath=''}){
+export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],evaluationImports=[],routePath=''}){
   const sampleDemo=new URLSearchParams(routePath.split('?')[1]||'').get('demo')==='samples';
   const selectable=runs.filter(r=>r.type==='Mining'&&r.status==='Complete');
   const [selectedIds,setSelectedIds]=useState(()=>selectable.slice(0,2).map(r=>r.id));
@@ -116,7 +122,8 @@ export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],rou
     <StrategyComparisonV2 navigate={navigate}/></div>;
   return <div className="page rc-page">
     <header className="rc-header"><div><span className="rc-eyebrow">ANALYTICS / SELECTION STRATEGIES</span><h1>Compare selection runs</h1>
-      <p>Choose two or more runs, inspect their selection results, then explore what they selected differently.</p></div><button type="button" className="rc-outline" onClick={()=>setBenchmark(true)}>Example benchmark <ArrowUpRight size={15}/></button></header>
+      <p>Choose two or more runs, inspect their selection results, then explore what they selected differently.</p></div><div className="rc-header-actions"><button type="button" className="rc-outline" onClick={()=>navigate('/evaluations/import')}>Import Evaluation Results <ArrowRight size={15}/></button>
+        <button type="button" className="rc-outline" onClick={()=>setBenchmark(true)}>Example benchmark <ArrowUpRight size={15}/></button></div></header>
     <section className="rc-run-picker"><div className="rc-picker-header"><div><h2>Runs to compare</h2><p>2–5 completed selection runs. The first run is the baseline.</p></div>
       <button className="rc-add-button" disabled={ids.length>=5||addable.length===0} onClick={()=>setShowAdd(v=>!v)}><Plus size={15}/> Add run</button></div>
       <div className="rc-run-cards">{chosen.map((x,i)=><article key={i} className="rc-run-card">
@@ -138,7 +145,7 @@ export function RunComparisonWorkspace({navigate,runs=[],selectionBatches=[],rou
     </nav>
     {tab==='selection'&&<MetricTable items={chosen} comparable={scopeComparable}/>}
     {tab==='samples'&&<Differences key={ids.join('|')} items={chosen} navigate={navigate} initialDemo={sampleDemo}/>}
-    {tab==='impact'&&<Impact items={chosen} onBenchmark={()=>setBenchmark(true)}/>}
+    {tab==='impact'&&<Impact items={chosen} evaluationImports={evaluationImports} onImport={()=>navigate('/evaluations/import')} onBenchmark={()=>setBenchmark(true)}/>}
     <footer className="rc-footer"><Info size={15}/> These are fixture run summaries. Stable membership and linked evaluation are needed for reproducible comparisons.</footer>
   </div>;
 }
