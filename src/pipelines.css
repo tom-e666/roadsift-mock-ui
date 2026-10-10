@@ -261,17 +261,17 @@
 .pipeline-node:active {cursor:grabbing;}
 .pipeline-zoom-tools .pipeline-auto-layout-button {border-right:1px solid var(--line);padding:0 9px;gap:5px;margin-right:2px;font-size:11px;}
 .pipeline-zoom-tools .pipeline-auto-layout-button span {min-width:0;color:var(--text);font-size:11px;}
-.pipeline-type-source {--pipeline-icon:#9b96fb;}
-.pipeline-type-eligibility {--pipeline-icon:#c18df4;}
-.pipeline-type-dedup {--pipeline-icon:#668ffa;}
-.pipeline-type-domain {--pipeline-icon:#9b87ed;}
-.pipeline-type-prediction {--pipeline-icon:#bc8af2;}
-.pipeline-type-embedding {--pipeline-icon:#42c5d0;}
-.pipeline-type-uncertainty {--pipeline-icon:#f4c86a;}
-.pipeline-type-diversity {--pipeline-icon:#5ed5bd;}
-.pipeline-type-selection {--pipeline-icon:#60aaff;}
-.pipeline-type-privacy {--pipeline-icon:#65d5ce;}
-.pipeline-type-output {--pipeline-icon:#91a4fb;}
+.pipeline-type-source {--pipeline-icon:var(--stage-source);}
+.pipeline-type-eligibility {--pipeline-icon:var(--stage-eligibility);}
+.pipeline-type-dedup {--pipeline-icon:var(--stage-dedup);}
+.pipeline-type-domain {--pipeline-icon:var(--stage-domain);}
+.pipeline-type-prediction {--pipeline-icon:var(--stage-prediction);}
+.pipeline-type-embedding {--pipeline-icon:var(--stage-embedding);}
+.pipeline-type-uncertainty {--pipeline-icon:var(--stage-uncertainty);}
+.pipeline-type-diversity {--pipeline-icon:var(--stage-diversity);}
+.pipeline-type-selection {--pipeline-icon:var(--stage-selection);}
+.pipeline-type-privacy {--pipeline-icon:var(--stage-privacy);}
+.pipeline-type-output {--pipeline-icon:var(--stage-output);}
 .pipeline-node-kind svg:first-child,.pipeline-catalog-card-icon svg {color:var(--pipeline-icon,var(--accent));}
 .pipeline-catalog-card-icon {background:color-mix(in srgb,var(--pipeline-icon,var(--accent)) 10%,transparent);border-radius:7px;width:31px;height:31px;}
 .pipeline-stage-catalog-header {flex-wrap:nowrap;}
@@ -309,3 +309,11 @@
   .pipeline-stage-catalog {height:min(220px,53%);}
   .pipeline-catalog-cards {padding:8px 12px;}
 }
+
+/* Semantic Midnight Navy theme surfaces and action contrast. */
+:root[data-theme=dark] .pipeline-graph-viewport {background-color:var(--bg);background-image:radial-gradient(color-mix(in srgb,var(--border-strong) 55%,transparent) .75px,transparent .75px);}
+:root[data-theme=dark] .pipeline-catalog-filters button.active {background:var(--accent-action);color:#fff;}
+:root[data-theme=dark] .pipeline-node {background:var(--surface);border-color:var(--border-strong);}
+:root[data-theme=dark] .pipeline-node.pipeline-node--selected {border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));}
+:root[data-theme=dark] .pipeline-catalog-card {background:var(--bg);border-color:var(--line);}
+:root[data-theme=dark] .pipeline-node-inspector {background:var(--surface);}
