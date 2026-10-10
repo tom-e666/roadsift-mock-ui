@@ -789,3 +789,14 @@ th .help-tip{margin-left:4px}
 /* Midnight Navy: keep white button labels legible on a darker semantic action blue. */
 :root[data-theme=dark] .button--primary { background:var(--accent-action); border-color:transparent; color:#fff; box-shadow:0 2px 8px rgba(0,5,14,.24); }
 :root[data-theme=dark] .button--primary:hover:not(:disabled) { background:color-mix(in srgb,var(--accent-action) 88%,#0A4B9E); }
+
+/* Runs list: direct details navigation plus a separately accessible Quick Preview action. */
+.run-list-row{cursor:pointer}
+.run-list-row:hover{background:var(--accent-soft)}
+.run-list-link{display:grid;gap:5px;text-align:left;background:transparent;border:0;padding:0;color:var(--text);max-width:400px}
+.run-list-link strong{font-size:12px;line-height:1.3}
+.run-list-link small{color:var(--muted);font-size:11px;word-break:break-all}
+.run-list-link:hover strong{text-decoration:underline;text-decoration-color:var(--accent)}
+.run-list-link:focus-visible,.run-list-preview:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.run-list-preview{background:transparent;border:1px solid var(--line);border-radius:7px;display:grid;place-items:center;min-width:30px;min-height:30px;color:var(--muted)}
+.run-list-preview:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
