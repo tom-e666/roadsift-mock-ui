@@ -157,7 +157,7 @@ export function RunDetails({run,selectionBatches=[],pools=[],navigate,notify,onR
           {run.errorMessage&&<p className="rd-error"><AlertTriangle size={17}/>{run.errorMessage}</p>}
         </section>}
         {tab==='artifacts'&&<section className="rd-card"><div className="rd-card-head"><h2>Output Artifacts</h2></div>
-          {batch?.manifestUri?<div className="rd-artifact"><Archive size={20}/><div><strong>Selection Batch manifest</strong><span>{batch.manifestUri}</span><small>Registered reference · content integrity not verified in this view</small></div><button onClick={()=>navigate('batches?batch='+encodeURIComponent(batch.id))}>Open batch <ArrowRight size={15}/></button></div>:
+          {batch?.manifestUri?<div className="rd-artifact"><Archive size={20}/><div><strong>Selection Batch manifest</strong><span>{batch.manifestUri}</span><small>Registered reference · content integrity not verified in this view</small></div><button onClick={()=>navigate('/batches/'+encodeURIComponent(batch.id)+'?view=grid')}>Open batch <ArrowRight size={15}/></button></div>:
           <p className="rd-empty">{run.plannedBatch?.manifestUri?'Planned output '+run.plannedBatch.manifestUri+' · not registered':'No output artifacts registered for this run.'}</p>}
         </section>}
         {failed(run.status)&&<section className="rd-card rd-error"><AlertTriangle size={18}/><div><strong>{run.errorCode||'Run failed'}</strong><p>{run.errorMessage||'No additional error information.'}</p></div></section>}
@@ -170,7 +170,7 @@ export function RunDetails({run,selectionBatches=[],pools=[],navigate,notify,onR
           <KV label="Completed" value={run.completedAt?date(run.completedAt):'Not recorded'}/>
           <KV label="Executor" value={run.executor||'—'}/>
           <KV label="Batch" value={batch?.id||'Not created'}/>
-          {hasBatch?<Button className="rd-wide" variant="primary" icon={ArrowRight} onClick={()=>navigate('batches?batch='+encodeURIComponent(batch.id))}>{canReview?'Go to Batch Review':'Open Selection Batch'}</Button>:
+          {hasBatch?<Button className="rd-wide" variant="primary" icon={ArrowRight} onClick={()=>navigate('/batches/'+encodeURIComponent(batch.id)+'?view=grid')}>{canReview?'Go to Batch Review':'Open Selection Batch'}</Button>:
             <p className="rd-note">Batch Review becomes available when this run has a registered Selection Batch.</p>}
         </section>
         {pool?.sampleScenes?.length>0&&<section className="rd-card"><div className="rd-card-head"><h2>Source Frames</h2><span>Illustrative</span></div><div className="rd-previews">{pool.sampleScenes.slice(0,6).map((n,i)=><img key={i} src={sceneUrl(n)} alt={'Representative source frame '+(i+1)} loading="lazy"/>)}</div><p className="rd-note">Representative pool frames, not verified selected samples.</p></section>}
