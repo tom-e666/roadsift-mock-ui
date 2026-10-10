@@ -242,7 +242,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,annotati
         <div className="bw-inspector-foot"><strong>Shortcut help</strong><p>←/→ navigation · A approve · R reject · D defer. Keys are disabled while editing box geometry or typing.</p></div>
       </aside>
     </div>}
-    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} notify={notify} initialPreview={new URLSearchParams(routePath.split('?')[1]||'').get('preview')==='version'}/>}
+    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} onImportReturn={()=>openTab('return')} notify={notify} initialPreview={new URLSearchParams(routePath.split('?')[1]||'').get('preview')==='version'}/>}
     {view==='return'&&<AnnotationReturnImport key={id} batch={batch} annotationImports={annotationImports} setAnnotationImports={setAnnotationImports} navigate={navigate} notify={notify}/>}
 
   </div>;
