@@ -10,7 +10,7 @@ function downloadJson(name,data){
   const href=URL.createObjectURL(blob),a=document.createElement('a');a.href=href;a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(href),1000);
 }
-export function CuratedRelease({batch,onReview,notify,initialPreview=false}){
+export function CuratedRelease({batch,onReview,onImportReturn,notify,initialPreview=false}){
   const approved=batch.review?.approved||0,rejected=batch.review?.rejected||0,deferred=batch.review?.deferred||0;
   const pending=Math.max(0,batch.count-(batch.review?.reviewed||0));
   const [versionPreview,setVersionPreview]=useState(initialPreview);
@@ -110,6 +110,10 @@ export function CuratedRelease({batch,onReview,notify,initialPreview=false}){
         <button type="button" onClick={()=>openDrawer('annotation')}><Send size={22}/><strong>Send for annotation</strong><span>Send samples to a labeling workflow</span><ArrowRight size={17}/></button>
         <button type="button" onClick={()=>openDrawer('training')}><PackageCheck size={22}/><strong>Export dataset</strong><span>Generate images and verified labels</span><ArrowRight size={17}/></button>
       </div>
+      <section className="cr-history"><div className="cr-card-title"><h3>Annotation return</h3><button type="button" className="cr-annotation-intake" onClick={onImportReturn}>Import returned labels <ArrowRight size={14}/></button></div>
+        <p>Receive COCO or RoadSift annotations from an external labeling workflow, then reconcile sample IDs and create a new annotated version after authoritative validation.</p>
+        <div className="cr-annotation-intake-summary"><span>Recorded return status</span><strong>{batch.annotationReturn?.status||'Not started'}</strong></div>
+      </section>
       <section className="cr-history"><div className="cr-card-title"><h3>Delivery history</h3><span>Recorded batch data</span></div>
         {batch.handoff?.status&&batch.handoff.status!=='Not started'?
           <div className="cr-history-item"><FileText size={18}/><span><strong>{batch.handoff.status}</strong><small>{batch.handoff.destination||'Destination not recorded'} · {date(batch.handoff.sentAt)}</small></span><em>Historical fixture · unverified</em></div>:
