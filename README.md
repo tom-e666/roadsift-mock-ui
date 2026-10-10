@@ -26,3 +26,7 @@ Demo imports read file names and sizes only and do not upload files or parse dat
 ## Agent skill
 
 `.agents/skills/macos-design/` contains the complete macOS UI skill from https://github.com/ceorkm/macos-design-skill. See `AGENTS.md` for agent guidance.
+
+## Pipeline Definitions preview
+
+`/pipelines` is an interactive frontend-only definition registry and stage/DAG editor. Published definitions are immutable; clone a definition to edit dependencies and stage implementations in a draft, validate and publish it locally. `/mining` remains the existing Selection Launchpad (with a reference to its bundled definition); `/history` remains the Runs list and detail views. All custom definitions are **design-only** and are not executed by the current worker. Demo changes live in localStorage, not the production RoadSift database.
