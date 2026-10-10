@@ -254,3 +254,35 @@
 @media(max-width:1160px){.bw-queue-layout{grid-template-columns:180px minmax(0,1fr)}.bw-queue-preview{grid-column:2;position:static;display:grid;grid-template-columns:185px minmax(0,1fr);gap:10px;padding:12px}.bw-queue-preview-head{grid-column:1/-1;padding:0}.bw-queue-preview>.rs-media{grid-column:1;grid-row:2/5}.bw-preview-meta{grid-column:2;margin:0}.bw-queue-preview-info{grid-column:2;padding:0}.bw-queue-preview>.button{grid-column:2;margin:0}.bw-preview-help{grid-column:1/-1;padding:0}}
 @media(max-width:900px){.bw-queue-layout{grid-template-columns:1fr}.bw-queue-preview{grid-column:1}}
 @media(max-width:620px){.bw-queue-preview{display:block;padding:12px}.bw-queue-preview>.rs-media{margin:10px 0}.bw-queue-preview-info,.bw-preview-meta{margin:10px 0;padding:0}.bw-queue-preview>.button{margin:10px 0}.bw-preview-help{padding:0}.bw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Handoff configuration v2: output contract and freeze/export boundary */
+.bw-handoff-workflow .bw-handoff{grid-template-columns:minmax(0,1fr) 360px}
+.bw-handoff-workflow .bw-handoff-checks{min-width:0}
+.bw-handoff-workflow .bw-handoff-settings{gap:0;padding:20px}
+.bw-config-intro{font-size:11px;color:var(--muted);line-height:1.55;padding-top:9px}
+.bw-config-group{display:grid;gap:12px;border-top:1px solid var(--line);padding-top:17px;margin-top:17px}
+.bw-config-group h3{font-size:12px;font-weight:700;letter-spacing:-.01em}
+.bw-config-group>label:not(.bw-config-check),.bw-config-inline label{display:grid;gap:7px;font-size:11px;color:var(--muted)}
+.bw-config-group select,.bw-config-group input:not([type=checkbox]),.bw-config-group textarea{width:100%;min-width:0;background:var(--grouped);border:1px solid var(--line);border-radius:7px;padding:9px 10px;font-size:11px;color:var(--text);outline-offset:2px}
+.bw-config-group select:focus-visible,.bw-config-group input:focus-visible,.bw-config-group textarea:focus-visible{outline:2px solid var(--accent)}
+.bw-config-group select{height:36px}
+.bw-config-group textarea{min-height:54px;resize:vertical;font:inherit}
+.bw-config-inline{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}
+.bw-config-hint{font-size:10px;color:var(--tertiary);line-height:1.6}
+.bw-config-check{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.bw-config-check input{margin-top:3px;flex-shrink:0;accent-color:var(--accent);height:15px;width:15px}
+.bw-config-check input:disabled{opacity:.75;cursor:not-allowed}
+.bw-config-check>span{display:grid;gap:4px}
+.bw-config-check strong{font-weight:600;font-size:11px;color:var(--text)}
+.bw-config-check small{font-size:10px;color:var(--muted);line-height:1.5}
+.bw-config-issues{border:1px solid color-mix(in srgb,var(--status-warning) 40%,var(--line));background:color-mix(in srgb,var(--status-warning) 7%,var(--surface));border-radius:7px;padding:10px;display:grid;gap:6px}
+.bw-config-issues p{display:flex;align-items:start;gap:6px;color:var(--status-warning);font-size:10px;line-height:1.5}
+.bw-config-issues svg{flex-shrink:0}
+.bw-handoff-workflow .bw-handoff-settings .bw-handoff-action{gap:12px;margin-top:18px}
+.bw-export-checks{border-top:1px solid var(--line);margin-top:22px;padding-top:17px}
+.bw-export-checks .bw-section-head{align-items:center}
+.bw-export-checks .bw-rule:last-child{border-bottom:0}
+.bw-handoff-action>button[disabled]{cursor:not-allowed;opacity:.65}
+@media(max-width:1100px){.bw-handoff-workflow .bw-handoff{grid-template-columns:minmax(0,1fr) 310px}}
+@media(max-width:1000px){.bw-handoff-workflow .bw-handoff{grid-template-columns:1fr}.bw-handoff-workflow .bw-handoff-settings{position:static}}
+@media(max-width:480px){.bw-config-inline{grid-template-columns:1fr}}
