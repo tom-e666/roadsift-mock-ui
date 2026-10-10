@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RunDetails } from './RunDetails.jsx';
+import { BatchRegistry } from './BatchRegistry.jsx';
 import { SampleMedia } from './SampleMedia.jsx';
 import './launchpad.css';
 import selectionRunnerSource from '../worker/selection_runner.py?raw';
@@ -842,42 +843,10 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
   </div>;
 }
 
-export function SelectionBatches({ selectionBatches, setSelectionBatches, datasets, pools, navigate, notify, routePath }) {
-  const requestedBatch=new URLSearchParams((routePath||'').split('?')[1]||'').get('batch');
-  const [query,setQuery]=useState(''), [status,setStatus]=useState('All'),
-    [selected,setSelected]=useState(()=>selectionBatches.find(b=>b.id===requestedBatch)||null);
-  useEffect(()=>{if(requestedBatch)setSelected(selectionBatches.find(b=>b.id===requestedBatch)||null)},[requestedBatch]);
-  const statuses=['All',...batchLifecycle.map(x=>x.label)];
-  const results=selectionBatches.filter(b=>(status==='All'||b.status===status)&&(`${b.name} ${b.id} ${b.runId}`).toLowerCase().includes(query.toLowerCase()));
-  const poolOf=b=>pools.find(p=>p.id===b.sourcePoolId);
-  const datasetOf=b=>datasets.find(d=>d.id===b.baseDatasetId);
-  const reviewPct=b=>Math.round(((b.review?.reviewed||0)/Math.max(1,b.count))*100);
-  return <div className="page batches-page"><PageHeader eyebrow="Curation operations" title="Selection Batches" description="Review, freeze, hand off and reconcile the immutable outputs of Mining runs." actions={<Button icon={Pickaxe} onClick={()=>navigate('mining')}>New mining run</Button>}/>
-    <div className="history-toolbar"><div className="search-field"><Search size={16}/><input placeholder="Batch ID, run, dataset…" value={query} onChange={e=>setQuery(e.target.value)}/></div><select value={status} onChange={e=>setStatus(e.target.value)}>{statuses.map(s=><option key={s}>{s}</option>)}</select><Badge>{results.length} batches</Badge></div>
-    <section className="catalog"><div className="table-scroll"><table className="dataset-table batches-table"><thead><tr><th>Batch</th><th>Status</th><th>Source</th><th>Base dataset</th><th>Membership</th><th>Review</th><th>Handoff</th><th>Updated</th><th>Workspace</th></tr></thead><tbody>{results.map(b=><tr key={b.id} tabIndex="0" role="button" onClick={()=>setSelected(b)}><td><div className="dataset-name-cell"><strong>{b.name}</strong><small>{b.id}</small></div></td><td><Badge>{b.status}</Badge></td><td>{poolOf(b)?.name||b.sourcePoolId}</td><td>{datasetOf(b)?.name||b.baseDatasetId}</td><td>{count(b.count)}</td><td><div className="batch-review-cell"><strong>{reviewPct(b)}%</strong><span>{count(b.review?.reviewed||0)} / {count(b.count)}</span></div></td><td>{b.handoff?.status||'Not started'}</td><td>{date(b.updatedAt)}</td><td onClick={e=>e.stopPropagation()}><Button variant="primary" onClick={()=>navigate('/batches/'+encodeURIComponent(b.id)+'?view=grid')}>Open Workspace</Button></td></tr>)}</tbody></table></div></section>
-    {selected&&<Modal sheet title="Selection Batch" onClose={()=>setSelected(null)} footer={<>
-      <Button icon={Download} onClick={()=>{downloadJSON(selected.id+'.metadata.json',{schemaVersion:selected.schemaVersion,batch:selected});notify('Batch metadata exported')}}>Export metadata</Button>
-      <Button variant="primary" icon={ArrowRight} onClick={()=>navigate('/batches/'+encodeURIComponent(selected.id)+'?view=grid')}>Open Workspace</Button>
-    </>}>
-      <div className="detail-heading"><div className="detail-heading__meta"><Badge>{selected.status}</Badge><code>{selected.id}</code></div><h2>{selected.name}</h2>
-        <p>Selection Batch overview. Review, quick-edit drafts, and validation-gated handoff are available in its workspace.</p></div>
-      <div className="detail-stats">
-        <StatRow label="Mining run" value={selected.runId}/>
-        <StatRow label="Source Pool Snapshot" value={selected.sourceSnapshot}/>
-        <StatRow label="Membership" value={count(selected.count)}/>
-        <StatRow label="Membership hash (recorded)" value={selected.membershipHash||'Not recorded'}/>
-        <StatRow label="Reviewed (recorded)" value={count(selected.review?.reviewed||0)}/>
-        <StatRow label="Approved (recorded)" value={count(selected.review?.approved||0)}/>
-        <StatRow label="Privacy clearance" value="Not validated by this mock"/>
-        <StatRow label="Handoff record" value={selected.handoff?.status||'Not started'}/>
-      </div>
-      <div className="section-actions">
-        <Button onClick={()=>navigate('/batches/'+encodeURIComponent(selected.id)+'?view=review')}>Open Focus Review</Button>
-        <Button onClick={()=>navigate('/batches/'+encodeURIComponent(selected.id)+'?view=handoff')}>Check Finalize &amp; Handoff</Button>
-      </div>
-    </Modal>}
-  </div>;
+export function SelectionBatches(props) {
+  return <BatchRegistry {...props}/>;
 }
+
 export function History({runs,setRuns,navigate,notify,routePath,selectionBatches,pools}) {
   const [query,setQuery]=useState('');
   const [filter,setFilter]=useState('All');
