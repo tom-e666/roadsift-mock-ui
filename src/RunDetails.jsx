@@ -43,6 +43,7 @@ function Dag({stages,onSelect,selected}){
 export function RunDetails({run,selectionBatches=[],pools=[],navigate,notify,onRetry,onExport}){
   const [tab,setTab]=useState('progress'),[stageId,setStageId]=useState(null);
   const stages=useMemo(()=>runStages(run),[run]);
+  const capturedGraph=Boolean(run.pipelineDefinitionSnapshot?.stages?.length||run.contract?.pipeline?.steps?.length);
   const current=stages.find(s=>s.id===stageId)||stages[0];
   const stageEvent=(run.stageEvents||[]).find(e=>e.stageId===current?.id);
   const batch=selectionBatches.find(b=>b.runId===run.id)||selectionBatches.find(b=>b.id===run.outputBatchId);
@@ -63,7 +64,7 @@ export function RunDetails({run,selectionBatches=[],pools=[],navigate,notify,onR
       <div className="rd-actions"><Button icon={Download} onClick={()=>onExport(run)}>Export record</Button>{run.contract&&<Button icon={RotateCcw} onClick={()=>onRetry(run)}>Rerun</Button>}</div>
     </header>
     <div className="rd-metrics">
-      <div><small>Stages defined</small><strong>{stages.length||'—'}</strong><span>Stage status not reported</span></div>
+      <div><small>{capturedGraph?'Stages defined':'Reference stages'}</small><strong>{capturedGraph?stages.length:'—'}</strong><span>{capturedGraph?'Stage status not reported':'No stored pipeline definition'}</span></div>
       <div><small>Input samples</small><strong>{run.frames!=null?count(run.frames):'—'}</strong><span>Candidate pool</span></div>
       <div><small>Selected samples</small><strong>{run.selected!=null?count(run.selected):'—'}</strong><span>{run.budget!=null?'Target '+count(run.budget):'No budget'}</span></div>
       <div><small>Duration</small><strong>{run.duration||'—'}</strong><span>Recorded duration</span></div>
@@ -73,7 +74,7 @@ export function RunDetails({run,selectionBatches=[],pools=[],navigate,notify,onR
       <div className="rd-tabs" role="tablist">{[['progress','Pipeline Progress'],['stages','Stage Details'],['logs','Logs'],['artifacts','Artifacts']].map(([v,name])=><button key={v} role="tab" aria-selected={tab===v} className={tab===v?'active':''} onClick={()=>setTab(v)}>{name}</button>)}</div>
       {tab==='progress'&&<section className="rd-card"><div className="rd-card-head"><div><h2>Execution Graph</h2><p>Definition structure · Select a stage for details</p></div><span>{stages.length} stages</span></div>
         {stages.length?<Dag stages={stages} selected={current?.id} onSelect={id=>{setStageId(id);setTab('stages')}}/>:<p className="rd-empty">No pipeline definition was stored with this run.</p>}
-        <p className="rd-note">Stage-level execution status is not available without recorded worker events. Nodes do not imply success.</p>
+        <p className="rd-note">{capturedGraph?'Stage-level execution status is not available without recorded worker events. Nodes do not imply success.':'Illustrative selection workflow only. This historical record does not contain its executed DAG; node order and completion cannot be verified.'}</p>
       </section>}
       {(tab==='progress'||tab==='stages')&&<section className="rd-card"><div className="rd-card-head"><h2>Stage Details</h2><span>Inspection</span></div>
         {stages.length?<div className="rd-stage-detail"><div className="rd-stage-list">{stages.map((s,i)=>{const Icon=ICONS[s.type]||Workflow;return <button key={s.id} className={current?.id===s.id?'active':''} onClick={()=>setStageId(s.id)}><small>{String(i+1).padStart(2,'0')}</small><Icon size={16}/><span>{NAMES[s.type]||s.type}</span><ChevronDown size={14}/></button>})}</div>
