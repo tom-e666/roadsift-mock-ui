@@ -241,7 +241,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
         <div className="bw-inspector-foot"><strong>Shortcut help</strong><p>←/→ navigation · A approve · R reject · D defer. Keys are disabled while editing box geometry or typing.</p></div>
       </aside>
     </div>}
-    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} notify={notify}/>}
+    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} notify={notify} initialPreview={new URLSearchParams(routePath.split('?')[1]||'').get('preview')==='version'}/>}
 
   </div>;
 }
