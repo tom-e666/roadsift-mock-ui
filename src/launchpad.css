@@ -69,3 +69,9 @@
 @media(max-width:1080px){.lp-builder{grid-template-columns:minmax(0,1fr) 265px}.lp-weights{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:800px){.lp-builder{grid-template-columns:1fr}.lp-summary{position:static;grid-row:1}.lp-summary-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 15px}.lp-note{margin-top:7px}}
 @media(max-width:530px){.lp-page{padding:17px 10px 28px}.lp-header h1{font-size:22px}.lp-header{align-items:flex-start}.lp-header>.button{font-size:0}.lp-definition{align-items:flex-start;flex-wrap:wrap;padding:12px}.lp-definition>.button{margin-left:auto}.lp-input-row,.lp-advanced-grid{grid-template-columns:1fr}.lp-summary-fields{grid-template-columns:1fr}}
+
+/* Published pipeline implementations and privacy policy are inherited, never reselected at run launch. */
+.lp-locked-field,.lp-inherited-value{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--grouped);font-size:12px;min-height:39px}
+.lp-locked-field strong,.lp-inherited-value strong{font-weight:650}
+.lp-locked-field span,.lp-inherited-value span{font-size:10px;color:var(--muted);white-space:nowrap}
+.lp-inherited-json{grid-column:1/-1;margin-top:7px;color:var(--muted);font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere}
