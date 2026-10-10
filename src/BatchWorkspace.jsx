@@ -5,7 +5,7 @@ import {frames,count,date} from './data.js';
 import {SampleMedia} from './SampleMedia.jsx';
 import {QuickBoxEditor} from './QuickBoxEditor.jsx';
 import {CuratedRelease} from './CuratedRelease.jsx';
-import {AnnotationReturnImport} from './ResultImports.jsx';
+
 import './batch-workspace.css';
 
 const REVIEW=['Pending','Approved','Rejected','Deferred'];
@@ -137,10 +137,10 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,annotati
       </div>
     </section>
     <div className="bw-tabs" role="tablist" aria-label="Selection batch workspace">
-      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Curated Batch',PackageCheck],['return','Annotation Return',Download]].map(([key,label,Icon])=>
+      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Curated Batch',PackageCheck]].map(([key,label,Icon])=>
         <button key={key} type="button" role="tab" aria-selected={view===key} className={view===key?'active':''} onClick={()=>openTab(key)}><Icon size={15}/>{label}</button>)}
     </div>
-    {view!=='handoff'&&<div className="bw-data-note"><CircleAlert size={14}/><span><strong>Preview gallery</strong> · {frames.length} illustrative frames, not verified members of this batch. Local review edits do not change official progress.</span></div>}
+    {['grid','review'].includes(view)&&<div className="bw-data-note"><CircleAlert size={14}/><span><strong>Preview gallery</strong> · {frames.length} illustrative frames, not verified members of this batch. Local review edits do not change official progress.</span></div>}
     {view==='grid'&&<div className="bw-queue-layout">
       <aside className="bw-queue-sidebar" aria-label="Review queue filters">
         <div className="bw-queue-heading"><ListFilter size={15}/><strong>Review queue</strong></div>
@@ -242,8 +242,8 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,annotati
         <div className="bw-inspector-foot"><strong>Shortcut help</strong><p>←/→ navigation · A approve · R reject · D defer. Keys are disabled while editing box geometry or typing.</p></div>
       </aside>
     </div>}
-    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} onImportReturn={()=>openTab('return')} notify={notify} initialPreview={new URLSearchParams(routePath.split('?')[1]||'').get('preview')==='version'}/>}
-    {view==='return'&&<AnnotationReturnImport key={id} batch={batch} annotationImports={annotationImports} setAnnotationImports={setAnnotationImports} navigate={navigate} notify={notify}/>}
+    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} onImportReturn={()=>navigate('/annotation-jobs?job='+encodeURIComponent(id)+'&import=1')} notify={notify} initialPreview={new URLSearchParams(routePath.split('?')[1]||'').get('preview')==='version'}/>}
+    {view==='return'&&<div className="bw-notice"><strong>Annotation Return is now managed in Annotation Jobs.</strong><Button onClick={()=>navigate('/annotation-jobs?job='+encodeURIComponent(id)+'&import=1')}>Open annotation job</Button></div>}
 
   </div>;
 }
