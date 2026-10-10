@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Check, CheckCircle2, CircleAlert, CircleDot, Copy, FileCode2, GitBranch, Layers3, LockKeyhole, Plus, Save, Settings2, ShieldCheck, Workflow, X } from 'lucide-react';
-import { Badge, Button, DemoNote, PageHeader } from './components/UI.jsx';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, CircleDot, Copy, FileCode2, GitBranch, LockKeyhole, Maximize2, Minus, MousePointer2, Plus, Save, Search, Settings2, Workflow, X } from 'lucide-react';
+import { Button } from './components/UI.jsx';
 import './pipelines.css';
 
 const stageCatalog = {
@@ -110,152 +110,283 @@ function graphLayout(stages) {
   return { locations, width: Math.max(470, maxColumn*216+252), height: Math.max(270, tallest*114+68), active };
 }
 function statusOf(run) { return run?.status || 'No runs'; }
-export function PipelineDefinitions({ definitions, setDefinitions, runs = [], navigate, notify }) {
-  const [selectedId, setSelectedId] = useState('al-selection-v1');
-  const selected = definitions.find(d => d.id === selectedId) || definitions[0];
-  const [draft, setDraft] = useState(() => copy(selected || initialPipelineDefinitions[0]));
-  const [selectedStage, setSelectedStage] = useState('selection');
-  const [tab, setTab] = useState('graph');
-  const [search, setSearch] = useState('');
-  const [newStageType, setNewStageType] = useState('domain');
-  useEffect(() => { if (selected) { setDraft(copy(selected)); setSelectedStage('selection'); setTab('graph'); } }, [selectedId, selected]);
-  const isEditable = draft.status === 'draft';
-  const dirty = Boolean(selected && JSON.stringify(selected) !== JSON.stringify(draft));
-  const problems = useMemo(() => validate(draft), [draft]);
-  const layout = useMemo(() => graphLayout(draft.stages), [draft.stages]);
-  const inspected = draft.stages.find(n => n.id === selectedStage) || draft.stages[0];
-  const familyRuns = runs.filter(r => r.pipelineDefinitionId === selected?.id || (selected?.id === 'al-selection-v1' && r.type === 'Mining' && !r.pipelineDefinitionId));
-  const runnable = draft.id === 'al-selection-v1' && draft.status === 'published' && !dirty;
-  const updateDraft = patch => setDraft(previous => ({ ...previous, ...patch }));
-  const changeNode = patch => setDraft(previous => ({...previous, stages: previous.stages.map(n => n.id === selectedStage ? {...n,...patch} : n) }));
-  const makeDraft = (base = selected, blank = false) => {
-    if (!base) return;
-    const familyId = blank ? 'custom-' + Date.now().toString(36) : base.familyId;
-    const version = blank ? 1 : Math.max(0,...definitions.filter(d=>d.familyId===familyId).map(d=>d.version)) + 1;
-    const now = Date.now().toString(36);
-    const fresh = { ...copy(base), id: 'pipeline-' + now, familyId,
-      version, status:'draft', updatedAt:new Date().toISOString(), origin:'user',
-      name: blank ? 'Untitled pipeline' : base.name,
-      description: blank ? 'New editable pipeline definition.' : base.description };
-    setDefinitions(list => [fresh,...list]); setSelectedId(fresh.id);
-    notify(blank ? 'New pipeline draft created · local demo' : 'Editable draft created · local demo');
+
+const ioContracts = {
+  source:['External Pool Snapshot','Immutable candidate manifest'],
+  eligibility:['Pool snapshot','Eligible sample IDs'],
+  dedup:['Eligible sample IDs','Deduplicated candidates'],
+  domain:['Candidate features','Domain assignments'],
+  prediction:['Candidate images + model reference','Prediction metadata'],
+  embedding:['Candidate images','Feature vectors'],
+  uncertainty:['Prediction metadata','Uncertainty scores'],
+  diversity:['Feature vectors','Diversity scores'],
+  selection:['Scored eligible candidates','EXACT-N selection'],
+  privacy:['Selected samples','Anonymized samples + verification'],
+  output:['Approved safe selection','Reviewable batch manifest']
+};
+function nextDraft(definitions, from, newFamily = false) {
+  const familyId = newFamily ? 'custom-' + Date.now().toString(36) : from.familyId;
+  const version = newFamily ? 1 : Math.max(0,...definitions.filter(d => d.familyId === familyId).map(d => d.version)) + 1;
+  return { ...copy(from), id:'pipeline-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,6),
+    familyId, version, name:newFamily?'Untitled Pipeline':from.name,
+    description:newFamily?'Configure stages and dependencies to create a new workflow.':from.description,
+    status:'draft', updatedAt:new Date().toISOString(), origin:'user' };
+}
+export function PipelineDefinitions({ definitions, setDefinitions, runs = [], navigate, notify, routePath = '/pipelines' }) {
+  const routeId = decodeURIComponent(routePath.split('?')[0].split('/')[2] || '');
+  const inEditor = Boolean(routeId);
+  const active = definitions.find(d => d.id === routeId);
+  const [draft,setDraft] = useState(() => copy(active || definitions[0] || initialPipelineDefinitions[0]));
+  const [selectedStage,setSelectedStage] = useState(null);
+  const [pane,setPane] = useState('stage');
+  const [tab,setTab] = useState('graph');
+  const [query,setQuery] = useState('');
+  const [pickerOpen,setPickerOpen] = useState(false);
+  const [addOpen,setAddOpen] = useState(false);
+  const [stageType,setStageType] = useState('domain');
+  const [zoom,setZoom] = useState(1);
+  const [pan,setPan] = useState({x:0,y:0});
+  const canvasRef = React.useRef(null);
+  const dragRef = React.useRef(null);
+  useEffect(()=>{
+    if (active) setDraft(copy(active));
+    setSelectedStage(null);
+    setPickerOpen(false);setAddOpen(false);setTab('graph');setPane('stage');
+  },[routeId]);
+  const selected = draft.stages.find(n=>n.id===selectedStage) || null;
+  const problems = useMemo(()=>validate(draft),[draft]);
+  const layoutKey = draft.stages.map(n=>[n.id,n.enabled,n.dependsOn.join(',')].join(':')).join('|');
+  const layout = useMemo(()=>graphLayout(draft.stages),[layoutKey]);
+  const editable = draft.status==='draft';
+  const dirty = Boolean(active && JSON.stringify(active)!==JSON.stringify(draft));
+  const assignedRuns = d => runs.filter(r => r.pipelineDefinitionId===d.id || (d.id==='al-selection-v1' && r.type==='Mining' && !r.pipelineDefinitionId));
+  const compatibleRunner = Boolean(active?.id==='al-selection-v1' && draft.status==='published' && !dirty);
+
+  const fitView = () => {
+    const el=canvasRef.current;
+    if(!el) return;
+    const w=el.clientWidth,h=el.clientHeight;
+    if(w<1||h<1)return;
+    const z=Math.min(1.15,Math.max(.23,Math.min((w-56)/layout.width,(h-56)/layout.height)));
+    setZoom(z);
+    setPan({x:(w-layout.width*z)/2,y:(h-layout.height*z)/2});
   };
-  const saveDraft = () => {
-    if (!isEditable) return;
-    const saved = {...draft,updatedAt:new Date().toISOString()};
-    setDefinitions(list => list.map(d => d.id === saved.id ? saved : d));
-    notify('Definition draft saved locally');
+  useEffect(() => {
+    if(!inEditor || tab!=='graph') return;
+    const el=canvasRef.current;
+    if(!el)return;
+    const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(()=>fitView()):null;
+    observer?.observe(el);
+    fitView();
+    if(!observer){window.addEventListener('resize',fitView);return()=>window.removeEventListener('resize',fitView);}
+    return()=>observer.disconnect();
+  },[routeId,layout.width,layout.height,selectedStage!==null,tab]);
+  useEffect(()=>{
+    if(!inEditor||tab!=='graph')return;
+    const el=canvasRef.current;
+    if(!el)return;
+    const wheel=e=>{
+      if(!e.ctrlKey&&!e.metaKey){e.preventDefault();setPan(p=>({x:p.x-e.deltaX,y:p.y-e.deltaY}));return;}
+      e.preventDefault();
+      const rect=el.getBoundingClientRect();
+      const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+      const nextZoom=Math.min(1.7,Math.max(.25,zoom*Math.exp(-e.deltaY*.002)));
+      const ratio=nextZoom/zoom;
+      setPan(p=>({x:mx-(mx-p.x)*ratio,y:my-(my-p.y)*ratio}));
+      setZoom(nextZoom);
+    };
+    el.addEventListener('wheel',wheel,{passive:false});
+    return()=>el.removeEventListener('wheel',wheel);
+  },[routeId,tab,zoom]);
+  useEffect(()=>{
+    const esc=e=>{if(e.key==='Escape'){setSelectedStage(null);setPickerOpen(false);setAddOpen(false);}};
+    window.addEventListener('keydown',esc);
+    return()=>window.removeEventListener('keydown',esc);
+  },[]);
+  const moveZoom = direction => {
+    const rect=canvasRef.current?.getBoundingClientRect();
+    if(!rect)return;
+    const z=Math.min(1.7,Math.max(.25,zoom*(direction>0?1.2:1/1.2)));
+    const cx=rect.width/2,cy=rect.height/2,ratio=z/zoom;
+    setPan(p=>({x:cx-(cx-p.x)*ratio,y:cy-(cy-p.y)*ratio}));setZoom(z);
   };
-  const publish = () => {
-    if (!isEditable || problems.length) { notify('Resolve definition validation issues before publishing'); return; }
-    const saved = {...draft,status:'published',updatedAt:new Date().toISOString()};
-    setDefinitions(list => list.map(d => d.id === saved.id ? saved : d));
-    notify('Definition published locally · execution support is separate');
+  const onPointerDown=e=>{
+    if(e.button!==0 || e.target.closest('button'))return;
+    dragRef.current={id:e.pointerId,x:e.clientX,y:e.clientY,pan};
+    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
-  const addStage = () => {
-    const type = newStageType;
-    const index = draft.stages.filter(n=>n.type===type).length;
-    const current = draft.stages.find(n=>n.id===selectedStage && n.enabled);
-    const node = asStage(type, [current?.id || 'source'], index+1);
-    setDraft(d => ({...d,stages:[...d.stages,node]}));
-    setSelectedStage(node.id);
+  const onPointerMove=e=>{
+    const drag=dragRef.current;
+    if(drag?.id!==e.pointerId)return;
+    setPan({x:drag.pan.x+e.clientX-drag.x,y:drag.pan.y+e.clientY-drag.y});
   };
-  const toggleStage = node => {
-    if (required.has(node.type)) return;
-    changeNode({enabled:!node.enabled});
+  const onPointerUp=e=>{
+    if(dragRef.current?.id===e.pointerId)dragRef.current=null;
+    if(e.currentTarget.hasPointerCapture?.(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
   };
-  const removeStage = node => {
-    if (required.has(node.type)) return;
-    setDraft(d=>({...d,stages:d.stages.filter(s=>s.id!==node.id).map(s=>({...s,dependsOn:s.dependsOn.filter(dep=>dep!==node.id)}))}));
-    setSelectedStage('selection');
+
+  const make = (from, fresh = false) => {
+    const next=nextDraft(definitions,from,fresh);
+    setDefinitions(d=>[next,...d]);
+    notify(fresh?'New pipeline created locally':'Editable version created locally');
+    navigate('pipelines/'+encodeURIComponent(next.id));
   };
-  const toggleDep = id => changeNode({dependsOn:inspected.dependsOn.includes(id) ? inspected.dependsOn.filter(k=>k!==id) : [...inspected.dependsOn,id]});
-  const filtered = definitions.filter(d => (d.name + d.description + d.id).toLowerCase().includes(search.toLowerCase()));
-  return <div className="page pipeline-page">
-    <PageHeader eyebrow="Workflow design / Definitions" title="Pipeline Definitions" description="Versioned workflows, editable stages, and explicit execution contracts." actions={<><Button icon={Plus} onClick={()=>makeDraft(selected,true)}>New pipeline</Button><Button icon={Copy} onClick={()=>makeDraft()}>Clone as draft</Button></>}/>
-    <DemoNote>Frontend-only pipeline design concept · definitions are saved in this browser. Custom DAGs do not execute on a backend.</DemoNote>
-    <div className="pipeline-overview">
-      <div><strong>{definitions.length}</strong><span>Definitions</span></div>
-      <div><strong>{definitions.filter(d=>d.status==='published').length}</strong><span>Published versions</span></div>
-      <div><strong>{definitions.filter(d=>d.status==='draft').length}</strong><span>Editable drafts</span></div>
-      <div><strong>{familyRuns.length}</strong><span>Related demo runs</span></div>
+  const save=()=>{
+    if(!editable)return;
+    const saved={...draft,updatedAt:new Date().toISOString()};
+    setDefinitions(d=>d.map(x=>x.id===saved.id?saved:x));
+    setDraft(saved);
+    notify('Draft saved in this browser');
+  };
+  const publish=()=>{
+    if(!editable||problems.length){notify('Resolve definition validation issues first');return;}
+    const saved={...draft,status:'published',updatedAt:new Date().toISOString()};
+    setDefinitions(d=>d.map(x=>x.id===saved.id?saved:x));
+    setDraft(saved);
+    notify('Definition published locally; executor support is separate');
+  };
+  const changeNode=patch=>setDraft(d=>({...d,stages:d.stages.map(n=>n.id===selectedStage?{...n,...patch}:n)}));
+  const removeStage=()=>{
+    if(!selected||required.has(selected.type))return;
+    setDraft(d=>({...d,stages:d.stages.filter(n=>n.id!==selected.id).map(n=>({...n,dependsOn:n.dependsOn.filter(x=>x!==selected.id)}))}));
+    setSelectedStage(null);
+  };
+  const addStage=()=>{
+    const existing=draft.stages.filter(n=>n.type===stageType);
+    const suffix=existing.length+1,id=stageType+(existing.length?'-'+suffix:'');
+    const firstUpstream=selected?.enabled?selected.id:'eligibility';
+    const newNode=asStage(stageType,[firstUpstream],existing.length? suffix:0);
+    newNode.id=id;
+    if(existing.length)newNode.label=stageCatalog[stageType].title+' '+suffix;
+    setDraft(d=>({...d,stages:[...d.stages,newNode]}));
+    setSelectedStage(id);setPane('stage');setAddOpen(false);
+  };
+  const filtered=definitions.filter(d=>(d.name+' '+d.id+' '+d.description).toLowerCase().includes(query.toLowerCase()));
+  if(!inEditor) return <div className="page pipeline-registry-page">
+    <div className="pipeline-registry-header">
+      <div><span className="pipeline-kicker">WORKFLOWS</span><h1>Pipelines</h1><p>Define, version and launch repeatable data workflows.</p></div>
+      <Button variant="primary" icon={Plus} onClick={()=>make(definitions.find(d=>d.id==='al-selection-v1')||definitions[0]||initialPipelineDefinitions[0],true)}>Create Pipeline</Button>
     </div>
-    <div className="pipeline-layout">
-      <aside className="pipeline-catalog" aria-label="Pipeline definitions">
-        <div className="pipeline-section-heading"><strong>Definitions</strong><span>Local registry</span></div>
-        <input className="pipeline-search" value={search} onChange={e=>setSearch(e.target.value)} aria-label="Search pipeline definitions" placeholder="Search definitions..." />
-        <div className="pipeline-catalog-items">
-          {filtered.map(d=><button className={'pipeline-def-item'+(selected?.id===d.id?' is-selected':'')} key={d.id} onClick={()=>setSelectedId(d.id)} aria-current={selected?.id===d.id?'true':undefined}>
-            <span className="pipeline-def-icon"><Workflow size={17}/></span>
-            <span className="pipeline-def-copy"><strong>{d.name}</strong><small>v{d.version} · {dateLabel(d.updatedAt)}</small></span>
-            <span className={'pipeline-mini-status '+(d.status==='published'?'is-published':'')}>{statusLabel(d)}</span>
-          </button>)}
-          {!filtered.length&&<p className="pipeline-muted pipeline-empty">No matching definitions.</p>}
+    <div className="pipeline-registry-toolbar">
+      <div className="pipeline-search"><Search size={15}/><input aria-label="Search pipelines" placeholder="Search pipelines..." value={query} onChange={e=>setQuery(e.target.value)}/></div>
+      <span>{definitions.length} versions</span>
+    </div>
+    <div className="pipeline-registry-table-wrap">
+      <table className="pipeline-registry-table"><thead><tr><th>Pipeline</th><th>Version</th><th>Status</th><th>Stages</th><th>Runs</th><th>Updated</th><th></th></tr></thead><tbody>
+        {filtered.map(d=><tr key={d.id}>
+          <td><button className="pipeline-row-link" onClick={()=>navigate('pipelines/'+encodeURIComponent(d.id))}><Workflow size={17}/><span><strong>{d.name}</strong><small>{d.description}</small></span></button></td>
+          <td>v{d.version}</td><td><span className={'pipeline-state '+(d.status==='published'?'is-published':'')}>{statusLabel(d)}</span></td>
+          <td>{d.stages.filter(n=>n.enabled).length}</td><td>{assignedRuns(d).length}</td><td>{dateLabel(d.updatedAt)}</td>
+          <td><button className="pipeline-link-action" onClick={()=>navigate('pipelines/'+encodeURIComponent(d.id))}>Open <ArrowRight size={14}/></button></td>
+        </tr>)}
+        {!filtered.length&&<tr><td colSpan={7}><p className="pipeline-no-results">No matching pipelines.</p></td></tr>}
+      </tbody></table>
+    </div>
+    <p className="pipeline-source-note">Preview · Definitions are stored locally in this browser. Published versions cannot be edited directly.</p>
+  </div>;
+
+  if(!active) return <div className="page pipeline-missing"><h1>Pipeline not found</h1><p>This definition is not available in your local registry.</p><Button onClick={()=>navigate('pipelines')}>Back to Pipelines</Button></div>;
+  return <div className="pipeline-editor-page">
+    <header className="pipeline-editor-header">
+      <div className="pipeline-editor-identity">
+        <button className="pipeline-icon-button" aria-label="Back to Pipelines" title="Back to Pipelines" onClick={()=>navigate('pipelines')}><ArrowLeft size={17}/></button>
+        <div className="pipeline-title-area">
+          <button className="pipeline-title-trigger" aria-expanded={pickerOpen} onClick={()=>{setPickerOpen(v=>!v);setAddOpen(false);}}>
+            <span>{draft.name}</span><ChevronDown size={14}/>
+          </button>
+          <div className="pipeline-title-meta">v{draft.version} · <span className={editable?'':'pipeline-published-text'}>{editable?'Draft':'Published'}</span> <span className="pipeline-local-note">· Preview / Local only</span></div>
         </div>
-        <div className="pipeline-catalog-footer"><ShieldCheck size={16}/><span>Published definitions are immutable. Clone to modify them.</span></div>
-      </aside>
-      <section className="pipeline-canvas-section" aria-label="Definition editor">
-        <div className="pipeline-definition-heading">
-          <div><span className="pipeline-overline">PIPELINE / {draft.familyId} / VERSION {draft.version}</span>
-            {isEditable?<input className="pipeline-name-input" aria-label="Pipeline name" value={draft.name} onChange={e=>updateDraft({name:e.target.value})}/>:<h2>{draft.name}</h2>}
-            <p>{draft.description}</p>
+        {pickerOpen&&<div className="pipeline-picker-popover">
+          <div className="pipeline-picker-title">Switch pipeline</div>
+          {definitions.map(d=><button key={d.id} onClick={()=>navigate('pipelines/'+encodeURIComponent(d.id))} className={d.id===routeId?'active':''}><span>{d.name}</span><small>v{d.version} · {statusLabel(d)}</small></button>)}
+          <button className="pipeline-picker-footer" onClick={()=>navigate('pipelines')}>View all pipelines <ArrowRight size={13}/></button>
+        </div>}
+      </div>
+      <div className="pipeline-editor-actions">
+        <button className={'pipeline-validation-pill '+(problems.length?'has-errors':'')} onClick={()=>setTab('validation')} aria-label="Show validation results">
+          {problems.length?<CircleAlert size={15}/>:<CheckCircle2 size={15}/>}
+          <span>{problems.length?problems.length+' issues':'Valid graph'}</span>
+        </button>
+        {editable?<><Button onClick={save} disabled={!dirty} icon={Save}>Save</Button><Button variant="primary" icon={Check} onClick={publish} disabled={Boolean(problems.length)}>Publish</Button></>:
+          <><Button onClick={()=>make(active)} icon={Copy}>New version</Button>{compatibleRunner&&<Button variant="primary" onClick={()=>navigate('mining?definition='+active.id)} icon={ArrowRight}>Launch</Button>}</>}
+      </div>
+    </header>
+    <div className="pipeline-editor-tabs">
+      <div className="pipeline-tab-list" role="tablist" aria-label="Pipeline definition views">
+        {[['graph','Graph'],['json','JSON'],['versions','Versions'],['validation','Validation']].map(([id,name])=><button key={id} type="button" role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>{setTab(id);setSelectedStage(null);}}>{name}</button>)}
+      </div>
+      <span className="pipeline-version-hint">{draft.stages.filter(n=>n.enabled).length} stages</span>
+    </div>
+    {tab==='graph'?<div className={'pipeline-editor-main'+(selected?' has-inspector':'')}>
+      <section className="pipeline-graph-pane" aria-label="Pipeline DAG editor">
+        <div className="pipeline-canvas-toolbar">
+          <div className="pipeline-add-anchor">
+            <button className="pipeline-tool-button pipeline-add-button" disabled={!editable} aria-expanded={addOpen} onClick={()=>{setAddOpen(v=>!v);setPickerOpen(false);}}><Plus size={16}/> Add stage</button>
+            {addOpen&&<div className="pipeline-add-popover">
+              <h3>Stage catalog</h3><p>Select an implementation type to add to this definition.</p>
+              <select aria-label="Stage type" value={stageType} onChange={e=>setStageType(e.target.value)}>{Object.entries(stageCatalog).filter(([t])=>!required.has(t)).map(([t,c])=><option key={t} value={t}>{c.title}</option>)}</select>
+              <Button variant="primary" icon={Plus} onClick={addStage}>Insert stage</Button>
+            </div>}
           </div>
-          <span className={'pipeline-status '+(isEditable?'pipeline-status--draft':'pipeline-status--published')}>{isEditable?'Draft':'Published'}</span>
+          <div className="pipeline-zoom-tools" role="group" aria-label="Graph navigation">
+            <button title="Zoom out" aria-label="Zoom out" onClick={()=>moveZoom(-1)}><Minus size={16}/></button>
+            <span>{Math.round(zoom*100)}%</span>
+            <button title="Zoom in" aria-label="Zoom in" onClick={()=>moveZoom(1)}><Plus size={16}/></button>
+            <button className="pipeline-fit-button" title="Fit entire graph" onClick={fitView}><Maximize2 size={15}/> Fit</button>
+          </div>
         </div>
-        <div className="pipeline-definition-actions">
-          <div className="pipeline-tabs" role="tablist" aria-label="Definition sections">
-            {[['graph','Graph'],['config','JSON'],['versions','Versions']].map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>setTab(id)}>{label}</button>)}
-          </div>
-          <div className="pipeline-action-buttons">
-            {isEditable?<><Button icon={Save} onClick={saveDraft} disabled={!dirty}>Save draft</Button><Button variant="primary" icon={Check} onClick={publish} disabled={Boolean(problems.length)}>Publish</Button></>:<Button icon={Copy} onClick={()=>makeDraft()}>New draft</Button>}
+        <div className="pipeline-graph-viewport" ref={canvasRef} tabIndex={0} aria-label="Pipeline graph. Drag to pan, Control and wheel to zoom."
+          onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          <div className="pipeline-graph-world" style={{width:layout.width,height:layout.height,transform:'translate('+pan.x+'px,'+pan.y+'px) scale('+zoom+')'}}>
+            <svg className="pipeline-world-edges" width={layout.width} height={layout.height} viewBox={'0 0 '+layout.width+' '+layout.height} aria-hidden="true">
+              <defs><marker id="pipeline-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="currentColor" strokeWidth="1.2"/></marker></defs>
+              {layout.active.flatMap(n=>n.dependsOn.filter(id=>layout.locations[id]).map(id=>{
+                const a=layout.locations[id],b=layout.locations[n.id];
+                return <path key={id+'--'+n.id} d={'M'+(a.x+174)+' '+(a.y+40)+' C'+(a.x+193)+' '+(a.y+40)+' '+(b.x-16)+' '+(b.y+40)+' '+b.x+' '+(b.y+40)} fill="none" stroke="currentColor" strokeWidth="1.6" markerEnd="url(#pipeline-arrow)"/>;
+              }))}
+            </svg>
+            {layout.active.map(n=><button key={n.id} className={'pipeline-node'+(selectedStage===n.id?' pipeline-node--selected':'')}
+              style={{left:layout.locations[n.id].x,top:layout.locations[n.id].y}}
+              aria-pressed={selectedStage===n.id} onPointerDown={e=>e.stopPropagation()} onClick={()=>{setSelectedStage(n.id);setPane('stage');setAddOpen(false);}}>
+              <span className="pipeline-node-kind">{required.has(n.type)?<LockKeyhole size={12}/>:<CircleDot size={12}/>} {n.type.toUpperCase()}</span>
+              <strong>{n.label}</strong><small>{n.implementation}</small>
+            </button>)}
           </div>
         </div>
-        {tab==='graph'&&<>
-          <div className="pipeline-graph-toolbar"><span><GitBranch size={15}/> Execution dependencies · {layout.active.length} enabled stages</span><span>Scroll horizontally to explore</span></div>
-          <div className="pipeline-graph-scroll" tabIndex={0} aria-label="Scrollable pipeline graph">
-            <div className="pipeline-graph-board" style={{width:layout.width,height:layout.height}}>
-              <svg className="pipeline-graph-edges" width={layout.width} height={layout.height} viewBox={'0 0 '+layout.width+' '+layout.height} aria-hidden="true">
-                <defs><marker id="pipeline-edge-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="currentColor" strokeWidth="1.2"/></marker></defs>
-                {layout.active.flatMap(n=>n.dependsOn.filter(id=>layout.locations[id]).map(id=>{
-                  const a=layout.locations[id], b=layout.locations[n.id];if(!a||!b) return null;
-                  return <path key={id+'--'+n.id} d={'M'+(a.x+174)+' '+(a.y+40)+' C'+(a.x+193)+' '+(a.y+40)+' '+(b.x-16)+' '+(b.y+40)+' '+b.x+' '+(b.y+40)} fill="none" stroke="currentColor" strokeWidth="1.5" markerEnd="url(#pipeline-edge-arrow)"/>;
-                }))}
-              </svg>
-              {layout.active.map(n=><button key={n.id} type="button" className={'pipeline-node'+(selectedStage===n.id?' pipeline-node--selected':'')} style={{left:layout.locations[n.id].x,top:layout.locations[n.id].y}} onClick={()=>setSelectedStage(n.id)} aria-pressed={selectedStage===n.id}>
-                <span className="pipeline-node-kind">{required.has(n.type)?<LockKeyhole size={12}/>:<CircleDot size={12}/>} {n.type.toUpperCase()}</span>
-                <strong>{n.label}</strong><small>{n.implementation}</small>
-              </button>)}
-            </div>
-          </div>
-          <div className="pipeline-stage-footer"><div><strong>Stage catalog</strong><span>{isEditable?'Select a type and add it to this draft.':'Clone a published definition to add or remove stages.'}</span></div>
-            {isEditable&&<div className="pipeline-add-controls"><select aria-label="New stage type" value={newStageType} onChange={e=>setNewStageType(e.target.value)}>{Object.entries(stageCatalog).filter(([id])=>!required.has(id)).map(([id,item])=><option key={id} value={id}>{item.title}</option>)}</select><Button icon={Plus} onClick={addStage}>Add stage</Button></div>}
-          </div>
-        </>}
-        {tab==='config'&&<div className="pipeline-json-view"><div><FileCode2 size={17}/><strong>Definition snapshot</strong><Button onClick={()=>{if(navigator.clipboard?.writeText)navigator.clipboard.writeText(JSON.stringify(draft,null,2)).then(()=>notify('Definition copied')).catch(()=>notify('Clipboard unavailable'));}}>Copy JSON</Button></div><pre>{JSON.stringify(draft,null,2)}</pre><p>Read-only JSON preview. Edit the draft through the graph and inspector; runtime configuration lives in Launchpad.</p></div>}
-        {tab==='versions'&&<div className="pipeline-versions"><h3>Version history</h3>{definitions.filter(d=>d.familyId===draft.familyId).sort((a,b)=>b.version-a.version).map(d=><button key={d.id} className={selected?.id===d.id?'selected':''} onClick={()=>setSelectedId(d.id)}><span>v{d.version} · {statusLabel(d)}</span><small>{dateLabel(d.updatedAt)}</small><ArrowRight size={16}/></button>)}</div>}
-        <div className={'pipeline-validation'+(problems.length?' pipeline-validation--invalid':'')}>
-          {problems.length?<><CircleAlert size={18}/><div><strong>{problems.length} definition issue{problems.length!==1?'s':''}</strong>{problems.map((p,i)=><p key={i}>{p}</p>)}</div></>:<><CheckCircle2 size={18}/><div><strong>Definition schema checks passed</strong><p>DAG, required stages, and dependency references are consistent. This does not confirm backend execution support.</p></div></>}
+        <div className="pipeline-canvas-footer">
+          <span><MousePointer2 size={13}/> Drag to pan · Ctrl + scroll to zoom</span>
+          <span>{layout.active.length} connected stages</span>
         </div>
       </section>
-      <aside className="pipeline-inspector" aria-label="Definition inspector">
-        <div className="pipeline-section-heading"><strong>Inspector</strong><Settings2 size={16}/></div>
-        {tab==='graph'&&inspected?<div className="pipeline-inspector-content">
-          <span className="pipeline-overline">STAGE CONFIGURATION</span>
-          <h3>{inspected.label}</h3>
-          <p>{stageCatalog[inspected.type]?.description}</p>
-          <div className="pipeline-field"><label htmlFor="pipeline-stage-label">Display name</label><input id="pipeline-stage-label" disabled={!isEditable} value={inspected.label} onChange={e=>changeNode({label:e.target.value})}/></div>
-          <div className="pipeline-field"><label htmlFor="pipeline-stage-implementation">Implementation</label><select id="pipeline-stage-implementation" disabled={!isEditable} value={inspected.implementation} onChange={e=>changeNode({implementation:e.target.value})}>{(stageCatalog[inspected.type]?.implementation||[]).map(v=><option key={v} value={v}>{v}</option>)}</select></div>
-          <div className="pipeline-stage-enable"><span>{required.has(inspected.type)?'Required stage':'Enabled'}</span>{required.has(inspected.type)?<LockKeyhole size={17}/>:<input type="checkbox" aria-label="Enable stage" disabled={!isEditable} checked={inspected.enabled} onChange={()=>toggleStage(inspected)}/>}</div>
-          <div className="pipeline-deps"><strong>Depends on</strong><p>Choose upstream stages. Invalid edges and cycles block publishing.</p>
-            {draft.stages.filter(n=>n.id!==inspected.id&&n.enabled).map(n=><label key={n.id}><input type="checkbox" disabled={!isEditable || (inspected.type==='source')} checked={inspected.dependsOn.includes(n.id)} onChange={()=>toggleDep(n.id)}/><span>{n.label}</span></label>)}
-          </div>
-          {isEditable&&!required.has(inspected.type)&&<Button className="pipeline-remove-stage" icon={X} onClick={()=>removeStage(inspected)}>Remove stage</Button>}
-        </div>:<div className="pipeline-inspector-content"><h3>Definition information</h3><p>Select Graph to inspect stages, dependencies, and implementations.</p></div>}
-        <div className="pipeline-inspector-bottom"><strong>Execution readiness</strong><p>{runnable?'Bundled Selection v1 supports the existing local simulated selection runner.':'Custom and edited definitions are design-only until a compatible executor contract is implemented.'}</p>
-          {runnable?<Button variant="primary" icon={ArrowRight} onClick={()=>navigate('mining?definition=al-selection-v1')}>Open Launchpad</Button>:<Button onClick={()=>navigate('mining?definition=al-selection-v1')}>Open existing Selection Launchpad</Button>}
-          <Button onClick={()=>navigate('history')}>View runs</Button>
+      {selected&&<aside className="pipeline-node-inspector" aria-label="Selected stage inspector">
+        <header className="pipeline-inspector-heading"><div><span>STAGE INSPECTOR</span><strong>{selected.label}</strong><small>{selected.id}</small></div><button aria-label="Close stage inspector" onClick={()=>setSelectedStage(null)}><X size={17}/></button></header>
+        <div className="pipeline-inspector-tabs" role="tablist" aria-label="Stage settings">
+          {[['stage','Settings'],['dependencies','Dependencies'],['io','I/O']].map(([id,label])=><button key={id} role="tab" aria-selected={pane===id} className={pane===id?'active':''} onClick={()=>setPane(id)}>{label}</button>)}
         </div>
-      </aside>
-    </div>
+        <div className="pipeline-inspector-scroll">
+          {pane==='stage'&&<>
+            <p className="pipeline-inspector-lead">{stageCatalog[selected.type]?.description}</p>
+            <div className="pipeline-inspector-field"><label htmlFor="pipeline-stage-label">Display name</label><input id="pipeline-stage-label" disabled={!editable} value={selected.label} onChange={e=>changeNode({label:e.target.value})}/></div>
+            <div className="pipeline-inspector-field"><label htmlFor="pipeline-stage-implementation">Implementation</label><select id="pipeline-stage-implementation" disabled={!editable} value={selected.implementation} onChange={e=>changeNode({implementation:e.target.value})}>{(stageCatalog[selected.type]?.implementation||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></div>
+            <label className="pipeline-inspector-switch"><span>{required.has(selected.type)?'Required stage':'Enabled'}</span>{required.has(selected.type)?<LockKeyhole size={15}/>:<input type="checkbox" disabled={!editable} checked={selected.enabled} onChange={e=>changeNode({enabled:e.target.checked})}/>}</label>
+            {editable&&!required.has(selected.type)&&<button className="pipeline-inspector-remove" onClick={removeStage}><X size={14}/> Remove stage</button>}
+          </>}
+          {pane==='dependencies'&&<>
+            <p className="pipeline-inspector-lead">Choose upstream stages. Cycles and missing dependencies block publishing.</p>
+            {draft.stages.filter(n=>n.id!==selected.id&&n.enabled).map(n=><label className="pipeline-dependency" key={n.id}><input type="checkbox" disabled={!editable||selected.type==='source'} checked={selected.dependsOn.includes(n.id)} onChange={()=>changeNode({dependsOn:selected.dependsOn.includes(n.id)?selected.dependsOn.filter(x=>x!==n.id):[...selected.dependsOn,n.id]})}/><span><strong>{n.label}</strong><small>{n.id}</small></span></label>)}
+          </>}
+          {pane==='io'&&<>
+            <p className="pipeline-inspector-lead">Expected interface for this stage type. Compatibility requires an executor implementation.</p>
+            <div className="pipeline-io-box"><span>INPUT</span><strong>{ioContracts[selected.type]?.[0] || 'Unspecified'}</strong></div>
+            <div className="pipeline-io-box"><span>OUTPUT</span><strong>{ioContracts[selected.type]?.[1] || 'Unspecified'}</strong></div>
+            <p className="pipeline-contract-caveat">Illustrative stage contracts. These are not backend-validated.</p>
+          </>}
+        </div>
+      </aside>}
+    </div>:<section className="pipeline-editor-detail">
+      {tab==='json'&&<><div className="pipeline-editor-detail-head"><div><FileCode2 size={19}/><h2>Definition JSON</h2></div><Button onClick={()=>navigator.clipboard?.writeText(JSON.stringify(draft,null,2)).then(()=>notify('JSON copied')).catch(()=>notify('Clipboard unavailable'))}>Copy</Button></div><pre>{JSON.stringify(draft,null,2)}</pre><p>Read-only definition snapshot. Use Graph to modify stages; run parameters belong in Launchpad.</p></>}
+      {tab==='versions'&&<><h2>Version history</h2><p>Published versions are immutable. Create a new draft to make changes.</p><div className="pipeline-version-list">{definitions.filter(d=>d.familyId===active.familyId).sort((a,b)=>b.version-a.version).map(d=><button key={d.id} onClick={()=>navigate('pipelines/'+encodeURIComponent(d.id))}><strong>{d.name} · v{d.version}</strong><span>{statusLabel(d)} · {dateLabel(d.updatedAt)}</span><ArrowRight size={16}/></button>)}</div></>}
+      {tab==='validation'&&<><h2>Validation</h2><p>Structural checks for required stages, dependencies and acyclic graph.</p>{problems.length?<div className="pipeline-problem-list">{problems.map((p,i)=><p key={i}><CircleAlert size={16}/>{p}</p>)}</div>:<div className="pipeline-validation-ok"><CheckCircle2 size={20}/><div><strong>Graph checks passed</strong><p>Stage references, required steps and cycles are valid. Backend runtime compatibility has not been verified.</p></div></div>}</>}
+    </section>}
   </div>;
 }
