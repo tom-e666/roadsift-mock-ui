@@ -27,12 +27,15 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const [page,setPage]=useState(1),[pageSize,setPageSize]=useState(20);
   const [selectedIds,setSelectedIds]=useState([]);
   const [activeId,setActiveId]=useState(null),[previewId,setPreviewId]=useState(null),[reason,setReason]=useState('');
-  const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false);
+  const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false),[editorDirty,setEditorDirty]=useState(false);
   const [purpose,setPurpose]=useState('annotation'),[target,setTarget]=useState('manifest');
   useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
   useEffect(()=>{setSelectedIds([]);setActiveId(null);setEditMode(false)},[id]);
-  useEffect(()=>{setEditMode(false)},[activeId,view]);
-  const openTab=next=>{setView(next);navigate('/batches/'+encodeURIComponent(id)+'?view='+next)};
+  useEffect(()=>{setEditMode(false);setEditorDirty(false)},[activeId,view]);
+  const openTab=next=>{
+    if(view==='review'&&next!==view&&editorDirty&&!window.confirm('Unsaved bounding boxes will be lost. Leave Focus Review?'))return;
+    setView(next);navigate('/batches/'+encodeURIComponent(id)+'?view='+next);
+  };
   const workspace=batch?.reviewWorkspace||{};
   const decisions=workspace.decisions||{},edits=workspace.edits||{};
   const isOpen=batch?.status==='In review';
@@ -82,10 +85,14 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
       return {decisions:next};
     });
     notify(ids.length+' preview sample(s) marked '+decision+'. These decisions are not verified membership approvals.');
-    if(view==='review'&&ids.length===1){const position=filtered.findIndex(s=>s.id===ids[0]);setActiveId(filtered[(position+1)%filtered.length]?.id||ids[0]);}
+    if(view==='review'&&ids.length===1&&!editorDirty){const position=filtered.findIndex(s=>s.id===ids[0]);setActiveId(filtered[(position+1)%filtered.length]?.id||ids[0]);}
+    else if(view==='review'&&editorDirty)notify('Decision saved in preview; save box drafts before moving to another sample.');
   };
   const toggle=id=>setSelectedIds(old=>old.includes(id)?old.filter(x=>x!==id):[...old,id]);
-  const nextSample=delta=>{if(filtered.length)setActiveId(filtered[(Math.max(0,activeIndex)+delta+filtered.length)%filtered.length].id)};
+  const nextSample=delta=>{
+    if(editorDirty&&!window.confirm('This image contains unsaved box edits. Discard changes and navigate?'))return;
+    if(filtered.length)setActiveId(filtered[(Math.max(0,activeIndex)+delta+filtered.length)%filtered.length].id);
+  };
   const saveBoxes=boxes=>{
     if(!active)return;
     updateWorkspace(old=>({edits:{...(old.edits||{}),[active.id]:boxes}}));
@@ -231,7 +238,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
       <div className="bw-review-main">
         <div className="bw-review-navigation"><div><strong>{active?.id||'No sample'}</strong><span>{active?.video||'—'} · {active?.domain||'—'}</span></div>
           <div className="bw-review-switch"><button onClick={()=>nextSample(-1)} aria-label="Previous sample"><ChevronLeft size={17}/></button><span>{activeIndex+1} / {filtered.length}</span><button onClick={()=>nextSample(1)} aria-label="Next sample"><ChevronRight size={17}/></button></div></div>
-        {active?<QuickBoxEditor key={active.id} sample={active} initialBoxes={edits[active.id]||[]} editable={isOpen} onSave={saveBoxes} onToolChange={setEditMode}/>:<p className="bw-empty">No samples match the current filters. Return to Grid and clear filters.</p>}
+        {active?<QuickBoxEditor key={active.id} sample={active} initialBoxes={edits[active.id]||[]} editable={isOpen} onSave={saveBoxes} onToolChange={setEditMode} onDirtyChange={setEditorDirty}/>:<p className="bw-empty">No samples match the current filters. Return to Grid and clear filters.</p>}
         <div className="bw-review-actionbar"><div><span>Selection decision</span><strong>{active?formatDecision(decisions[active.id]):'—'}</strong><small>Independent from annotation drafts</small></div>
           <input aria-label="Rejection reason" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Rejection reason…"/>
           <Button disabled={!isOpen||!active} onClick={()=>decide([active.id],'Deferred')}>Defer <kbd>D</kbd></Button>
