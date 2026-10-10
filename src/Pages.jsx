@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { RunDetails } from './RunDetails.jsx';
 import { BatchRegistry } from './BatchRegistry.jsx';
 import { StrategyComparisonV2 } from './StrategyComparisonV2.jsx';
+import { RunComparisonWorkspace } from './RunComparisonWorkspace.jsx';
 import { SampleMedia } from './SampleMedia.jsx';
 import './launchpad.css';
 import selectionRunnerSource from '../worker/selection_runner.py?raw';
@@ -923,7 +924,7 @@ export function History({runs,setRuns,navigate,notify,routePath,selectionBatches
 }
 
 export function StrategyComparison(props) {
-  return <StrategyComparisonV2 {...props}/>;
+  return <RunComparisonWorkspace {...props}/>;
 }
 
 export function SettingsPage({ theme, setTheme, preferences, setPreferences, setDatasets, setPools, setSelectionBatches, setRuns, setRunnerRegistry, setModelRegistryState, setAlgorithmRegistry, notify, language='en', setLanguage }) {
