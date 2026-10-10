@@ -584,28 +584,30 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
   const availableDefinitions=(definitions||[]).filter(d=>d.status==='published');
   const [definitionId,setDefinitionId]=useState(routeDefinitionId||'al-selection-v1');
   const launchDefinition=availableDefinitions.find(d=>d.id===definitionId)||availableDefinitions.find(d=>d.id==='al-selection-v1')||availableDefinitions[0];
-  const canExecuteDefinition=launchDefinition?.id==='al-selection-v1';
-  const [overrides,setOverrides]=useState({});
+  const getImplementation=type=>launchDefinition?.stages?.find(s=>s.enabled!==false&&s.type===type)?.implementation||null;
+  const definitionSelectionImplementation=getImplementation('selection');
+  const canExecuteDefinition=launchDefinition?.id==='al-selection-v1'&&definitionSelectionImplementation==='hybrid';
   const [configMode,setConfigMode]=useState('form');
   const [jsonDraft,setJsonDraft]=useState('');
   const [jsonIssue,setJsonIssue]=useState('');
-  const [stageParams,setStageParams]=useState({});
   useEffect(()=>{if(routeDefinitionId&&availableDefinitions.some(d=>d.id===routeDefinitionId))setDefinitionId(routeDefinitionId)},[routeDefinitionId]);
 
   const [poolId,setPoolId]=useState(contextDataset?.kind==='pool'&&pools.some(p=>p.id===contextDataset.id)?contextDataset.id:pools[0]?.id||'');
   const [parentId,setParentId]=useState('');
-  const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
+  const algorithmId=definitionSelectionImplementation||miningConfig.defaultStrategyId;
   const [budget,setBudget]=useState(String(miningConfig.defaultBudget));
   const [modelId,setModelId]=useState(miningConfig.defaultModelId||'');
   const [runnerId,setRunnerId]=useState('auto');
-  const [dedupId,setDedupId]=useState(miningPlugins.defaults.dedup);
-  const [embeddingId,setEmbeddingId]=useState(miningPlugins.defaults.embedding);
-  const [uncertaintyId,setUncertaintyId]=useState(miningPlugins.defaults.uncertainty);
-  const [diversityId,setDiversityId]=useState(miningPlugins.defaults.diversity);
+  // Implementation choices belong to the immutable published definition.
+  // This demo adapter maps high-level stage implementations onto its known worker plugins.
+  const dedupId=getImplementation('dedup')==='none'?'none':miningPlugins.defaults.dedup;
+  const embeddingId=getImplementation('embedding')||miningPlugins.defaults.embedding;
+  const uncertaintyId=getImplementation('uncertainty')||miningPlugins.defaults.uncertainty;
+  const diversityId=getImplementation('diversity')==='facility-location'?'facility':'kcenter';
   const [submittedId,setSubmittedId]=useState(null);
-  const [privacyModelId,setPrivacyModelId]=useState('model_privacy_demo_v1');
-  const [privacyMethod,setPrivacyMethod]=useState('gaussian-blur');
-  const [privacyScope,setPrivacyScope]=useState('faces-plates');
+  const privacyModelId='model_privacy_demo_v1';
+  const privacyMethod='gaussian-blur';
+  const privacyScope='faces-plates';
   const [previewFormat,setPreviewFormat]=useState('python');
   const pool=pools.find(p=>p.id===poolId);
   const parent=datasets.find(d=>d.id===parentId);
@@ -642,7 +644,7 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
   const checks=[
     {label:'Choose a registered Pool Snapshot with a manifest',ok:Boolean(pool?.snapshot&&pool?.manifestUri),where:'Data source'},
     {label:'Requested sample count must fit the Pool (EXACT-N)',ok:validBudget,where:'Selection pipeline'},
-    {label:'Choose an enabled algorithm implementation',ok:Boolean(algorithm&&algorithm.enabled!==false&&algorithm.version),where:'Selection pipeline'},
+    {label:'Definition strategy is compatible with the installed worker adapter',ok:Boolean(canExecuteDefinition&&algorithm&&algorithm.enabled!==false&&algorithm.version),where:'Selection pipeline'},
     {label:'Configure the required pipeline components',ok:Boolean(dedup&&(!needsEmbeddings||embedding)&&(!needsUncertainty||uncertainty)&&(!needsDiversity||diversity)),where:'Selection pipeline'},
     {label:'Select a registered prediction model',ok:!needsPredictions||validModel,where:'Prediction model'},
     {label:'Select a registered privacy detection model',ok:validPrivacyModel,where:'Privacy Anonymization'},
@@ -650,8 +652,7 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
     {label:'Assign a compatible runner with available capacity',ok:runnerValid,where:'Execution'}
   ];
   const ready=checks.every(x=>x.ok)&&canExecuteDefinition;
-  const weights={...(algorithm?.weights||{}),...overrides};
-  const baselineWeights=algorithm?.weights||{};
+  const weights=algorithm?.weights||{};
   const plugin=p=>p?{id:p.id,version:p.version}:null;
   const stages=[
     {step:'eligibility',plugin:{id:'pool-eligibility',version:'1.0.0'},enabled:true},
@@ -685,32 +686,44 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
   const json=JSON.stringify(spec,null,2);
   const jsonConfig={
     definition_id:launchDefinition?.id||null,
+    definition_version:launchDefinition?.version||null,
     input:{pool_id:poolId,parent_dataset_version_id:parentId||null},
-    overrides:{selection_strategy:algorithmId,target_samples:n,model_id:needsPredictions?modelId:null,
-      stage_parameters:stageParams,scoring_weights:algorithmId==='hybrid'?weights:null},
-    execution:{runner_id:runnerId}
+    overrides:{target_samples:n,model_id:needsPredictions?modelId:null},
+    execution:{runner_id:runnerId},
+    inherited:{selection_strategy:algorithmId,stages:(launchDefinition?.stages||[]).filter(x=>x.enabled!==false).map(x=>({id:x.id,implementation:x.implementation,params:x.params||{}}))}
   };
   const effectiveJSON=JSON.stringify(jsonConfig,null,2);
   const openJSON=()=>{setJsonDraft(effectiveJSON);setJsonIssue('');setConfigMode('json')};
   const applyJSON=()=>{
     try {
       const parsed=JSON.parse(jsonDraft);
-      if(!parsed||Array.isArray(parsed)||typeof parsed!=='object')throw Error('Expected a configuration object.');
-      if(parsed.definition_id!==launchDefinition?.id)throw Error('Definition ID must match the selected published version.');
+      if(!parsed||Array.isArray(parsed)||typeof parsed!=='object')throw Error('Expected a run configuration object.');
+      if(Object.keys(parsed).some(k=>!['definition_id','definition_version','input','overrides','execution','inherited'].includes(k)))
+        throw Error('Unknown top-level configuration fields.');
+      if(parsed.definition_id!==launchDefinition?.id||parsed.definition_version!==launchDefinition?.version)
+        throw Error('Definition ID and version are immutable.');
+      if(JSON.stringify(parsed.inherited)!==JSON.stringify(jsonConfig.inherited))
+        throw Error('Inherited stage implementations cannot be changed here. Publish a new pipeline version.');
       const inp=parsed.input||{},ov=parsed.overrides||{},exec=parsed.execution||{};
+      if(Object.keys(inp).some(k=>!['pool_id','parent_dataset_version_id'].includes(k)))
+        throw Error('Input fields are restricted.');
+      if(Object.keys(ov).some(k=>!['target_samples','model_id'].includes(k)))
+        throw Error('Only target_samples and model_id are run-overridable.');
+      if(Object.keys(exec).some(k=>k!=='runner_id'))throw Error('Execution fields are restricted.');
       if(!pools.some(p=>p.id===inp.pool_id))throw Error('Unknown candidate pool.');
-      if(inp.parent_dataset_version_id&&!datasets.some(d=>d.id===inp.parent_dataset_version_id))throw Error('Unknown parent dataset version.');
-      if(!algorithmRegistry.some(a=>a.id===ov.selection_strategy&&a.enabled!==false))throw Error('Unregistered selection strategy.');
-      if(!Number.isSafeInteger(ov.target_samples)||ov.target_samples<1)throw Error('Target samples must be a positive integer.');
-      if(!['auto',...runnerRegistry.map(r=>r.id)].includes(exec.runner_id))throw Error('Unknown executor.');
-      if(ov.scoring_weights!=null && (typeof ov.scoring_weights!=='object'||Array.isArray(ov.scoring_weights)||Object.values(ov.scoring_weights).some(x=>typeof x!=='number'||!Number.isFinite(x))))throw Error('Scoring weights must be finite numbers.');
-      if(ov.stage_parameters!=null&&(typeof ov.stage_parameters!=='object'||Array.isArray(ov.stage_parameters)))throw Error('stage_parameters must be an object.');
+      if(inp.parent_dataset_version_id&&!datasets.some(d=>d.id===inp.parent_dataset_version_id))
+        throw Error('Unknown parent dataset version.');
+      if(!Number.isSafeInteger(ov.target_samples)||ov.target_samples<1)
+        throw Error('Target samples must be a positive integer.');
+      if(ov.model_id!=null&&!candidateModels.some(m=>m.id===ov.model_id))
+        throw Error('Unknown or unregistered prediction model.');
+      if(!['auto',...runnerRegistry.map(r=>r.id)].includes(exec.runner_id))
+        throw Error('Unknown executor.');
       setPoolId(inp.pool_id);setParentId(inp.parent_dataset_version_id||'');
-      setAlgorithmId(ov.selection_strategy);setBudget(String(ov.target_samples));
+      setBudget(String(ov.target_samples));
       if(ov.model_id)setModelId(ov.model_id);
-      setRunnerId(exec.runner_id);setStageParams(ov.stage_parameters||{});
-      if(ov.scoring_weights)setOverrides(ov.scoring_weights);
-      setJsonIssue('');setConfigMode('form');notify('Run configuration overrides applied');
+      setRunnerId(exec.runner_id);
+      setJsonIssue('');setConfigMode('form');notify('Permitted run overrides applied');
     }catch(error){setJsonIssue(error.message);}
   };
   const pythonPreview=selectionRunnerSource;
@@ -760,7 +773,7 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
     </div><Button onClick={()=>navigate('pipelines/'+(launchDefinition?.id||'al-selection-v1'))}>View definition</Button></section>
     <div className="lp-builder">
       <div className="lp-main">
-        {!canExecuteDefinition&&<div className="lp-warning"><CircleAlert size={18}/><div><strong>Execution adapter unavailable</strong><p>You can inspect this definition's inputs and parameters, but this preview only simulates runs for Active Learning Selection v1. No unsupported workflow will be launched.</p></div></div>}
+        {!canExecuteDefinition&&<div className="lp-warning"><CircleAlert size={18}/><div><strong>Execution adapter unavailable</strong><p>You can inspect this definition's inputs and parameters, but this preview only simulates the published Hybrid Active Learning Selection v1 adapter. No unsupported workflow will be launched.</p></div></div>}
         <div className="lp-mode-row"><h2>Run Configuration</h2><div role="tablist" aria-label="Configuration mode" className="lp-mode">
           <button role="tab" aria-selected={configMode==='form'} className={configMode==='form'?'active':''} onClick={()=>setConfigMode('form')}>Form</button>
           <button role="tab" aria-selected={configMode==='json'} className={configMode==='json'?'active':''} onClick={openJSON}>JSON</button>
@@ -778,37 +791,28 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
               <div className="lp-inline-meta"><span>Snapshot: <strong>{pool?.snapshot||'Missing'}</strong></span><span>Eligible: <strong>{count(pool?.eligible||0)}</strong></span></div>
             </div>
           </section>
-          <section className="lp-panel"><header><SlidersHorizontal size={18}/><h3>2. Stage Parameters</h3><small>Defaults and run overrides</small></header>
+          <section className="lp-panel"><header><SlidersHorizontal size={18}/><h3>2. Run Parameters &amp; Overrides</h3><small>Published defaults are immutable</small></header>
             <div className="lp-panel-body">
-              {canExecuteDefinition?<><div className="lp-input-row">
-                <div className="lp-input-group"><label htmlFor="lp-strategy">Selection Strategy *</label><select id="lp-strategy" value={algorithmId} onChange={e=>{setAlgorithmId(e.target.value);setOverrides({})}}>{algorithmRegistry.filter(a=>a.enabled!==false).map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-                <div className="lp-input-group"><label htmlFor="lp-budget">Target Samples · EXACT-N *</label><input id="lp-budget" type="number" min="1" step="1" value={budget} onChange={e=>setBudget(e.target.value)}/></div>
-              </div>
-              <p className="lp-help">{algorithm?.description||'Registered selection algorithm'}</p>
-              {needsPredictions&&<div className="lp-input-group"><label htmlFor="lp-model">Prediction Model *</label><select id="lp-model" value={modelId} onChange={e=>setModelId(e.target.value)}><option value="">Choose registered model</option>{candidateModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></div>}
-              <details className="lp-advanced"><summary>Stage implementation overrides <span>Advanced <ChevronDown size={15}/></span></summary><div className="lp-advanced-grid">
-                <div className="lp-input-group"><label>Quality & Dedup</label><select value={dedupId} onChange={e=>setDedupId(e.target.value)}>{miningPlugins.dedup.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
-                {needsEmbeddings&&<div className="lp-input-group"><label>Embedding</label><select value={embeddingId} onChange={e=>setEmbeddingId(e.target.value)}>{miningPlugins.embedding.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
-                {needsUncertainty&&<div className="lp-input-group"><label>Uncertainty</label><select value={uncertaintyId} onChange={e=>setUncertaintyId(e.target.value)}>{miningPlugins.uncertainty.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
-                {needsDiversity&&<div className="lp-input-group"><label>Diversity</label><select value={diversityId} onChange={e=>setDiversityId(e.target.value)}>{miningPlugins.diversity.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}
-              </div></details>
-              {algorithmId==='hybrid'&&<details className="lp-advanced"><summary>Scoring weights <span>{Object.keys(overrides).length?'Overridden':'Default'} <ChevronDown size={15}/></span></summary>
-                <div className="lp-weights">{Object.entries(weights).map(([key,value])=><div key={key} className="lp-input-group"><label>{key}</label><input type="number" step="0.01" value={String(value)} onChange={e=>setOverrides(v=>({...v,[key]:Number(e.target.value)}))}/></div>)}</div>
-                <p className="lp-help">Overrides apply to this run only. Reference weights come from the registered strategy.</p>
-              </details>}
-              <details className="lp-advanced"><summary>Privacy & Export Gate <span>Required <ChevronDown size={15}/></span></summary><div className="lp-advanced-grid">
-                <div className="lp-input-group"><label>Privacy Detector *</label><select value={privacyModelId} onChange={e=>setPrivacyModelId(e.target.value)}><option value="">Choose detector</option>{privacyModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></div>
-                <div className="lp-input-group"><label>Masking Method</label><select value={privacyMethod} onChange={e=>setPrivacyMethod(e.target.value)}><option value="gaussian-blur">Gaussian Blur</option><option value="pixelation">Pixelation</option><option value="solid-mask">Solid Mask</option></select></div>
-                <div className="lp-input-group"><label>Sensitive Regions</label><select value={privacyScope} onChange={e=>setPrivacyScope(e.target.value)}><option value="faces-plates">Faces + Plates</option><option value="faces-plates-persons">Faces + Plates + Persons</option></select></div>
-              </div><p className="lp-help">Verification remains mandatory and fail-closed; raw frames are preserved.</p></details>
-              </>:<div className="lp-definition-stages">
-                {(launchDefinition?.stages||[]).filter(s=>s.enabled).map(stage=><div key={stage.id}><div><strong>{stage.label}</strong><small>{stage.implementation}</small></div>
-                {Object.entries({...stage.params,...(stageParams[stage.id]||{})}).map(([key,val])=><div key={key} className="lp-input-group"><label>{key.replaceAll('_',' ')}</label>
-                  {typeof val==='boolean'?<input type="checkbox" checked={val} onChange={e=>setStageParams(p=>({...p,[stage.id]:{...p[stage.id],[key]:e.target.checked}}))}/>:
-                    <input type={typeof val==='number'?'number':'text'} value={String(val)} onChange={e=>setStageParams(p=>({...p,[stage.id]:{...p[stage.id],[key]:typeof val==='number'?Number(e.target.value):e.target.value}}))}/>}
-                </div>)}</div>)}
-                <p className="lp-help">Only parameter defaults in this definition are shown. This pipeline does not have an executable worker in the preview.</p>
-              </div>}
+              {canExecuteDefinition&&<>
+                <div className="lp-input-row">
+                  <div className="lp-input-group"><label>Selection Strategy · Inherited</label><div className="lp-locked-field"><strong>{algorithm?.name||algorithmId}</strong><span>Locked</span></div></div>
+                  <div className="lp-input-group"><label htmlFor="lp-budget">Target Samples · EXACT-N *</label><input id="lp-budget" type="number" min="1" step="1" value={budget} onChange={e=>setBudget(e.target.value)}/></div>
+                </div>
+                {needsPredictions&&<div className="lp-input-group"><label htmlFor="lp-model">Prediction Model · Run Input</label><select id="lp-model" value={modelId} onChange={e=>setModelId(e.target.value)}><option value="">Choose registered model</option>{candidateModels.map(m=><option key={m.id} value={m.id}>{m.name} · {m.version}</option>)}</select></div>}
+                <p className="lp-help">Target budget and registered prediction model can vary per run. Strategy and implementation are fixed by this published definition.</p>
+              </>}
+              <details className="lp-advanced"><summary>Definition stage configuration <span>Read-only <ChevronDown size={15}/></span></summary>
+                <div className="lp-definition-stages">
+                  {(launchDefinition?.stages||[]).filter(stage=>stage.enabled!==false).map(stage=><div key={stage.id}>
+                    <div><strong>{stage.label}</strong><small>{stage.type}</small></div>
+                    <div className="lp-inherited-value"><strong>{stage.implementation}</strong><span>Inherited</span></div>
+                    {!!Object.keys(stage.params||{}).length&&<pre className="lp-inherited-json">{JSON.stringify(stage.params,null,2)}</pre>}
+                  </div>)}
+                </div>
+                <p className="lp-help">To change an algorithm, dependency or stage parameter, edit the Pipeline Definition and publish a new version. Advanced JSON also enforces this lock.</p>
+              </details>
+              <div className="lp-inline-meta"><span>Privacy Gate: <strong>Required · fail closed</strong></span><span>Effective strategy: <strong>{algorithmId}</strong></span></div>
+              {!canExecuteDefinition&&<p className="lp-help">This definition does not have a compatible simulated worker adapter. Its settings are read-only in Launchpad.</p>}
             </div>
           </section>
           <section className="lp-panel"><header><Cpu size={18}/><h3>3. Execution</h3><small>Choose a compatible executor</small></header><div className="lp-panel-body">
@@ -825,7 +829,7 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
           <div><span>Target samples</span><strong>{validBudget?count(n):'Invalid'}</strong></div>
           <div><span>Prediction model</span><strong>{needsPredictions?model?.name||'Missing':'Not needed'}</strong></div>
           <div><span>Executor</span><strong>{resolvedRunner?.name||'Unavailable'}</strong></div>
-          <div><span>Run overrides</span><strong>{(budget!==String(miningConfig.defaultBudget)?1:0)+Object.keys(overrides).length+(algorithmId!==miningConfig.defaultStrategyId?1:0)} modified</strong></div>
+          <div><span>Run overrides</span><strong>{(budget!==String(miningConfig.defaultBudget)?1:0)+(modelId!==miningConfig.defaultModelId?1:0)} modified</strong></div>
         </div>
         <div className="lp-preflight"><strong>{canExecuteDefinition?(ready?'Local preflight passed':checks.filter(x=>!x.ok).length+' issues to resolve'):'No executor for this definition'}</strong>
           {canExecuteDefinition&&checks.filter(x=>!x.ok).map(c=><div key={c.label}><CircleAlert size={13}/>{c.label}</div>)}
