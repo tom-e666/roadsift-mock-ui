@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, CircleDot, Copy, GitBranch, LockKeyhole, Maximize2, Minus, MousePointer2, Plus, Save, Search, Settings2, Workflow, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, CircleAlert, CircleDot, Copy, GitBranch, LockKeyhole, Maximize2, Minus, MousePointer2, Plus, Save, Search, Settings2, Workflow, X, Database, ListFilter, CopyX, Network, ScanEye, BrainCircuit, CircleHelp, Grid2X2, ListChecks, ShieldCheck, Archive } from 'lucide-react';
 import { Button } from './components/UI.jsx';
 import './pipelines.css';
+
+const stageIcons = { source:Database, eligibility:ListFilter, dedup:CopyX, domain:Network, prediction:ScanEye, embedding:BrainCircuit, uncertainty:CircleHelp, diversity:Grid2X2, selection:ListChecks, privacy:ShieldCheck, output:Archive };
 
 const stageCatalog = {
   source: { title: 'Pool Snapshot', description: 'Immutable candidate input', implementation: ['pool-registry'] },
@@ -182,6 +184,17 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
   const [catalogFilter,setCatalogFilter] = useState('All');
   const [zoom,setZoom] = useState(1);
   const [pan,setPan] = useState({x:0,y:0});
+  const [nodeLayouts,setNodeLayouts] = useState(()=>{
+    try {
+      const value=JSON.parse(localStorage.getItem('roadsift-pipeline-node-layouts-v1'));
+      return value && typeof value==='object' && !Array.isArray(value) ? value : {};
+    } catch { return {}; }
+  });
+  const nodeDragRef = React.useRef(null);
+  const suppressNodeClickRef = React.useRef(null);
+  useEffect(()=>{
+    try { localStorage.setItem('roadsift-pipeline-node-layouts-v1',JSON.stringify(nodeLayouts)); } catch { /* Layout remains usable without persistence. */ }
+  },[nodeLayouts]);
   const canvasRef = React.useRef(null);
   const dragRef = React.useRef(null);
   useEffect(()=>{
@@ -202,6 +215,10 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
   const problems = useMemo(()=>validate(draft),[draft]);
   const layoutKey = draft.stages.map(n=>[n.id,n.enabled,n.dependsOn.join(',')].join(':')).join('|');
   const layout = useMemo(()=>graphLayout(draft.stages),[layoutKey]);
+  const customPositions=nodeLayouts[draft.id] || {};
+  const nodePositions=Object.fromEntries(layout.active.map(n=>[n.id,customPositions[n.id]||layout.locations[n.id]]));
+  const graphWidth=Math.max(layout.width,...Object.values(nodePositions).map(p=>p.x+204));
+  const graphHeight=Math.max(layout.height,...Object.values(nodePositions).map(p=>p.y+112));
   const editable = draft.status==='draft';
   const dirty = Boolean(active && JSON.stringify(active)!==JSON.stringify(draft));
   const assignedRuns = d => runs.filter(r => r.pipelineDefinitionId===d.id || (d.id==='al-selection-v1' && r.type==='Mining' && !r.pipelineDefinitionId));
@@ -213,9 +230,9 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     const w=el.clientWidth,h=el.clientHeight;
     const availableHeight=h-(catalogOpen?Math.min(240,h*.45):0);
     if(w<1||h<1)return;
-    const z=Math.min(1.15,Math.max(.23,Math.min((w-56)/layout.width,(availableHeight-56)/layout.height)));
+    const z=Math.min(1.15,Math.max(.23,Math.min((w-56)/graphWidth,(availableHeight-56)/graphHeight)));
     setZoom(z);
-    setPan({x:(w-layout.width*z)/2,y:(availableHeight-layout.height*z)/2});
+    setPan({x:(w-graphWidth*z)/2,y:(availableHeight-graphHeight*z)/2});
   };
   useEffect(() => {
     if(!inEditor) return;
@@ -255,6 +272,35 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
     const z=Math.min(1.7,Math.max(.25,zoom*(direction>0?1.2:1/1.2)));
     const cx=rect.width/2,cy=rect.height/2,ratio=z/zoom;
     setPan(p=>({x:cx-(cx-p.x)*ratio,y:cy-(cy-p.y)*ratio}));setZoom(z);
+  };
+  const onNodePointerDown=(e,node)=>{
+    if(e.button!==0)return;
+    e.stopPropagation();
+    const origin=nodePositions[node.id];
+    nodeDragRef.current={pointerId:e.pointerId,nodeId:node.id,x:e.clientX,y:e.clientY,
+      origin:{x:origin.x,y:origin.y},moved:false};
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onNodePointerMove=e=>{
+    const drag=nodeDragRef.current;
+    if(!drag || drag.pointerId!==e.pointerId)return;
+    e.stopPropagation();
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(Math.hypot(dx,dy)>4)drag.moved=true;
+    if(!drag.moved)return;
+    const next={x:Math.max(12,Math.round(drag.origin.x+dx/zoom)),y:Math.max(12,Math.round(drag.origin.y+dy/zoom))};
+    setNodeLayouts(prev=>({...prev,[draft.id]:{...(prev[draft.id]||{}),[drag.nodeId]:next}}));
+  };
+  const onNodePointerEnd=e=>{
+    const drag=nodeDragRef.current;
+    if(!drag || drag.pointerId!==e.pointerId)return;
+    e.stopPropagation();
+    if(drag.moved)suppressNodeClickRef.current=drag.nodeId;
+    nodeDragRef.current=null;
+    if(e.currentTarget.hasPointerCapture?.(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+  const resetNodeLayout=()=>{
+    setNodeLayouts(prev=>({...prev,[draft.id]:{}}));
   };
   const onPointerDown=e=>{
     if(e.button!==0 || e.target.closest('button'))return;
@@ -405,10 +451,11 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
       <section className="pipeline-graph-pane" aria-label="Pipeline DAG editor">
         <div className="pipeline-canvas-toolbar">
           <button className="pipeline-tool-button pipeline-add-button" disabled={!editable}
-            aria-expanded={catalogOpen} onClick={()=>{setCatalogOpen(v=>!v);setPickerOpen(false);}}>
+            aria-expanded={catalogOpen} onClick={()=>{setCatalogOpen(v=>!v);setSelectedStage(null);setPickerOpen(false);}}>
             <Plus size={16}/> {catalogOpen?'Close catalog':'Add stage'}
           </button>
           <div className="pipeline-zoom-tools" role="group" aria-label="Graph navigation">
+            <button className="pipeline-auto-layout-button" title="Restore automatic layout" aria-label="Restore automatic layout" onClick={resetNodeLayout}><Network size={15}/><span>Auto</span></button>
             <button title="Zoom out" aria-label="Zoom out" onClick={()=>moveZoom(-1)}><Minus size={16}/></button>
             <span>{Math.round(zoom*100)}%</span>
             <button title="Zoom in" aria-label="Zoom in" onClick={()=>moveZoom(1)}><Plus size={16}/></button>
@@ -417,24 +464,33 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
         </div>
         <div className="pipeline-graph-viewport" ref={canvasRef} tabIndex={0} aria-label="Pipeline graph. Drag to pan, Control and wheel to zoom."
           onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-          <div className="pipeline-graph-world" style={{width:layout.width,height:layout.height,transform:'translate('+pan.x+'px,'+pan.y+'px) scale('+zoom+')'}}>
-            <svg className="pipeline-world-edges" width={layout.width} height={layout.height} viewBox={'0 0 '+layout.width+' '+layout.height} aria-hidden="true">
+          <div className="pipeline-graph-world" style={{width:graphWidth,height:graphHeight,transform:'translate('+pan.x+'px,'+pan.y+'px) scale('+zoom+')'}}>
+            <svg className="pipeline-world-edges" width={graphWidth} height={graphHeight} viewBox={'0 0 '+graphWidth+' '+graphHeight} aria-hidden="true">
               <defs><marker id="pipeline-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6" fill="none" stroke="currentColor" strokeWidth="1.2"/></marker></defs>
-              {layout.active.flatMap(n=>n.dependsOn.filter(id=>layout.locations[id]).map(id=>{
-                const a=layout.locations[id],b=layout.locations[n.id];
+              {layout.active.flatMap(n=>n.dependsOn.filter(id=>nodePositions[id]).map(id=>{
+                const a=nodePositions[id],b=nodePositions[n.id];
                 return <path key={id+'--'+n.id} d={'M'+(a.x+174)+' '+(a.y+40)+' C'+(a.x+193)+' '+(a.y+40)+' '+(b.x-16)+' '+(b.y+40)+' '+b.x+' '+(b.y+40)} fill="none" stroke="currentColor" strokeWidth="1.6" markerEnd="url(#pipeline-arrow)"/>;
               }))}
             </svg>
-            {layout.active.map(n=><button key={n.id} className={'pipeline-node'+(selectedStage===n.id?' pipeline-node--selected':'')}
-              style={{left:layout.locations[n.id].x,top:layout.locations[n.id].y}}
-              aria-pressed={selectedStage===n.id} onPointerDown={e=>e.stopPropagation()} onClick={()=>{setSelectedStage(n.id);setInspectorMode('form');setCatalogOpen(false);}}>
-              <span className="pipeline-node-kind">{required.has(n.type)?<LockKeyhole size={12}/>:<CircleDot size={12}/>} {n.type.toUpperCase()}</span>
-              <strong>{n.label}</strong><small>{n.implementation}</small>
-            </button>)}
+            {layout.active.map(n=>{
+              const StageIcon=stageIcons[n.type] || Workflow;
+              return <button key={n.id} className={'pipeline-node pipeline-type-'+n.type+(selectedStage===n.id?' pipeline-node--selected':'')}
+                style={{left:nodePositions[n.id].x,top:nodePositions[n.id].y}}
+                aria-label={'Select or drag '+n.label} aria-pressed={selectedStage===n.id}
+                onPointerDown={e=>onNodePointerDown(e,n)} onPointerMove={onNodePointerMove}
+                onPointerUp={onNodePointerEnd} onPointerCancel={onNodePointerEnd}
+                onClick={()=>{
+                  if(suppressNodeClickRef.current===n.id){suppressNodeClickRef.current=null;return;}
+                  setSelectedStage(n.id);setInspectorMode('form');setCatalogOpen(false);
+                }}>
+                <span className="pipeline-node-kind"><StageIcon size={13}/>{n.type.toUpperCase()}{required.has(n.type)&&<LockKeyhole size={10}/>}</span>
+                <strong>{n.label}</strong><small>{n.implementation}</small>
+              </button>;
+            })}
           </div>
         </div>
         <div className="pipeline-canvas-footer">
-          <span><MousePointer2 size={13}/> Drag to pan · Ctrl + scroll to zoom</span>
+          <span><MousePointer2 size={13}/> Drag canvas to pan · Drag nodes to arrange · Ctrl + scroll to zoom</span>
           <span>{layout.active.length} connected stages</span>
         </div>
         {catalogOpen&&<section className="pipeline-stage-catalog" aria-label="Stage Catalog">
@@ -449,8 +505,9 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
           <div className="pipeline-catalog-cards">
             {filteredStages.map(([type,item])=>{
               const locked=required.has(type)&&draft.stages.some(n=>n.type===type);
-              return <div key={type} className="pipeline-catalog-card">
-                <span className="pipeline-catalog-card-icon"><Workflow size={18}/></span>
+              const StageIcon=stageIcons[type] || Workflow;
+              return <div key={type} className={'pipeline-catalog-card pipeline-type-'+type}>
+                <span className="pipeline-catalog-card-icon"><StageIcon size={19}/></span>
                 <div className="pipeline-catalog-card-text"><strong>{item.title}</strong><small>{item.description}</small></div>
                 <button title={locked?'Required stage already present':'Add '+item.title} disabled={locked}
                   aria-label={locked?item.title+' already added':'Add '+item.title} onClick={()=>addStage(type)}>
