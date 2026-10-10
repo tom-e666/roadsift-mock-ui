@@ -205,3 +205,30 @@
 @media(max-width:900px){.bw-queue-layout{grid-template-columns:1fr}.bw-queue-sidebar{position:static;gap:9px}.bw-status-filters{display:flex;flex-wrap:wrap}.bw-status-filters button{padding:8px}.bw-queue-filter-title,.bw-queue-help{display:none}.bw-queue-sidebar>select{max-width:220px}.bw-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.bw-gallery-controls{justify-content:flex-start}}
 @media(max-width:620px){.bw-header--compact{align-items:flex-start}.bw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bw-overview-stats{gap:6px}.bw-overview-stats>div{padding:6px;border:0}.bw-header-actions{width:100%}.bw-gallery-top{align-items:start}.bw-gallery-controls{width:100%}.bw-gallery-controls .bw-search{max-width:none}.bw-queue-caption{display:none}.bw-page-select{font-size:10px}}
 @media(max-width:440px){.bw-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bw-card-mainline{flex-wrap:wrap}.bw-card-details{padding:7px}.bw-heading-line h1{font-size:19px}}
+
+/* Handoff is a staged, gated operation, not an immediate ZIP download. */
+.bw-handoff-workflow{display:grid;align-content:start;gap:14px}
+.bw-handoff-topline{display:flex;justify-content:space-between;align-items:start;gap:10px}
+.bw-handoff-topline h2{font-size:17px;letter-spacing:-.02em}
+.bw-handoff-topline p{font-size:11px;color:var(--muted);margin-top:7px}
+.bw-handoff-stepper{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.bw-handoff-step{display:flex;align-items:center;gap:12px;padding:13px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-width:0}
+.bw-handoff-step.is-active{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
+.bw-handoff-step>span{font-size:11px;font-weight:800;color:var(--muted);background:var(--grouped);border-radius:50%;width:31px;height:31px;flex-shrink:0;display:grid;place-items:center}
+.bw-handoff-step.is-active>span{color:var(--accent);background:var(--accent-soft)}
+.bw-handoff-step>div{display:grid;gap:6px;min-width:0}
+.bw-handoff-step strong{font-size:12px}
+.bw-handoff-step small{font-size:10px;color:var(--muted);line-height:1.4}
+.bw-blocked-count{font-size:10px;font-weight:700;color:var(--status-warning);background:color-mix(in srgb,var(--status-warning) 10%,var(--surface));border-radius:6px;padding:6px 9px}
+.bw-handoff-lineage{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.bw-handoff-lineage h3{font-size:12px;margin-bottom:13px}
+.bw-handoff-lineage dl{display:grid;gap:11px}
+.bw-handoff-lineage dl>div{display:flex;justify-content:space-between;gap:12px}
+.bw-handoff-lineage dt{font-size:11px;color:var(--muted)}
+.bw-handoff-lineage dd{font-size:11px;color:var(--text);text-align:right;overflow-wrap:anywhere;max-width:65%}
+.bw-handoff-action-head{display:flex;align-items:center;gap:8px}
+.bw-handoff-action-head svg{color:var(--status-warning)}
+.bw-handoff-action>button:first-of-type{background:var(--grouped);border:1px solid var(--line);border-radius:7px;color:var(--muted);padding:11px;font-size:11px;cursor:not-allowed}
+.bw-handoff-settings>h2{margin-bottom:0}
+@media(max-width:1000px){.bw-handoff-stepper{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:580px){.bw-handoff-stepper{grid-template-columns:1fr}.bw-handoff-topline{flex-wrap:wrap}}
