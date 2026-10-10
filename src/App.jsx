@@ -77,7 +77,7 @@ export default function App() {
     const next = raw.split('?')[0];
     if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs|pipelines)\/[^/]+$/.test(next) && next !== 'runs') return;
     if (dataset) setContextDataset(dataset);
-    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
+    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next.startsWith('pipelines/')?'pipelines':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
   useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname + window.location.search);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
   useEffect(() => { document.title = `RoadSift · ${title}`; }, [title]);
