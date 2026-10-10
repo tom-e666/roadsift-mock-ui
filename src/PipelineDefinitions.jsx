@@ -371,31 +371,42 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
         </div>}
       </div>
       <div className="pipeline-editor-actions">
-        <button className={'pipeline-validation-pill '+(problems.length?'has-errors':'')} onClick={()=>setTab('validation')} aria-label="Show validation results">
-          {problems.length?<CircleAlert size={15}/>:<CheckCircle2 size={15}/>}
-          <span>{problems.length?problems.length+' issues':'Valid graph'}</span>
-        </button>
+        <div className="pipeline-header-popover-anchor">
+          <button className="pipeline-header-version" aria-expanded={versionOpen}
+            onClick={()=>{setVersionOpen(v=>!v);setValidationOpen(false);setPickerOpen(false);}}>
+            v{draft.version} <ChevronDown size={13}/>
+          </button>
+          {versionOpen&&<div className="pipeline-toolbar-popover pipeline-versions-popover">
+            <strong>Version history</strong>
+            {definitions.filter(d=>d.familyId===draft.familyId).sort((a,b)=>b.version-a.version).map(d=>
+              <button key={d.id} onClick={()=>{setVersionOpen(false);navigate('pipelines/'+encodeURIComponent(d.id));}}>
+                <span>v{d.version} · {statusLabel(d)}</span><small>{dateLabel(d.updatedAt)}</small>
+              </button>)}
+            <button className="pipeline-copy-definition" onClick={()=>{copyDefinition();setVersionOpen(false);}}><Copy size={13}/> Copy definition JSON</button>
+          </div>}
+        </div>
+        <div className="pipeline-header-popover-anchor">
+          <button className={'pipeline-validation-pill '+(problems.length?'has-errors':'')} onClick={()=>{setValidationOpen(v=>!v);setVersionOpen(false);}} aria-label="Show validation results" aria-expanded={validationOpen}>
+            {problems.length?<CircleAlert size={15}/>:<CheckCircle2 size={15}/>}
+            <span>{problems.length?problems.length+' issues':'Graph valid'}</span>
+          </button>
+          {validationOpen&&<div className="pipeline-toolbar-popover pipeline-validation-popover" role="status">
+            <strong>{problems.length?'Structural issues':'Structural validation passed'}</strong>
+            {problems.length?problems.map((issue,i)=><p key={i}>{issue}</p>):
+              <p>Required stages and graph dependencies are consistent. Execution readiness requires backend validation.</p>}
+          </div>}
+        </div>
         {editable?<><Button onClick={save} disabled={!dirty} icon={Save}>Save</Button><Button variant="primary" icon={Check} onClick={publish} disabled={Boolean(problems.length)}>Publish</Button></>:
           <><Button onClick={()=>make(active)} icon={Copy}>New version</Button>{compatibleRunner&&<Button variant="primary" onClick={()=>navigate('mining?definition='+active.id)} icon={ArrowRight}>Launch</Button>}</>}
       </div>
     </header>
-    <div className="pipeline-editor-tabs">
-      <div className="pipeline-tab-list" role="tablist" aria-label="Pipeline definition views">
-        {[['graph','Graph'],['json','JSON'],['versions','Versions'],['validation','Validation']].map(([id,name])=><button key={id} type="button" role="tab" aria-selected={tab===id} className={tab===id?'active':''} onClick={()=>{setTab(id);setSelectedStage(null);}}>{name}</button>)}
-      </div>
-      <span className="pipeline-version-hint">{draft.stages.filter(n=>n.enabled).length} stages</span>
-    </div>
-    {tab==='graph'?<div className={'pipeline-editor-main'+(selected?' has-inspector':'')}>
+    <div className={'pipeline-editor-main'+(selected?' has-inspector':'')}>
       <section className="pipeline-graph-pane" aria-label="Pipeline DAG editor">
         <div className="pipeline-canvas-toolbar">
-          <div className="pipeline-add-anchor">
-            <button className="pipeline-tool-button pipeline-add-button" disabled={!editable} aria-expanded={addOpen} onClick={()=>{setAddOpen(v=>!v);setPickerOpen(false);}}><Plus size={16}/> Add stage</button>
-            {addOpen&&<div className="pipeline-add-popover">
-              <h3>Stage catalog</h3><p>Select an implementation type to add to this definition.</p>
-              <select aria-label="Stage type" value={stageType} onChange={e=>setStageType(e.target.value)}>{Object.entries(stageCatalog).filter(([t])=>!required.has(t)).map(([t,c])=><option key={t} value={t}>{c.title}</option>)}</select>
-              <Button variant="primary" icon={Plus} onClick={addStage}>Insert stage</Button>
-            </div>}
-          </div>
+          <button className="pipeline-tool-button pipeline-add-button" disabled={!editable}
+            aria-expanded={catalogOpen} onClick={()=>{setCatalogOpen(v=>!v);setPickerOpen(false);}}>
+            <Plus size={16}/> {catalogOpen?'Close catalog':'Add stage'}
+          </button>
           <div className="pipeline-zoom-tools" role="group" aria-label="Graph navigation">
             <button title="Zoom out" aria-label="Zoom out" onClick={()=>moveZoom(-1)}><Minus size={16}/></button>
             <span>{Math.round(zoom*100)}%</span>
@@ -425,6 +436,30 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
           <span><MousePointer2 size={13}/> Drag to pan · Ctrl + scroll to zoom</span>
           <span>{layout.active.length} connected stages</span>
         </div>
+        {catalogOpen&&<section className="pipeline-stage-catalog" aria-label="Stage Catalog">
+          <header className="pipeline-stage-catalog-header">
+            <div className="pipeline-catalog-label"><strong>Stage Catalog</strong><span>Choose a component to add to this pipeline</span></div>
+            <label className="pipeline-catalog-search"><Search size={15}/><input aria-label="Search stages" placeholder="Search stages..." value={catalogQuery} onChange={e=>setCatalogQuery(e.target.value)}/></label>
+            <div className="pipeline-catalog-filters" aria-label="Filter stage categories">
+              {stageCategories.map(([key,label])=><button key={key} className={catalogFilter===key?'active':''} aria-pressed={catalogFilter===key} onClick={()=>setCatalogFilter(key)}>{label}</button>)}
+            </div>
+            <button className="pipeline-catalog-close" aria-label="Close Stage Catalog" onClick={()=>setCatalogOpen(false)}><X size={17}/></button>
+          </header>
+          <div className="pipeline-catalog-cards">
+            {filteredStages.map(([type,item])=>{
+              const locked=required.has(type)&&draft.stages.some(n=>n.type===type);
+              return <div key={type} className="pipeline-catalog-card">
+                <span className="pipeline-catalog-card-icon"><Workflow size={18}/></span>
+                <div className="pipeline-catalog-card-text"><strong>{item.title}</strong><small>{item.description}</small></div>
+                <button title={locked?'Required stage already present':'Add '+item.title} disabled={locked}
+                  aria-label={locked?item.title+' already added':'Add '+item.title} onClick={()=>addStage(type)}>
+                  {locked?<Check size={15}/>:<Plus size={16}/>}
+                </button>
+              </div>;
+            })}
+            {!filteredStages.length&&<p className="pipeline-catalog-empty">No stages match the current filters.</p>}
+          </div>
+        </section>}
       </section>
       {selected&&<aside className="pipeline-node-inspector" aria-label="Selected stage inspector">
         <header className="pipeline-inspector-heading"><div><span>STAGE INSPECTOR</span><strong>{selected.label}</strong><small>{selected.id}</small></div><button aria-label="Close stage inspector" onClick={()=>setSelectedStage(null)}><X size={17}/></button></header>
