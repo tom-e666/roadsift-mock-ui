@@ -73,7 +73,7 @@ try {
       if (id === 'mining' && !html.includes('lp-builder')) throw new Error('Missing launchpad builder');
       if (id === 'mining' && path === '/mining' && (html.includes('Stage implementation overrides') || !html.includes('Run Parameters'))) throw new Error('Launchpad must inherit stage implementations');
       if (id === 'batches' && (!html.includes('Open Workspace') || html.includes('Finalize curated batch'))) throw new Error('Selection batch list still exposes unverified finalize action');
-      if (id === 'batch-workspace' && path.includes('view=grid') && (!html.includes('bw-grid') || !html.includes('Demo sample gallery'))) throw new Error('Missing batch grid or preview evidence notice');
+      if (id === 'batch-workspace' && path.includes('view=grid') && (!html.includes('bw-queue-layout') || !html.includes('bw-grid') || !html.includes('Preview gallery') || !html.includes('Select page') || !html.includes('Review queue'))) throw new Error('Missing compact Review Queue controls or preview provenance notice');
       if (id === 'batch-workspace' && path.includes('view=review') && (!html.includes('qb-editor') || !html.includes('Sample Inspector'))) throw new Error('Missing Focus Review and Quick Edit');
       if (id === 'batch-workspace' && path.includes('view=handoff') && (!html.includes('Readiness Checks') || !html.includes('Finalize unavailable'))) throw new Error('Missing fail-closed handoff');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
