@@ -360,7 +360,7 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
       <div className="pipeline-editor-identity">
         <button className="pipeline-icon-button" aria-label="Back to Pipelines" title="Back to Pipelines" onClick={()=>navigate('pipelines')}><ArrowLeft size={17}/></button>
         <div className="pipeline-title-area">
-          <button className="pipeline-title-trigger" aria-expanded={pickerOpen} onClick={()=>{setPickerOpen(v=>!v);setAddOpen(false);}}>
+          <button className="pipeline-title-trigger" aria-expanded={pickerOpen} onClick={()=>{setPickerOpen(v=>!v);setCatalogOpen(false);setVersionOpen(false);}}>
             <span>{draft.name}</span><ChevronDown size={14}/>
           </button>
           <div className="pipeline-title-meta">v{draft.version} · <span className={editable?'':'pipeline-published-text'}>{editable?'Draft':'Published'}</span> <span className="pipeline-local-note">· Preview / Local only</span></div>
@@ -427,7 +427,7 @@ export function PipelineDefinitions({ definitions, setDefinitions, runs = [], na
             </svg>
             {layout.active.map(n=><button key={n.id} className={'pipeline-node'+(selectedStage===n.id?' pipeline-node--selected':'')}
               style={{left:layout.locations[n.id].x,top:layout.locations[n.id].y}}
-              aria-pressed={selectedStage===n.id} onPointerDown={e=>e.stopPropagation()} onClick={()=>{setSelectedStage(n.id);setPane('stage');setAddOpen(false);}}>
+              aria-pressed={selectedStage===n.id} onPointerDown={e=>e.stopPropagation()} onClick={()=>{setSelectedStage(n.id);setInspectorMode('form');setCatalogOpen(false);}}>
               <span className="pipeline-node-kind">{required.has(n.type)?<LockKeyhole size={12}/>:<CircleDot size={12}/>} {n.type.toUpperCase()}</span>
               <strong>{n.label}</strong><small>{n.implementation}</small>
             </button>)}
