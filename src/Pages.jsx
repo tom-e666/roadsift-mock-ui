@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RunDetails } from './RunDetails.jsx';
+import './launchpad.css';
 import selectionRunnerSource from '../worker/selection_runner.py?raw';
 import { listSamplePreviews } from './mock-api.js';
 import { ArrowRight, ArrowUpRight, Database, Layers, ScanLine, GitBranch, Plus, Search, LayoutGrid, List, Download, Upload, SlidersHorizontal, Check, X, Copy, Image, Video, Play, Pause, RotateCcw, Sparkles, Cpu, Cloud, ChartNoAxesCombined, Target, Crosshair, ZoomIn, ZoomOut, Trash2, Save, CheckCircle2, FileText, Monitor, Sun, Moon, MousePointer2, BoxSelect, ChevronDown, ArrowLeft, Pickaxe, History as HistoryIcon } from 'lucide-react';
@@ -593,7 +594,17 @@ export function ImportData({notify,navigate,pools,contextDataset}) {
 
 export function Mining({ notify, setRuns, runs, navigate, routePath, definitions, datasets, pools, contextDataset, runnerRegistry, modelRegistryState, algorithmRegistry }) {
   const routeDefinitionId = new URLSearchParams((routePath || '').split('?')[1] || '').get('definition');
-  const launchDefinition = definitions?.find(d => d.id === routeDefinitionId && d.id === 'al-selection-v1' && d.status === 'published') || definitions?.find(d => d.id === 'al-selection-v1' && d.status === 'published');
+  const availableDefinitions=(definitions||[]).filter(d=>d.status==='published');
+  const [definitionId,setDefinitionId]=useState(routeDefinitionId||'al-selection-v1');
+  const launchDefinition=availableDefinitions.find(d=>d.id===definitionId)||availableDefinitions.find(d=>d.id==='al-selection-v1')||availableDefinitions[0];
+  const canExecuteDefinition=launchDefinition?.id==='al-selection-v1';
+  const [overrides,setOverrides]=useState({});
+  const [configMode,setConfigMode]=useState('form');
+  const [jsonDraft,setJsonDraft]=useState('');
+  const [jsonIssue,setJsonIssue]=useState('');
+  const [stageParams,setStageParams]=useState({});
+  useEffect(()=>{if(routeDefinitionId&&availableDefinitions.some(d=>d.id===routeDefinitionId))setDefinitionId(routeDefinitionId)},[routeDefinitionId]);
+
   const [poolId,setPoolId]=useState(contextDataset?.kind==='pool'&&pools.some(p=>p.id===contextDataset.id)?contextDataset.id:pools[0]?.id||'');
   const [parentId,setParentId]=useState('');
   const [algorithmId,setAlgorithmId]=useState(miningConfig.defaultStrategyId);
@@ -651,7 +662,9 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
     {label:'Configure privacy anonymization',ok:Boolean(privacyMethod&&privacyScope),where:'Privacy Anonymization'},
     {label:'Assign a compatible runner with available capacity',ok:runnerValid,where:'Execution'}
   ];
-  const ready=checks.every(x=>x.ok);
+  const ready=checks.every(x=>x.ok)&&canExecuteDefinition;
+  const weights={...(algorithm?.weights||{}),...overrides};
+  const baselineWeights=algorithm?.weights||{};
   const plugin=p=>p?{id:p.id,version:p.version}:null;
   const stages=[
     {step:'eligibility',plugin:{id:'pool-eligibility',version:'1.0.0'},enabled:true},
@@ -668,7 +681,7 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
     source:{poolId:pool?.id||null,snapshotId:pool?.snapshot||null,manifestUri:pool?.manifestUri||null,
       parentDatasetVersionId:parent?.id||null},
     pipeline:{steps:stages,budget:n,exactN:true,
-      scoringWeights:algorithmId==='hybrid'?algorithm?.weights||null:null,
+      scoringWeights:algorithmId==='hybrid'?weights:null,
       modelRef:needsPredictions?{id:model?.id||null,version:model?.version||null,artifactUri:model?.artifactUri||null}:null,
       privacy:{required:true,detectorRef:privacyModel?{id:privacyModel.id,version:privacyModel.version,artifactUri:privacyModel.artifactUri}:null,
         targets:privacyScope==='faces-plates-persons'?['face','license_plate','person']:['face','license_plate'],
@@ -683,10 +696,40 @@ export function Mining({ notify, setRuns, runs, navigate, routePath, definitions
   const configFingerprint=fingerprint(contract);
   const spec={...contract,configFingerprint};
   const json=JSON.stringify(spec,null,2);
+  const jsonConfig={
+    definition_id:launchDefinition?.id||null,
+    input:{pool_id:poolId,parent_dataset_version_id:parentId||null},
+    overrides:{selection_strategy:algorithmId,target_samples:n,model_id:needsPredictions?modelId:null,
+      stage_parameters:stageParams,scoring_weights:algorithmId==='hybrid'?weights:null},
+    execution:{runner_id:runnerId}
+  };
+  const effectiveJSON=JSON.stringify(jsonConfig,null,2);
+  const openJSON=()=>{setJsonDraft(effectiveJSON);setJsonIssue('');setConfigMode('json')};
+  const applyJSON=()=>{
+    try {
+      const parsed=JSON.parse(jsonDraft);
+      if(!parsed||Array.isArray(parsed)||typeof parsed!=='object')throw Error('Expected a configuration object.');
+      if(parsed.definition_id!==launchDefinition?.id)throw Error('Definition ID must match the selected published version.');
+      const inp=parsed.input||{},ov=parsed.overrides||{},exec=parsed.execution||{};
+      if(!pools.some(p=>p.id===inp.pool_id))throw Error('Unknown candidate pool.');
+      if(inp.parent_dataset_version_id&&!datasets.some(d=>d.id===inp.parent_dataset_version_id))throw Error('Unknown parent dataset version.');
+      if(!algorithmRegistry.some(a=>a.id===ov.selection_strategy&&a.enabled!==false))throw Error('Unregistered selection strategy.');
+      if(!Number.isSafeInteger(ov.target_samples)||ov.target_samples<1)throw Error('Target samples must be a positive integer.');
+      if(!['auto',...runnerRegistry.map(r=>r.id)].includes(exec.runner_id))throw Error('Unknown executor.');
+      if(ov.scoring_weights!=null && (typeof ov.scoring_weights!=='object'||Array.isArray(ov.scoring_weights)||Object.values(ov.scoring_weights).some(x=>typeof x!=='number'||!Number.isFinite(x))))throw Error('Scoring weights must be finite numbers.');
+      if(ov.stage_parameters!=null&&(typeof ov.stage_parameters!=='object'||Array.isArray(ov.stage_parameters)))throw Error('stage_parameters must be an object.');
+      setPoolId(inp.pool_id);setParentId(inp.parent_dataset_version_id||'');
+      setAlgorithmId(ov.selection_strategy);setBudget(String(ov.target_samples));
+      if(ov.model_id)setModelId(ov.model_id);
+      setRunnerId(exec.runner_id);setStageParams(ov.stage_parameters||{});
+      if(ov.scoring_weights)setOverrides(ov.scoring_weights);
+      setJsonIssue('');setConfigMode('form');notify('Run configuration overrides applied');
+    }catch(error){setJsonIssue(error.message);}
+  };
   const pythonPreview=selectionRunnerSource;
   const submitted=runs.find(r=>r.id===submittedId);
   const submit=()=>{
-    if(!ready){notify('Resolve the issues shown under Ready to run');return;}
+    if(!ready){notify('Resolve preflight issues or choose an executable pipeline');return;}
     const now=new Date().toISOString(),nonce=Date.now().toString(36);
     const id=`mine_${now.replace(/[-:T]/g,'').slice(0,12)}_${nonce.slice(-5)}`;
     const batchId=`batch_${pool.slug.replace(/-/g,'_')}_${nonce.slice(-6)}`;
