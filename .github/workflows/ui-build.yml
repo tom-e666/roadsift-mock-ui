@@ -3,6 +3,8 @@ name: UI Build
 on:
   push:
     branches: [mock-ui]
+  pull_request:
+    branches: [mock-ui]
   workflow_dispatch:
 
 jobs:
