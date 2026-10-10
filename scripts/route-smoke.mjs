@@ -7,10 +7,12 @@ import { createServer } from 'vite';
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 try {
   const views = await server.ssrLoadModule('/src/Pages.jsx');
+  const pipelineViews = await server.ssrLoadModule('/src/PipelineDefinitions.jsx');
   const fixtures = await server.ssrLoadModule('/src/data.js');
   const datasets = fixtures.initialDatasets;
   const pools = fixtures.initialPools;
   const runs = fixtures.initialRuns;
+  const definitions = pipelineViews.initialPipelineDefinitions;
   const selectionBatches = fixtures.initialSelectionBatches;
   const runnerRegistry = fixtures.runners;
   const modelRegistryState = fixtures.modelRegistry;
@@ -19,7 +21,7 @@ try {
   globalThis.window = { location: { search: '', pathname: '/history' } };
   const common = {
     datasets, setDatasets: noop, pools, setPools: noop,
-    runs, setRuns: noop, selectionBatches, setSelectionBatches: noop,
+    runs, setRuns: noop, definitions, setDefinitions: noop, selectionBatches, setSelectionBatches: noop,
     runnerRegistry, setRunnerRegistry: noop,
     modelRegistryState, setModelRegistryState: noop,
     algorithmRegistry, setAlgorithmRegistry: noop,
@@ -34,6 +36,7 @@ try {
     ['Dataset details', 'datasets', '/datasets/' + datasets[0].id],
     ['Data Explorer', 'data-explorer', '/data-explorer'],
     ['Ingest', 'import', '/import'],
+    ['Pipeline Definitions', 'pipelines', '/pipelines'],
     ['Mining', 'mining', '/mining'],
     ['Selection Batches', 'batches', '/batches'],
     ['Runs', 'history', '/history'],
@@ -44,7 +47,7 @@ try {
   ];
   const components = {
     pools: views.Pools, datasets: views.Datasets, 'data-explorer': views.Explorer,
-    import: views.ImportData, mining: views.Mining, batches: views.SelectionBatches,
+    import: views.ImportData, pipelines: pipelineViews.PipelineDefinitions, mining: views.Mining, batches: views.SelectionBatches,
     history: views.History, comparison: views.StrategyComparison, settings: views.SettingsPage,
     system: views.SystemPage, onboarding: views.Onboarding,
   };
