@@ -30,3 +30,8 @@ Demo imports read file names and sizes only and do not upload files or parse dat
 ## Pipeline Definitions preview
 
 `/pipelines` is the compact definition registry; `/pipelines/:id` opens a full-canvas editor with graph pan/zoom, Fit View, a contextual stage inspector, version history, and validation. Published definitions are immutable; create a draft version to edit dependencies and implementations, then validate and publish it locally. `/mining` remains the existing Selection Launchpad (with a reference to its bundled definition); `/history` remains the Runs list and detail views. All custom definitions are **design-only** and are not executed by the current worker. Demo changes live in localStorage, not the production RoadSift database.
+
+
+## Visual theme: Midnight Navy
+
+The RoadSift Dark appearance uses shared semantic tokens in `src/styles.css`, with `--bg: #0D111A`, `--surface: #171D2A`, `--surface-elevated: #222D3D`, `--line: #334155`, `--accent: #268DFF`, and `--status-success: #31C48D`. Use `--accent-action` for blue buttons with white text to preserve readable contrast. The existing Light appearance is unchanged. Pipeline stage hues are centralized as `--stage-*` tokens; do not hardcode stage colors into components. Apply colors by **semantic role**, not page identity, and never use success-green icons to imply a definition stage has executed.
