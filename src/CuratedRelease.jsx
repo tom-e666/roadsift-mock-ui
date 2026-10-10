@@ -1,4 +1,4 @@
-import React,{useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import {ArrowRight,CheckCircle2,ChevronDown,ChevronRight,Download,FileJson,FileText,Info,Layers3,LockKeyhole,PackageCheck,Send,ShieldCheck,X} from 'lucide-react';
 import {Badge} from './components/UI.jsx';
 import {count,date} from './data.js';
@@ -10,10 +10,10 @@ function downloadJson(name,data){
   const href=URL.createObjectURL(blob),a=document.createElement('a');a.href=href;a.download=name;a.click();
   setTimeout(()=>URL.revokeObjectURL(href),1000);
 }
-export function CuratedRelease({batch,onReview,notify}){
+export function CuratedRelease({batch,onReview,notify,initialPreview=false}){
   const approved=batch.review?.approved||0,rejected=batch.review?.rejected||0,deferred=batch.review?.deferred||0;
   const pending=Math.max(0,batch.count-(batch.review?.reviewed||0));
-  const [versionPreview,setVersionPreview]=useState(false);
+  const [versionPreview,setVersionPreview]=useState(initialPreview);
   const [curatedName,setCuratedName]=useState('curated_'+batch.id);
   const [version,setVersion]=useState('v1');
   const [drawer,setDrawer]=useState(null);
@@ -24,6 +24,10 @@ export function CuratedRelease({batch,onReview,notify}){
   const [metadata,setMetadata]=useState(true);
   const [reviewAudit,setReviewAudit]=useState(false);
   const [notes,setNotes]=useState('');
+  useEffect(()=>{if(!drawer)return;
+    const onKey=e=>{if(e.key==='Escape')setDrawer(null)};
+    window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);
+  },[drawer]);
   const canPreview=legal.test(curatedName)&&legal.test(version);
   const previewVersionName=(curatedName||'curated_batch')+' / '+(version||'v1');
   const requiresImageBytes=format!=='manifest';
