@@ -60,7 +60,7 @@ export function BatchRegistry({selectionBatches=[],annotationImports=[],pools=[]
             {annotationImports.some(r=>r.batchId===b.id)&&<small className="br-intake-note">{annotationImports.filter(r=>r.batchId===b.id).length} local intake record(s) · unverified</small>}</div></td>
           <td><span className={'br-phase is-'+step.variant}>{step.title}</span><small>{step.hint}</small></td>
           <td className="br-date">{b.updatedAt?date(b.updatedAt):'—'}</td>
-          <td><div className="br-row-actions"><button className="br-action-primary" onClick={()=>open(b,b.status==='In review'?'grid':'handoff')}>{b.status==='In review'?'Review':'View version'}<ArrowRight size={14}/></button><button className="br-action-secondary" onClick={()=>open(b,'handoff')} title="Open Curated Batch release">Curated</button><button className="br-action-secondary" onClick={()=>open(b,'return')} title="Import external annotation results">Import labels</button></div></td>
+          <td><div className="br-row-actions"><button className="br-action-primary" onClick={()=>open(b,b.status==='In review'?'grid':'handoff')}>{b.status==='In review'?'Review':'View version'}<ArrowRight size={14}/></button><button className="br-action-secondary" onClick={()=>open(b,'handoff')} title="Open Curated Batch release">Curated</button><button className="br-action-secondary" onClick={()=>navigate('/annotation-jobs?job='+encodeURIComponent(b.id)+'&import=1')} title="Import external annotation results">Import labels</button></div></td>
         </tr>})}</tbody></table>
         {!results.length&&<div className="br-empty">No batches match your filters. Try another status or strategy.</div>}
       </div>
