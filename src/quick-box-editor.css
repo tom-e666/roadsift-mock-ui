@@ -12,3 +12,47 @@
 .qb-svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
 .qb-svg rect{cursor:move}
 @media(max-width:820px){.qb-tools{flex-wrap:wrap}.qb-stage{max-height:none}.qb-toolbar{gap:8px}}
+
+/* CVAT-inspired Focus Review studio: compact tool rail, canvas, object hierarchy. */
+.qb-studio{height:100%;min-height:0;display:block;background:var(--surface);border-color:var(--line)}
+.qb-studio-layout{display:grid;grid-template-columns:58px minmax(0,1fr) 205px;min-height:465px;height:100%;width:100%}
+.qb-rail{border-right:1px solid var(--line);background:var(--surface);padding:12px 6px;display:flex;align-items:stretch;flex-direction:column;gap:5px}
+.qb-rail button{border:1px solid transparent;background:transparent;border-radius:7px;min-height:47px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;font-size:10px}
+.qb-rail button small{font-size:9px}
+.qb-rail button:hover:not(:disabled){background:var(--grouped);color:var(--text)}
+.qb-rail button[aria-pressed=true]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 30%,var(--line));background:var(--accent-soft)}
+.qb-rail button:disabled{opacity:.35}
+.qb-rail-divider{border-top:1px solid var(--line);margin:7px 0}
+.qb-stage-column{min-width:0;min-height:0;display:grid;grid-template-rows:auto minmax(310px,1fr) auto;background:#0b1220}
+.qb-stage-column .qb-toolbar{min-height:51px;padding:8px 11px}
+.qb-toolbar-title{display:grid;gap:4px}
+.qb-toolbar-title strong{font-size:11px;color:var(--text)}
+.qb-toolbar-title small{font-size:10px;color:var(--muted)}
+.qb-zoom-label{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums;min-width:32px;text-align:center}
+.qb-stage-column .qb-canvas-viewport{min-height:310px;overflow:auto}
+.qb-stage-column .qb-stage{max-height:none}
+.qb-stage-column .qb-footer{min-height:54px;padding:9px 11px}
+.qb-objects{display:flex;flex-direction:column;min-width:0;border-left:1px solid var(--line);background:var(--surface)}
+.qb-objects header{display:flex;justify-content:space-between;align-items:center;padding:14px 12px;border-bottom:1px solid var(--line);gap:10px}
+.qb-objects header>div{display:grid;gap:4px}
+.qb-objects header strong{font-size:12px}
+.qb-objects header small{font-size:10px;color:var(--muted)}
+.qb-objects header>span{color:var(--muted);background:var(--grouped);border-radius:6px;padding:4px 7px;font-size:10px}
+.qb-object-scroll{display:grid;align-content:start;min-height:190px;max-height:320px;overflow:auto;padding:8px;gap:4px}
+.qb-object{background:transparent;border:1px solid transparent;border-radius:7px;padding:9px 7px;text-align:left;display:flex;align-items:center;gap:8px;color:var(--text)}
+.qb-object:hover{background:var(--grouped)}
+.qb-object.is-selected{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 30%,var(--line))}
+.qb-object-icon{color:var(--accent)}
+.qb-object>span:last-child{display:grid;gap:4px;min-width:0}
+.qb-object strong{font-size:11px}
+.qb-object small{color:var(--muted);font-size:9px;white-space:nowrap}
+.qb-empty-objects{font-size:11px;color:var(--muted);line-height:1.55;padding:14px 6px}
+.qb-object-properties{display:grid;gap:11px;padding:14px 12px;border-top:1px solid var(--line)}
+.qb-object-properties>strong{font-size:11px}
+.qb-object-properties label{display:grid;gap:7px;font-size:10px;color:var(--muted)}
+.qb-object-properties select{color:var(--text);background:var(--grouped);border:1px solid var(--line);border-radius:6px;padding:7px}
+.qb-object-properties>span{font-size:10px;color:var(--muted);line-height:1.5}
+.qb-objects footer{margin-top:auto;padding:13px 12px;border-top:1px solid var(--line);font-size:10px;color:var(--tertiary);line-height:1.6}
+@media(max-width:1430px){.qb-studio-layout{grid-template-columns:52px minmax(0,1fr) 175px}}
+@media(max-width:1080px){.qb-studio-layout{grid-template-columns:50px minmax(0,1fr)}.qb-objects{grid-column:1/-1;border-top:1px solid var(--line);border-left:0}.qb-objects footer{display:none}.qb-object-scroll{display:flex;flex-wrap:wrap;max-height:170px;min-height:0}.qb-object{min-width:130px}}
+@media(max-width:600px){.qb-studio-layout{grid-template-columns:43px minmax(0,1fr)}.qb-rail{padding-inline:3px}.qb-rail button small{display:none}.qb-rail button{min-height:38px}.qb-stage-column .qb-footer{align-items:start}.qb-stage-column .qb-footer span{max-width:200px}}
