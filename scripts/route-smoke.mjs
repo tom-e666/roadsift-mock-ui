@@ -39,7 +39,10 @@ try {
     ['Pipeline Definitions', 'pipelines', '/pipelines'],
     ['Pipeline Editor - published', 'pipelines', '/pipelines/al-selection-v1'],
     ['Pipeline Editor - draft', 'pipelines', '/pipelines/quality-screen-v1'],
-    ['Mining', 'mining', '/mining'],
+    ['Launchpad - selection', 'mining', '/mining'],
+    ['Launchpad - custom definition', 'mining', '/mining?definition=quality-screen-v1'],
+    ['Run Details - complete fixture', 'history', '/runs/' + encodeURIComponent(runs[0].id)],
+    ['Run Details - failed fixture', 'history', '/runs/' + encodeURIComponent(runs.find(r=>r.status==='Failed')?.id || runs[0].id)],
     ['Selection Batches', 'batches', '/batches'],
     ['Runs', 'history', '/history'],
     ['Strategy Comparison', 'comparison', '/comparison'],
@@ -62,6 +65,8 @@ try {
       if (!html || html.length < 50) throw new Error('Empty HTML');
       if (id === 'pipelines' && path !== '/pipelines' && !html.includes('pipeline-graph-viewport')) throw new Error('Missing graph canvas');
       if (id === 'pipelines' && path === '/pipelines' && !html.includes('pipeline-registry-table')) throw new Error('Missing pipeline registry');
+      if (id === 'mining' && !html.includes('lp-builder')) throw new Error('Missing launchpad builder');
+      if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
       console.log('PASS', label, html.length, 'chars');
     } catch (error) {
       failures.push(label);
