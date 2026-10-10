@@ -1,5 +1,5 @@
 import React, {useEffect,useMemo,useState} from 'react';
-import {ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Clock3, Database, Download, Edit3, FileCheck2, Filter, Grid2X2, Layers3, LockKeyhole, PackageCheck, Search, ShieldCheck, SlidersHorizontal, X, ZoomIn} from 'lucide-react';
+import {ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, Download, Edit3, Grid2X2, LockKeyhole, PackageCheck, Search, ListFilter, X} from 'lucide-react';
 import {Button, Badge} from './components/UI.jsx';
 import {frames,count,date} from './data.js';
 import {SampleMedia} from './SampleMedia.jsx';
@@ -24,6 +24,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const viewFromUrl=new URLSearchParams(routePath.split('?')[1]||'').get('view');
   const [view,setView]=useState(['grid','review','handoff'].includes(viewFromUrl)?viewFromUrl:'grid');
   const [query,setQuery]=useState(''),[domain,setDomain]=useState('All'),[statusFilter,setStatusFilter]=useState('All'),[sort,setSort]=useState('uncertainty');
+  const [page,setPage]=useState(1),[pageSize,setPageSize]=useState(20);
   const [selectedIds,setSelectedIds]=useState([]);
   const [activeId,setActiveId]=useState(null),[reason,setReason]=useState('');
   const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false);
@@ -35,7 +36,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const workspace=batch?.reviewWorkspace||{};
   const decisions=workspace.decisions||{},edits=workspace.edits||{};
   const isOpen=batch?.status==='In review';
-  const viewable=frames; // fixture gallery; NOT verified members of this batch
+  const viewable=frames; // the shared fixture gallery; the backend must supply verified batch members later
   const filtered=useMemo(()=>viewable.filter(f=>
     (domain==='All'||f.domain===domain) &&
     (statusFilter==='All'||formatDecision(decisions[f.id])===statusFilter) &&
@@ -43,6 +44,19 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   ).sort((a,b)=>sort==='uncertainty'?b.uncertainty-a.uncertainty:
     sort==='safety'?b.safety-a.safety:
     sort==='id'?a.id.localeCompare(b.id):0),[viewable,query,domain,statusFilter,sort,decisions]);
+  useEffect(()=>{setPage(1)},[domain,statusFilter,sort,query,pageSize]);
+  const pageCount=Math.max(1,Math.ceil(filtered.length/pageSize));
+  const currentPage=Math.min(page,pageCount);
+  const startIndex=(currentPage-1)*pageSize;
+  const pageSamples=filtered.slice(startIndex,startIndex+pageSize);
+  const pageSelected=pageSamples.length>0&&pageSamples.every(item=>selectedIds.includes(item.id));
+  const previewCounts=Object.fromEntries(['All',...REVIEW].map(key=>[key,key==='All'?viewable.length:viewable.filter(f=>formatDecision(decisions[f.id])===key).length]));
+  const togglePage=()=>setSelectedIds(previous=>{
+    const next=new Set(previous);
+    if(pageSelected)pageSamples.forEach(item=>next.delete(item.id));
+    else pageSamples.forEach(item=>next.add(item.id));
+    return [...next];
+  });
   const active=frames.find(x=>x.id===activeId)||filtered[0]||null;
   const activeIndex=filtered.findIndex(x=>x.id===active?.id);
   const selectedCount=selectedIds.length;
@@ -108,47 +122,94 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
     notify('Downloaded preview configuration only; no curated batch or export was created.');
   };
   return <div className="page bw-page">
-    <div className="bw-breadcrumb"><button onClick={()=>navigate('batches')}><ArrowLeft size={15}/> Selection Batches</button><span>/</span>{batch.id}</div>
-    <div className="bw-header"><div><span className="bw-overline">CURATION / SELECTION BATCH</span><h1>{batch.name}</h1>
-      <div className="bw-subhead"><Badge>{batch.status}</Badge><span>{batch.id}</span><span>Source run: {batch.runId}</span><span>Target: EXACT-N {count(batch.count)}</span></div></div>
-      <Button onClick={()=>openTab('handoff')} icon={PackageCheck}>Finalize &amp; Handoff <ArrowRight size={15}/></Button>
-    </div>
-    <div className="bw-top-metrics">
-      <Metric label="Recorded review progress" value={progress+'%'} detail={count(batch.review?.reviewed||0)+' / '+count(batch.count)}/>
-      <Metric label="Approved (recorded)" value={count(batch.review?.approved||0)} detail="Batch registry aggregate"/>
-      <Metric label="Pending / deferred" value={count(Math.max(0,batch.count-(batch.review?.reviewed||0))+(batch.review?.deferred||0))} detail="Not yet clear for handoff"/>
-      <Metric label="Local preview decisions" value={count(reviewedInPreview)} detail="Fixture-only · not counted above"/>
-    </div>
+    <div className="bw-breadcrumb"><button onClick={()=>navigate('batches')}><ArrowLeft size={14}/> Selection Batches</button><span>/</span>{batch.id}</div>
+    <header className="bw-header bw-header--compact">
+      <div className="bw-header-title">
+        <div className="bw-heading-line"><h1>{batch.name}</h1><Badge>{batch.status}</Badge></div>
+        <div className="bw-subhead"><span>{batch.id}</span><span className="bw-meta-separator">·</span><span>Run {batch.runId}</span><span className="bw-meta-separator">·</span><span>{count(batch.count)} selected samples</span></div>
+      </div>
+      <div className="bw-header-actions">
+        <Button onClick={()=>openTab('handoff')}>Finalize &amp; Handoff</Button>
+        <Button variant="primary" onClick={()=>openTab('review')} icon={Edit3}>Open Focus Review</Button>
+      </div>
+    </header>
+    <section className="bw-overview" aria-label="Batch review summary">
+      <div className="bw-overview-progress">
+        <div className="bw-progress-heading"><span>Review progress <small>· recorded batch aggregate</small></span><strong>{count(batch.review?.reviewed||0)} / {count(batch.count)} <em>{progress}%</em></strong></div>
+        <div className="bw-progress-track" role="progressbar" aria-label="Recorded review progress" aria-valuemin={0} aria-valuemax={batch.count} aria-valuenow={batch.review?.reviewed||0}><i style={{width:progress+'%'}}/></div>
+      </div>
+      <div className="bw-overview-stats">
+        <div><i className="bw-status-dot is-approved"/><span>Approved</span><strong>{count(batch.review?.approved||0)}</strong></div>
+        <div><i className="bw-status-dot is-rejected"/><span>Rejected</span><strong>{count(batch.review?.rejected||0)}</strong></div>
+        <div><i className="bw-status-dot is-deferred"/><span>Deferred</span><strong>{count(batch.review?.deferred||0)}</strong></div>
+        <div><i className="bw-status-dot is-pending"/><span>Pending</span><strong>{count(Math.max(0,batch.count-(batch.review?.reviewed||0)))}</strong></div>
+      </div>
+    </section>
     <div className="bw-tabs" role="tablist" aria-label="Selection batch workspace">
-      {[['grid','Batch Grid',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Finalize & Handoff',PackageCheck]].map(([key,label,Icon])=>
-        <button key={key} type="button" role="tab" aria-selected={view===key} className={view===key?'active':''} onClick={()=>openTab(key)}><Icon size={16}/>{label}</button>)}
+      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Finalize & Handoff',PackageCheck]].map(([key,label,Icon])=>
+        <button key={key} type="button" role="tab" aria-selected={view===key} className={view===key?'active':''} onClick={()=>openTab(key)}><Icon size={15}/>{label}</button>)}
     </div>
-    {view!=='handoff'&&<div className="bw-preview-warning"><CircleAlert size={16}/><span><strong>Demo sample gallery.</strong> These {frames.length} fixture frames are shared with Data Explorer, not verified members of {batch.id}. Review decisions and box drafts are local mock state; the registered batch counters remain unchanged.</span></div>}
-    {view==='grid'&&<>
-      <div className="bw-controls"><div className="bw-search"><Search size={15}/><input aria-label="Search gallery" placeholder="Search sample ID, video, domain…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
-        <label>Domain <select value={domain} onChange={e=>setDomain(e.target.value)}><option>All</option>{[...new Set(frames.map(f=>f.domain))].map(x=><option key={x}>{x}</option>)}</select></label>
-        <label>Review status <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All</option>{REVIEW.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option value="uncertainty">Uncertainty ↓</option><option value="safety">Safety ↓</option><option value="id">Sample ID</option></select></label>
-      </div>
-      {selectedCount>0&&<div className="bw-bulk"><strong>{selectedCount} preview samples selected</strong><input aria-label="Bulk rejection reason" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason (required for Reject)"/>
-        <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Approved')}>Approve</Button>
-        <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Deferred')}>Defer</Button>
-        <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Rejected')}>Reject</Button>
-        <Button onClick={()=>setSelectedIds([])}>Clear</Button></div>}
-      <div className="bw-grid">
-        {filtered.map(sample=><article key={sample.id} className={'bw-sample'+(selectedIds.includes(sample.id)?' is-selected':'')}>
-          <button className="bw-card-media" type="button" onClick={()=>{setActiveId(sample.id);openTab('review')}} aria-label={'Open Focus Review for '+sample.id}>
-            <SampleMedia sample={sample} overlay={false}/>
-            <span className="bw-score-pill">{sample.uncertainty.toFixed(2)}</span>
-          </button>
-          <label className="bw-check" onClick={e=>e.stopPropagation()}><input aria-label={'Select '+sample.id} type="checkbox" checked={selectedIds.includes(sample.id)} onChange={()=>toggle(sample.id)}/></label>
-          <div className="bw-card-details"><div><strong>{sample.id}</strong><small>{formatDecision(decisions[sample.id])}</small></div><p>{sample.domain} · {sample.weather} · Safety {sample.safety.toFixed(2)}</p></div>
-        </article>)}
-      </div>
-      {!filtered.length&&<p className="bw-empty">No preview samples match these filters.</p>}
-      <div className="bw-grid-footer"><span>{filtered.length} of {frames.length} fixture preview samples · not complete batch membership</span>
-        <Button onClick={()=>{setQuery('');setDomain('All');setStatusFilter('All');setSort('uncertainty')}}>Clear filters</Button></div>
-    </>}
+    {view!=='handoff'&&<div className="bw-data-note"><CircleAlert size={14}/><span><strong>Preview gallery</strong> · {frames.length} illustrative frames, not verified members of this batch. Local review edits do not change official progress.</span></div>}
+    {view==='grid'&&<div className="bw-queue-layout">
+      <aside className="bw-queue-sidebar" aria-label="Review queue filters">
+        <div className="bw-queue-heading"><ListFilter size={15}/><strong>Review queue</strong></div>
+        <div className="bw-queue-filter-title">PREVIEW STATUS</div>
+        <div className="bw-status-filters">
+          {['All',...REVIEW].map(key=><button type="button" key={key} aria-pressed={statusFilter===key} className={statusFilter===key?'is-active':''} onClick={()=>setStatusFilter(key)}>
+            <span>{key!=='All'&&<i className={'bw-status-dot is-'+key.toLowerCase()}/>} {key==='All'?'All samples':key}</span><strong>{previewCounts[key]}</strong>
+          </button>)}
+        </div>
+        <div className="bw-queue-filter-title">DOMAIN</div>
+        <select aria-label="Filter preview samples by domain" value={domain} onChange={e=>setDomain(e.target.value)}><option value="All">All domains</option>{[...new Set(frames.map(f=>f.domain))].map(x=><option key={x} value={x}>{x}</option>)}</select>
+        <div className="bw-queue-help">Status counts above refer to the local preview gallery, not the complete batch.</div>
+        <button className="bw-clear-filters" type="button" onClick={()=>{setDomain('All');setStatusFilter('All');setQuery('');setSort('uncertainty')}}>Reset filters</button>
+      </aside>
+      <section className="bw-gallery-main" aria-label="Preview sample gallery">
+        <div className="bw-gallery-top">
+          <div><h2>Sample review queue</h2><p>{filtered.length} preview samples · {reviewedInPreview} local decisions</p></div>
+          <div className="bw-gallery-controls">
+            <div className="bw-search"><Search size={15}/><input aria-label="Search gallery" placeholder="Search ID, video, domain…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+            <label className="bw-sort-label">Sort <select aria-label="Sort preview samples" value={sort} onChange={e=>setSort(e.target.value)}><option value="uncertainty">Uncertainty ↓</option><option value="safety">Safety ↓</option><option value="id">Sample ID</option></select></label>
+          </div>
+        </div>
+        <div className="bw-queue-actions">
+          <label className="bw-page-select"><input type="checkbox" checked={pageSelected} onChange={togglePage} disabled={!pageSamples.length} aria-label="Select all samples on current page"/> Select page</label>
+          <span className="bw-queue-count">{startIndex+Math.min(1,pageSamples.length)}–{startIndex+pageSamples.length} of {filtered.length}</span>
+          {selectedCount>0&&<span className="bw-selected-count">{selectedCount} selected</span>}
+          <div className="bw-queue-spacer"/>
+          <span className="bw-queue-caption">Click an image to inspect and quick-edit</span>
+        </div>
+        {selectedCount>0&&<div className="bw-bulk"><strong>{selectedCount} selected</strong><input aria-label="Bulk rejection reason" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason for rejection…"/>
+          <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Approved')}>Approve</Button>
+          <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Deferred')}>Defer</Button>
+          <Button disabled={!isOpen} onClick={()=>decide(selectedIds,'Rejected')}>Reject</Button>
+          <Button onClick={()=>setSelectedIds([])}>Clear</Button>
+        </div>}
+        <div className="bw-grid">
+          {pageSamples.map(sample=><article key={sample.id} className={'bw-sample'+(selectedIds.includes(sample.id)?' is-selected':'')}>
+            <button className="bw-card-media" type="button" onClick={()=>{setActiveId(sample.id);openTab('review')}} aria-label={'Inspect and quick-edit '+sample.id}>
+              <SampleMedia sample={sample} overlay={false}/>
+              <span className="bw-score-pill" title="Uncertainty score">{sample.uncertainty.toFixed(2)}</span>
+            </button>
+            <label className="bw-check" onClick={e=>e.stopPropagation()}><input aria-label={'Select '+sample.id} type="checkbox" checked={selectedIds.includes(sample.id)} onChange={()=>toggle(sample.id)}/></label>
+            <div className="bw-card-details">
+              <div className="bw-card-mainline"><strong>{sample.id}</strong><span className={'bw-review-tag is-'+formatDecision(decisions[sample.id]).toLowerCase()}>{formatDecision(decisions[sample.id])}</span></div>
+              <p>{sample.domain} <span>·</span> {sample.weather} <span>·</span> Safety {sample.safety.toFixed(2)}</p>
+            </div>
+          </article>)}
+        </div>
+        {!filtered.length&&<p className="bw-empty">No samples match these preview filters. Try clearing a filter.</p>}
+        <footer className="bw-grid-footer">
+          <span>Preview gallery · page {currentPage} of {pageCount}</span>
+          <div className="bw-page-controls">
+            <label>Per page <select aria-label="Samples per page" value={pageSize} onChange={e=>setPageSize(Number(e.target.value))}><option value={20}>20</option><option value={30}>30</option><option value={50}>50</option></select></label>
+            <button type="button" disabled={currentPage<=1} onClick={()=>setPage(p=>Math.max(1,p-1))} aria-label="Previous page"><ChevronLeft size={16}/></button>
+            <span>{currentPage} / {pageCount}</span>
+            <button type="button" disabled={currentPage>=pageCount} onClick={()=>setPage(p=>Math.min(pageCount,p+1))} aria-label="Next page"><ChevronRight size={16}/></button>
+          </div>
+        </footer>
+      </section>
+    </div>}
     {view==='review'&&<div className="bw-review">
       <div className="bw-review-main">
         <div className="bw-review-navigation"><div><strong>{active?.id||'No sample'}</strong><span>{active?.video||'—'} · {active?.domain||'—'}</span></div>
