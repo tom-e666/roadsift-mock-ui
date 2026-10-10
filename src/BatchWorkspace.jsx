@@ -4,6 +4,7 @@ import {Button, Badge} from './components/UI.jsx';
 import {frames,count,date} from './data.js';
 import {SampleMedia} from './SampleMedia.jsx';
 import {QuickBoxEditor} from './QuickBoxEditor.jsx';
+import {CuratedRelease} from './CuratedRelease.jsx';
 import './batch-workspace.css';
 
 const REVIEW=['Pending','Approved','Rejected','Deferred'];
@@ -28,14 +29,6 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const [selectedIds,setSelectedIds]=useState([]);
   const [activeId,setActiveId]=useState(null),[previewId,setPreviewId]=useState(null),[reason,setReason]=useState('');
   const [inspectorTab,setInspectorTab]=useState('scores'),[editMode,setEditMode]=useState(false),[editorDirty,setEditorDirty]=useState(false);
-  const [purpose,setPurpose]=useState('annotation'),[target,setTarget]=useState('manifest');
-  const [destination,setDestination]=useState('download');
-  const [destinationPath,setDestinationPath]=useState('curated/'+id);
-  const [curatedName,setCuratedName]=useState('curated_'+id.replace(/[^a-zA-Z0-9_-]/g,'_'));
-  const [versionLabel,setVersionLabel]=useState('v1');
-  const [exportJobName,setExportJobName]=useState('export_'+id.replace(/[^a-zA-Z0-9_-]/g,'_'));
-  const [handoffNotes,setHandoffNotes]=useState('');
-  const [includes,setIncludes]=useState({metadata:true,reviewDecisions:false});
   useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
   useEffect(()=>{setSelectedIds([]);setActiveId(null);setEditMode(false)},[id]);
   useEffect(()=>{setEditMode(false);setEditorDirty(false)},[activeId,view]);
@@ -118,56 +111,6 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
     window.addEventListener('keydown',handler);return()=>window.removeEventListener('keydown',handler);
   },[view,isOpen,active,activeIndex,filtered,editMode,reason,decisions]);
   if(!batch)return <div className="page bw-page"><Button icon={ArrowLeft} onClick={()=>navigate('batches')}>Back to Selection Batches</Button><div className="bw-notice">Selection Batch not found.</div></div>;
-  // Finalize validates approved membership; export validates frozen bytes and destination.
-  // These stages have different preconditions: a not-yet-created artifact cannot be verified before Freeze.
-  const pending=Math.max(0,batch.count-(batch.review?.reviewed||0));
-  const freezeChecks=[
-    {heading:'Immutable source membership',ok:false,detail:'A backend-verified sample ID list and pool snapshot are required; fixture gallery images are not source membership.'},
-    {heading:'Review decisions & membership accounting',ok:false,detail:'Official aggregate: '+count(batch.review?.reviewed||0)+'/'+count(batch.count)+' reviewed, '+count(pending)+' pending. Sample-level decisions and the final eligible subset must be reconciled.'},
-    {heading:'Privacy clearance for eligible samples',ok:false,detail:'A verified per-sample privacy pass/block ledger is required before releasing images outside the controlled workspace.'},
-    {heading:'Finalize policy / EXACT-N shortfall',ok:false,detail:'The backend must confirm whether the approved safe subset may be frozen below target or requires top-up.'}
-  ];
-  const formatOptions=purpose==='training'
-    ?[['manifest','Manifest + metadata'],['zip','ZIP · images + labels'],['coco','COCO · verified 2D annotations'],['yolo','YOLO · verified 2D annotations']]
-    :[['manifest','Manifest + metadata'],['zip','ZIP · images + manifest']];
-  const effectiveIncludes={
-    manifest:true,sampleIds:true,metadata:includes.metadata,
-    sourceImages:target!=='manifest',
-    reviewDecisions:includes.reviewDecisions,
-    verifiedAnnotations:purpose==='training'
-  };
-  const namePattern=/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
-  const configIssues=[
-    ...(!namePattern.test(curatedName)?['Curated name must be 1–64 letters, numbers, dots, hyphens or underscores.']:[]),
-    ...(!namePattern.test(versionLabel)?['Requested version label is invalid.']:[]),
-    ...(!namePattern.test(exportJobName)?['Export job name is invalid.']:[]),
-    ...(destination==='r2'&&!destinationPath.trim()?['Choose a destination prefix for R2.']:[])
-  ];
-  const freezeReady=freezeChecks.every(x=>x.ok)&&configIssues.length===0;
-  const exportChecks=[
-    {heading:'Curated version frozen',ok:false,detail:'An authoritative immutable curated version ID must exist.'},
-    {heading:'Manifest & artifact integrity',ok:false,detail:'After Freeze, verify generated manifest and output artifact bytes (SHA-256).'},
-    {heading:'Destination availability',ok:false,detail:destination==='r2'?'R2 bucket/prefix credentials and connectivity are not configured in this preview.':'Actual export jobs are not connected in this frontend preview.'},
-    {heading:'Verified annotation coverage',ok:purpose!=='training',detail:purpose==='training'?'Labels must pass schema, provenance and completeness validation before training export.':'Optional for annotation handoff.'}
-  ];
-  const exportReady=false; // Never create a real export without a validated frozen version and working backend.
-  const exportPlan=()=>{
-    downloadPlan(batch.id+'-handoff-plan-preview.json',{
-      schemaVersion:'roadsift.handoff-preview.v2',previewOnly:true,notAnExport:true,
-      source:{batchId:batch.id,runId:batch.runId,poolSnapshot:batch.sourceSnapshot||null,
-        membershipHashRecorded:batch.membershipHash||null,requestedCount:batch.count,recordedReviewSummary:batch.review||null},
-      curatedVersionRequest:{name:curatedName,requestedLabel:versionLabel,notes:handoffNotes.trim()},
-      exportRequest:{name:exportJobName,purpose,format:target,destination:{type:destination,
-        ...(destination==='r2'?{prefix:destinationPath.trim()}: {})},
-        includes:effectiveIncludes,previewOnly:true},
-      // Preview decisions are deliberately not represented as verified selection membership or ground truth.
-      previewDecisionsIncluded:includes.reviewDecisions,
-      previewDecisionCount:includes.reviewDecisions?Object.keys(decisions).length:0,
-      validation:{freezeReady,exportReady,freezeBlockers:freezeChecks.filter(x=>!x.ok).map(x=>x.heading),
-        exportBlockers:exportChecks.filter(x=>!x.ok).map(x=>x.heading),configurationIssues:configIssues}
-    });
-    notify('Preview handoff plan downloaded; no curated version or export artifact was created.');
-  };
   return <div className="page bw-page">
     <div className="bw-breadcrumb"><button onClick={()=>navigate('batches')}><ArrowLeft size={14}/> Selection Batches</button><span>/</span>{batch.id}</div>
     <header className="bw-header bw-header--compact">
@@ -193,7 +136,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
       </div>
     </section>
     <div className="bw-tabs" role="tablist" aria-label="Selection batch workspace">
-      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Finalize & Handoff',PackageCheck]].map(([key,label,Icon])=>
+      {[['grid','Review Queue',Grid2X2],['review','Focus Review & Quick Edit',Edit3],['handoff','Curated Batch',PackageCheck]].map(([key,label,Icon])=>
         <button key={key} type="button" role="tab" aria-selected={view===key} className={view===key?'active':''} onClick={()=>openTab(key)}><Icon size={15}/>{label}</button>)}
     </div>
     {view!=='handoff'&&<div className="bw-data-note"><CircleAlert size={14}/><span><strong>Preview gallery</strong> · {frames.length} illustrative frames, not verified members of this batch. Local review edits do not change official progress.</span></div>}
@@ -298,108 +241,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
         <div className="bw-inspector-foot"><strong>Shortcut help</strong><p>←/→ navigation · A approve · R reject · D defer. Keys are disabled while editing box geometry or typing.</p></div>
       </aside>
     </div>}
-    {view==='handoff'&&<div className="bw-handoff-workflow">
-      <div className="bw-handoff-topline"><div><h2>Finalize &amp; Handoff</h2><p>Validate an eligible subset, freeze its version, then configure a separate delivery job.</p></div>
-        <Badge>{freezeReady?'Backend preflight ready':'Backend validation required'}</Badge></div>
-      <nav className="bw-handoff-stepper" aria-label="Curated batch handoff workflow">
-        {[
-          ['01','Validate','Eligibility & privacy'],
-          ['02','Configure','Output plan'],
-          ['03','Freeze version','Immutable manifest'],
-          ['04','Export','Delivery job']
-        ].map(([num,name,desc],i)=><div key={num} className={'bw-handoff-step'+(i===0?' is-active':'')}>
-          <span>{num}</span><div><strong>{name}</strong><small>{desc}</small></div>
-        </div>)}
-      </nav>
-      <div className="bw-handoff">
-        <section className="bw-handoff-checks bw-handoff-summary">
-          <div className="bw-section-head"><h2>Finalize readiness</h2><span className="bw-pending-label">2 verifications needed</span></div>
-          <p className="bw-intro">RoadSift will freeze the approved, eligible subset. These are the only readiness items a reviewer needs to track here.</p>
-          <div className="bw-eligible-summary">
-            <div><small>Selected</small><strong>{count(batch.count)}</strong></div>
-            <div><small>Approved</small><strong>{count(batch.review?.approved||0)}</strong></div>
-            <div><small>Deferred</small><strong>{count(batch.review?.deferred||0)}</strong></div>
-            <div><small>Pending</small><strong>{count(pending)}</strong></div>
-          </div>
-          <div className="bw-readiness-simple">
-            <div className="bw-ready-row">
-              <CheckCircle2 size={19} className="bw-ready-icon is-recorded"/>
-              <div><strong>Review summary</strong><p>{count(batch.review?.reviewed||0)} / {count(batch.count)} recorded as reviewed. The final approved subset still needs authoritative confirmation.</p></div>
-              <span className="bw-ready-state is-recorded">Recorded</span>
-            </div>
-            <div className="bw-ready-row">
-              <CircleAlert size={19} className="bw-ready-icon"/>
-              <div><strong>Eligible sample membership</strong><p>Verify the exact approved sample IDs against the saved pool snapshot.</p></div>
-              <span className="bw-ready-state">Needs verification</span>
-            </div>
-            <div className="bw-ready-row">
-              <CircleAlert size={19} className="bw-ready-icon"/>
-              <div><strong>Privacy clearance</strong><p>Confirm eligible samples satisfy the export privacy policy.</p></div>
-              <span className="bw-ready-state">Needs verification</span>
-            </div>
-          </div>
-          <div className="bw-finalize-explainer"><LockKeyhole size={18}/><div><strong>Finalize becomes available after validation.</strong><p>RoadSift must also reconcile any EXACT-N shortfall under the configured policy. No production preflight is connected in this demo.</p></div></div>
-          <details className="bw-readiness-details"><summary>Technical validation details <span>{freezeChecks.length+exportChecks.length} rules <ChevronDown size={15}/></span></summary>
-            <div className="bw-details-group"><h3>Before Freeze</h3>{freezeChecks.map(check=><Rule key={check.heading} {...check}/>)}</div>
-            <div className="bw-details-group"><h3>Before Export</h3>{exportChecks.map(check=><Rule key={check.heading} {...check}/>)}</div>
-          </details>
-          <details className="bw-readiness-details"><summary>Source lineage <ChevronDown size={15}/></summary>
-            <div className="bw-handoff-lineage"><dl>
-              <div><dt>Selection batch</dt><dd>{batch.id}</dd></div>
-              <div><dt>Mining run</dt><dd>{batch.runId}</dd></div>
-              <div><dt>Pool snapshot</dt><dd>{batch.sourceSnapshot||'Not recorded'}</dd></div>
-              <div><dt>Recorded membership hash</dt><dd>{batch.membershipHash||'Not recorded'}</dd></div>
-            </dl></div>
-          </details>
-        </section>
-        <aside className="bw-handoff-settings">
-          <h2>2. Handoff configuration</h2>
-          <p className="bw-config-intro">Describe the version to freeze and the delivery package to generate. This does not change selection or review decisions.</p>
-          <div className="bw-config-group"><h3>Purpose &amp; output</h3>
-            <label>Purpose<select aria-label="Handoff purpose" value={purpose} onChange={e=>{setPurpose(e.target.value);if(e.target.value==='annotation'&&!['manifest','zip'].includes(target))setTarget('manifest');}}>
-              <option value="annotation">Annotation handoff</option><option value="training">Training handoff</option></select></label>
-            <label>Export format<select aria-label="Export format" value={target} onChange={e=>setTarget(e.target.value)}>
-              {formatOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
-            </select></label>
-            <p className="bw-config-hint">{purpose==='training'?'Training export requires confirmed labels and compatible media / annotation schema.':'Annotation handoff permits unlabeled samples; no annotation is fabricated.'}</p>
-          </div>
-          <div className="bw-config-group"><h3>Destination</h3>
-            <label>Delivery target<select aria-label="Export destination" value={destination} onChange={e=>setDestination(e.target.value)}>
-              <option value="download">Local download</option><option value="r2">Cloudflare R2</option>
-              <option value="cvat" disabled>CVAT integration · not configured</option>
-            </select></label>
-            {destination==='r2'&&<label>Bucket prefix<input aria-label="R2 object prefix" type="text" value={destinationPath} onChange={e=>setDestinationPath(e.target.value)} placeholder="curated/batch-id"/></label>}
-            <p className="bw-config-hint">No connected delivery executor in this frontend preview. Selecting a destination does not initiate upload.</p>
-          </div>
-          <div className="bw-config-group"><h3>Names &amp; version</h3>
-            <label>Curated batch name<input aria-label="Curated batch name" type="text" maxLength={64} value={curatedName} onChange={e=>setCuratedName(e.target.value)}/></label>
-            <div className="bw-config-inline"><label>Requested version label<input aria-label="Requested version label" type="text" maxLength={64} value={versionLabel} onChange={e=>setVersionLabel(e.target.value)}/></label>
-              <label>Export job name<input aria-label="Export job name" type="text" maxLength={64} value={exportJobName} onChange={e=>setExportJobName(e.target.value)}/></label></div>
-            <label>Notes (optional)<textarea aria-label="Handoff notes" rows={2} maxLength={500} value={handoffNotes} onChange={e=>setHandoffNotes(e.target.value)} placeholder="e.g. Round 2 VRU annotation handoff"/></label>
-            <p className="bw-config-hint">Names are proposed identifiers; the backend must assign and validate the final immutable version.</p>
-            {!!configIssues.length&&<div className="bw-config-issues" role="alert">{configIssues.map(t=><p key={t}><CircleAlert size={13}/>{t}</p>)}</div>}
-          </div>
-          <div className="bw-config-group"><h3>Includes</h3>
-            <label className="bw-config-check"><input type="checkbox" checked disabled/><span><strong>Manifest &amp; sample IDs</strong><small>Required for provenance</small></span></label>
-            <label className="bw-config-check"><input type="checkbox" checked={includes.metadata} onChange={e=>setIncludes(v=>({...v,metadata:e.target.checked}))}/><span><strong>Sample metadata</strong><small>Domain, scores and source references</small></span></label>
-            <label className="bw-config-check"><input type="checkbox" checked={target!=='manifest'} disabled/><span><strong>Source images</strong><small>{target==='manifest'?'Manifest references only; no image bytes':'Required by this output format'}</small></span></label>
-            <label className="bw-config-check"><input type="checkbox" checked={includes.reviewDecisions} onChange={e=>setIncludes(v=>({...v,reviewDecisions:e.target.checked}))}/><span><strong>Review decision records</strong><small>Optional audit data; subject to access controls</small></span></label>
-            <label className="bw-config-check"><input type="checkbox" checked={purpose==='training'} disabled/><span><strong>Verified annotations</strong><small>{purpose==='training'?'Required for training, blocked until validated':'Not required for annotation handoff'}</small></span></label>
-            <p className="bw-config-hint">Unsaved box drafts and model predictions are never silently exported as ground truth.</p>
-          </div>
-          <div className="bw-handoff-action"><div className="bw-handoff-action-head"><LockKeyhole size={17}/><strong>3. Freeze curated version</strong></div>
-            <p>Server validation must succeed before storing an immutable membership snapshot and content-hashed manifest.</p>
-            <button disabled={!freezeReady} title="Unavailable until backend preflight verifies membership, review, privacy and policy">Finalize Curated Batch</button>
-          </div>
-          <div className="bw-handoff-action"><div className="bw-handoff-action-head"><LockKeyhole size={17}/><strong>4. Export frozen version</strong></div>
-            <p>Requires a frozen version, verified bytes, valid format and an active destination.</p>
-            <button disabled={!exportReady} title="Requires frozen version and verified artifacts">Create export job</button>
-            <Button icon={Download} onClick={exportPlan}>Download plan (preview JSON)</Button>
-          </div>
-          {batch.review?.finalizedAt&&<p className="bw-existing"><CheckCircle2 size={15}/> Historical fixture records a finalized review on {date(batch.review.finalizedAt)}; this is not proof of a verified exported artifact.</p>}
-        </aside>
-      </div>
-    </div>}
+    {view==='handoff'&&<CuratedRelease key={id} batch={batch} onReview={()=>openTab('review')} notify={notify}/>}
 
   </div>;
 }
