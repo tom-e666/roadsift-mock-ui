@@ -30,6 +30,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   const [purpose,setPurpose]=useState('annotation'),[target,setTarget]=useState('manifest');
   useEffect(()=>{if(viewFromUrl&&['grid','review','handoff'].includes(viewFromUrl))setView(viewFromUrl)},[viewFromUrl,id]);
   useEffect(()=>{setSelectedIds([]);setActiveId(null);setEditMode(false)},[id]);
+  useEffect(()=>{setEditMode(false)},[activeId,view]);
   const openTab=next=>{setView(next);navigate('/batches/'+encodeURIComponent(id)+'?view='+next)};
   const workspace=batch?.reviewWorkspace||{};
   const decisions=workspace.decisions||{},edits=workspace.edits||{};
@@ -78,7 +79,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
   useEffect(()=>{
     if(view!=='review'||!isOpen)return;
     const handler=e=>{
-      if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||e.metaKey||e.ctrlKey||e.altKey)return;
+      if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||document.activeElement?.closest?.('.qb-editor')||e.metaKey||e.ctrlKey||e.altKey)return;
       if(e.key==='ArrowRight'){e.preventDefault();nextSample(1)}
       if(e.key==='ArrowLeft'){e.preventDefault();nextSample(-1)}
       if(editMode)return;
@@ -152,7 +153,7 @@ export function BatchWorkspace({selectionBatches=[],setSelectionBatches,navigate
       <div className="bw-review-main">
         <div className="bw-review-navigation"><div><strong>{active?.id||'No sample'}</strong><span>{active?.video||'—'} · {active?.domain||'—'}</span></div>
           <div className="bw-review-switch"><button onClick={()=>nextSample(-1)} aria-label="Previous sample"><ChevronLeft size={17}/></button><span>{activeIndex+1} / {filtered.length}</span><button onClick={()=>nextSample(1)} aria-label="Next sample"><ChevronRight size={17}/></button></div></div>
-        {active?<QuickBoxEditor key={active.id} sample={active} initialBoxes={edits[active.id]||[]} editable={isOpen} onSave={saveBoxes}/>:<p className="bw-empty">No samples match the current filters. Return to Grid and clear filters.</p>}
+        {active?<QuickBoxEditor key={active.id} sample={active} initialBoxes={edits[active.id]||[]} editable={isOpen} onSave={saveBoxes} onToolChange={setEditMode}/>:<p className="bw-empty">No samples match the current filters. Return to Grid and clear filters.</p>}
         <div className="bw-review-actionbar"><div><span>Selection decision</span><strong>{active?formatDecision(decisions[active.id]):'—'}</strong><small>Independent from annotation drafts</small></div>
           <input aria-label="Rejection reason" value={reason} onChange={e=>setReason(e.target.value)} placeholder="Rejection reason…"/>
           <Button disabled={!isOpen||!active} onClick={()=>decide([active.id],'Deferred')}>Defer <kbd>D</kbd></Button>
