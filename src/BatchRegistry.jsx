@@ -19,7 +19,7 @@ function workflow(b){
   if(b.status==='Curated')return {title:'Review finalized',hint:'Handoff not confirmed',variant:'post'};
   return {title:b.status||'Unknown',hint:'Inspect batch record',variant:'post'};
 }
-export function BatchRegistry({selectionBatches=[],pools=[],navigate}){
+export function BatchRegistry({selectionBatches=[],annotationImports=[],pools=[],navigate}){
   const [tab,setTab]=useState('all'),[search,setSearch]=useState(''),[strategy,setStrategy]=useState('All');
   const counts=useMemo(()=>({
     all:selectionBatches.length,review:selectionBatches.filter(b=>bucket(b)==='review').length,
@@ -56,7 +56,8 @@ export function BatchRegistry({selectionBatches=[],pools=[],navigate}){
           <td><span className="br-strategy">{b.strategy||'—'}</span></td>
           <td className="br-num">{count(b.count)}</td>
           <td><div className="br-progress"><div><strong>{pct}%</strong><span>{count(b.review?.reviewed||0)} / {count(b.count)}</span></div><div className="br-track"><i style={{width:pct+'%'}}/></div></div></td>
-          <td><div className="br-annotation"><strong>{b.annotationReturn?.status||'Not started'}</strong><small>{b.annotationReturn?.validation==='Warning'?'Reconciliation needed':b.annotationReturn?.returned?count(b.annotationReturn.returned)+' returned':'—'}</small></div></td>
+          <td><div className="br-annotation"><strong>{b.annotationReturn?.status||'Not started'}</strong><small>{b.annotationReturn?.validation==='Warning'?'Reconciliation needed':b.annotationReturn?.returned?count(b.annotationReturn.returned)+' returned':'—'}</small>
+            {annotationImports.some(r=>r.batchId===b.id)&&<small className="br-intake-note">{annotationImports.filter(r=>r.batchId===b.id).length} local intake record(s) · unverified</small>}</div></td>
           <td><span className={'br-phase is-'+step.variant}>{step.title}</span><small>{step.hint}</small></td>
           <td className="br-date">{b.updatedAt?date(b.updatedAt):'—'}</td>
           <td><div className="br-row-actions"><button className="br-action-primary" onClick={()=>open(b,b.status==='In review'?'grid':'handoff')}>{b.status==='In review'?'Review':'View version'}<ArrowRight size={14}/></button><button className="br-action-secondary" onClick={()=>open(b,'handoff')} title="Open Curated Batch release">Curated</button><button className="br-action-secondary" onClick={()=>open(b,'return')} title="Import external annotation results">Import labels</button></div></td>
