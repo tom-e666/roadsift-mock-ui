@@ -10,6 +10,8 @@ try {
   const pipelineViews = await server.ssrLoadModule('/src/PipelineDefinitions.jsx');
   const curationViews = await server.ssrLoadModule('/src/BatchWorkspace.jsx');
   const resultImports = await server.ssrLoadModule('/src/ResultImports.jsx');
+  const annotationJobs = await server.ssrLoadModule('/src/AnnotationJobs.jsx');
+  const modelEvaluations = await server.ssrLoadModule('/src/ModelEvaluation.jsx');
   const fixtures = await server.ssrLoadModule('/src/data.js');
   const datasets = fixtures.initialDatasets;
   const pools = fixtures.initialPools;
@@ -50,9 +52,14 @@ try {
     ['Focus Review', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=review'],
     ['Curated Batch release', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=handoff'],
     ['Curated Version preview', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=handoff&preview=version'],
-    ['Annotation Return', 'batch-workspace', '/batches/' + encodeURIComponent(selectionBatches.find(b => b.status === 'In review').id) + '?view=return'],
-    ['Annotation Return fixture', 'batch-workspace', '/batches/batch_nhc_r13?view=return'],
-    ['Evaluation Results Import', 'eval-import', '/evaluations/import'],
+    ['Annotation Jobs', 'annotation-jobs', '/annotation-jobs'],
+    ['Annotation Jobs detail', 'annotation-jobs', '/annotation-jobs?job=batch_nhc_r13'],
+    ['Annotation Jobs import drawer', 'annotation-jobs', '/annotation-jobs?job=batch_nhc_r13&import=1'],
+    ['Legacy annotation URL', 'batch-workspace', '/batches/batch_nhc_r13?view=return'],
+    ['Model Evaluation', 'model-evaluation', '/model-evaluation'],
+    ['Model Evaluation detail', 'model-evaluation', '/model-evaluation?record=eval_demo_entropy_r00'],
+    ['Model Evaluation import drawer', 'model-evaluation', '/model-evaluation?import=1'],
+    ['Legacy evaluation import', 'model-evaluation', '/evaluations/import'],
     ['Runs', 'history', '/history'],
     ['Runs quick preview', 'history', '/history?selected=' + encodeURIComponent(runs[0].id)],
     ['Strategy Comparison', 'comparison', '/comparison'],
@@ -64,7 +71,7 @@ try {
   const components = {
     pools: views.Pools, datasets: views.Datasets, 'data-explorer': views.Explorer,
     import: views.ImportData, pipelines: pipelineViews.PipelineDefinitions, mining: views.Mining, batches: views.SelectionBatches,
-    history: views.History, 'batch-workspace': curationViews.BatchWorkspace, comparison: views.StrategyComparison, 'eval-import': resultImports.EvaluationResultImport, settings: views.SettingsPage,
+    history: views.History, 'batch-workspace': curationViews.BatchWorkspace, 'annotation-jobs': annotationJobs.AnnotationJobs, 'model-evaluation': modelEvaluations.ModelEvaluation, comparison: views.StrategyComparison, settings: views.SettingsPage,
     system: views.SystemPage, onboarding: views.Onboarding,
   };
   const failures = [];
@@ -83,8 +90,11 @@ try {
       if (id === 'batch-workspace' && path.includes('view=review') && (!html.includes('qb-studio-layout') || !html.includes('qb-objects') || !html.includes('Sample Inspector') || !html.includes('Save Draft'))) throw new Error('Missing CVAT-lite editor, object panel or review inspector');
       if (id === 'batch-workspace' && path.includes('view=handoff') && !path.includes('preview=') && (!html.includes('cr-page') || !html.includes('Review outcome') || !html.includes('Approved candidates') || !html.includes('Preview version workspace') || !html.includes('Create Curated Batch'))) throw new Error('Missing curated release workflow');
       if (id === 'batch-workspace' && path.includes('preview=version') && (!html.includes('Curated Batch') || !html.includes('cr-version') || !html.includes('Send for annotation') || !html.includes('Export dataset') || !html.includes('Illustrative version view'))) throw new Error('Missing post-finalize version preview and delivery triggers');
-      if (id === 'batch-workspace' && path.includes('view=return') && (!html.includes('Import Annotation Results') || !html.includes('Save local intake record') || !html.includes('Create Annotated Dataset Version'))) throw new Error('Missing Annotation Return importer');
-      if (id === 'eval-import' && (!html.includes('Import Evaluation Results') || !html.includes('Evaluation model version') || !html.includes('Save local evaluation intake') || !html.includes('Publish verified Evaluation Record'))) throw new Error('Missing Evaluation Results Import workflow');
+      if (id === 'batch-workspace' && path.includes('view=return') && !html.includes('Annotation Return is now managed in Annotation Jobs')) throw new Error('Legacy annotation link must point to job workspace');
+      if (id === 'annotation-jobs' && (!html.includes('aj-page') || !html.includes('Annotation deliveries') || !html.includes('Needs reconciliation') || !html.includes('Import return'))) throw new Error('Missing contextual annotation jobs workspace');
+      if (id === 'annotation-jobs' && path.includes('import=1') && (!html.includes('id-panel') || !html.includes('Save intake record'))) throw new Error('Missing contextual annotation import drawer');
+      if (id === 'model-evaluation' && (!html.includes('me-page') || !html.includes('Evaluation records') || !html.includes('Safety slices') || !html.includes('Provenance'))) throw new Error('Missing evaluation registry and tabbed detail');
+      if (id === 'model-evaluation' && (path.includes('import=1')||path.startsWith('/evaluations/import')) && (!html.includes('id-panel') || !html.includes('Import evaluation result'))) throw new Error('Missing contextual evaluation import drawer');
       if (id === 'comparison' && (!html.includes('rc-page') || !html.includes('Runs to compare') || !html.includes('Sample Differences') || !html.includes('Model Impact') || !html.includes('Selection Results'))) throw new Error('Missing run-first comparison workspace');
       if (id === 'comparison' && path.includes('demo=samples') && (!html.includes('rc-overlap-groups') || !html.includes('Illustrative UI demonstration only') || !html.includes('Shared by both'))) throw new Error('Missing clearly labeled sample differences demonstration');
       if (id === 'history' && path.startsWith('/runs/') && !html.includes('rd-page')) throw new Error('Missing run details dashboard');
@@ -103,6 +113,13 @@ try {
     if(!html.includes('Not directly comparable')||!html.includes('Not recorded'))throw new Error('Comparison lacks run comparability warnings or evidence labels');
     console.log('PASS Comparison run scope warnings and explicit missing evidence');
   }catch(error){failures.push('Comparison provenance');console.error('FAIL Comparison provenance',error.stack||error);}
+  // The fixture's return count gap is an aggregate, not an invented missing sample ID list.
+  try {
+    const html=renderToStaticMarkup(React.createElement(annotationJobs.AnnotationJobs,{...common,routePath:'/annotation-jobs?job=batch_nhc_r13'}));
+    if(!html.includes('12 expected samples not counted as returned')||!html.includes('cannot be inferred'))
+      throw new Error('Annotation job reconciliation counts or provenance note missing');
+    console.log('PASS annotation job aggregate difference and honest reconciliation status');
+  }catch(error){failures.push('Annotation job reconciliation');console.error('FAIL Annotation job reconciliation',error.stack||error)}
   // Validate common import contracts without relying only on markup.
   try {
     const goodCoco={
