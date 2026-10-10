@@ -3,7 +3,7 @@ import {AlertTriangle,ArrowLeft,ArrowRight,CheckCircle2,ChevronDown,ClipboardChe
 import {count,date} from './data.js';
 import './result-imports.css';
 
-const MAX_BYTES=12*1024*1024;
+const MAX_BYTES=30*1024*1024;
 const unique=a=>[...new Set(a)];
 const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const errText=e=>e instanceof Error?e.message:String(e);
@@ -58,7 +58,7 @@ export function inspectAnnotations(json){
   if(!boxes)warnings.push('No bounding boxes found. Empty annotations may be valid negatives; verify coverage policy.');
   warnings.push('Sample-level membership and class mapping against the authoritative Curated Batch have not been verified.');
   return {errors,warnings,summary:{format:kind,samples:refs.length,annotations:boxes,classes,uniqueSampleIds:new Set(refs).size,
-    previewIds:refs.slice(0,6),sampleIds:refs.slice(0,200)}};
+    previewIds:refs.slice(0,6),sampleIds:refs}};
 }
 
 export function inspectEvaluation(text,format){
@@ -127,6 +127,11 @@ function ResultBox({preview,kind}){
     {preview.summary&&<details className="ri-inspect-meta"><summary>Parsed details <ChevronDown size={15}/></summary><pre>{JSON.stringify(kind==='annotation'?{format:preview.summary.format,uniqueSampleIds:preview.summary.uniqueSampleIds,previewSampleIds:preview.summary.previewIds}:preview.summary,null,2)}</pre></details>}
   </div>;
 }
+function downloadTemplate(name,data){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const href=URL.createObjectURL(blob),a=document.createElement('a');a.href=href;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(href),1000);
+}
 function StatusChip({children}){return <span className="ri-status-chip">{children}</span>}
 function History({entries,kind,onOpen}){
   return <section className="ri-history"><div className="ri-section-head"><Layers size={17}/><div><h3>Local import records</h3><p>Saved in this browser only, not an authoritative dataset or evaluation registry.</p></div></div>
@@ -144,8 +149,8 @@ export function AnnotationReturnImport({batch,annotationImports=[],setAnnotation
   const inspectFile=async e=>{
     const file=e.target.files?.[0];if(!file)return;
     setRecord(null);setPreview(null);setFileError('');setFileName(file.name);
-    if(!/\.json$/i.test(file.name)){setFileError('Only COCO or RoadSift JSON is parsed in this preview.');return;}
-    if(file.size>MAX_BYTES){setFileError('Local preview parser supports files up to 12 MB; large packages need the backend importer.');return;}
+    if(!/\.json$/i.test(file.name)){setFileError('Only COCO or RoadSift JSON is parsed in the browser preview.');return;}
+    if(file.size>MAX_BYTES){setFileError('Local preview parser supports files up to 30 MB; larger packages need the backend importer.');return;}
     try{let parsed=JSON.parse(await file.text()),result=inspectAnnotations(parsed);
       if(memberIds&&result.summary){
         const extra=result.summary.sampleIds.filter(id=>!memberIds.includes(id));
@@ -176,6 +181,7 @@ export function AnnotationReturnImport({batch,annotationImports=[],setAnnotation
           <input type="file" accept=".json,application/json" aria-label="Annotation result JSON" onChange={inspectFile}/></label>:
           <label className="ri-field">Storage URI<input value={sourceUri} onChange={e=>{setSourceUri(e.target.value);setRecord(null)}} placeholder="r2://bucket/annotation-returns/batch/result.json" aria-label="Annotation result URI"/></label>}
         {fileError&&<p className="ri-error"><AlertTriangle size={14}/>{fileError}</p>}
+        <div className="ri-template"><button type="button" onClick={()=>downloadTemplate('annotation-coco-template.json',{images:[{id:1,file_name:'frame_001.jpg'}],categories:[{id:1,name:'car'}],annotations:[{id:1,image_id:1,category_id:1,bbox:[10,20,100,50]}]})}><FileJson size={14}/> Download COCO template</button></div>
         <p className="ri-muted">YOLO ZIP / CVAT task packages and large results require a backend importer; selecting a URI does not fetch or hash the object.</p>
       </section>
       <section className="ri-card"><SectionHead number="02" label="Validation preview" description="Check annotation structure first. Membership, class mapping and ground-truth quality need authoritative reconciliation."/>
@@ -207,7 +213,7 @@ export function EvaluationResultImport({evaluationImports=[],setEvaluationImport
   const history=evaluationImports.slice().reverse();
   const file=async e=>{
     const f=e.target.files?.[0];if(!f)return;setFileName(f.name);setPreview(null);setError('');setActive(null);
-    if(f.size>MAX_BYTES){setError('Preview parser supports files up to 12 MB.');return;}
+    if(f.size>MAX_BYTES){setError('Preview parser supports files up to 30 MB.');return;}
     if(format==='json'&&!/\.json$/i.test(f.name)||format==='csv'&&!/\.csv$/i.test(f.name)){setError('File extension does not match the chosen format.');return;}
     try{const result=inspectEvaluation(await f.text(),format);setPreview(result);}catch(e){setError(errText(e))}
   };
@@ -245,6 +251,7 @@ export function EvaluationResultImport({evaluationImports=[],setEvaluationImport
           <label className="ri-drop"><UploadCloud size={23}/><strong>{fileName||'Choose evaluation result file'}</strong><span>mAP50–95, AP50, precision, recall, VRU recall and ECE supported</span><input type="file" accept={format==='json'?'.json,application/json':'.csv,text/csv'} onChange={file} aria-label="Evaluation results file"/></label></>:
           <label className="ri-field">Storage URI<input aria-label="Evaluation result URI" value={sourceUri} onChange={e=>setSourceUri(e.target.value)} placeholder="r2://bucket/evaluations/run/report.json"/></label>}
         {error&&<p className="ri-error"><AlertTriangle size={14}/>{error}</p>}
+        <div className="ri-template"><button type="button" onClick={()=>downloadTemplate('evaluation-metrics-template.json',{modelVersionId:modelId,datasetVersionId:datasetId,holdoutId,metrics:{map50_95:0.42,ap50:0.67,recall:0.72,precision:0.78,vru_recall:0.63}})}><FileJson size={14}/> Download metrics template</button></div>
       </section>
       <section className="ri-card"><SectionHead number="03" label="Validation preview" description="Review parsed metrics and surface provenance mismatches before saving the intake record."/>
         {mode==='file'?<ResultBox kind="evaluation" preview={preview}/>:<div className="ri-info"><Info size={17}/>Remote object content and checksum are not verified by this UI. Backend import remains pending.</div>}
