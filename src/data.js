@@ -1,9 +1,9 @@
-import { BookOpen, Database, ScanSearch, UploadCloud, Pickaxe, History, ChartNoAxesCombined, Settings, Monitor, Boxes, Layers } from 'lucide-react';
+import { BookOpen, Database, ScanSearch, UploadCloud, Pickaxe, History, ChartNoAxesCombined, Settings, Monitor, Boxes, Layers, Workflow } from 'lucide-react';
 import mockData from './mock-data.json';
 
 export const groups = [
   ['Library', [['pools', 'Pools', Boxes], ['datasets', 'Datasets', Database], ['data-explorer', 'Data Explorer', ScanSearch]]],
-  ['Workflow', [['import', 'Ingest', UploadCloud], ['mining', 'Mining', Pickaxe], ['batches', 'Selection Batches', Layers], ['history', 'Runs', History], ['comparison', 'Strategy Comparison', ChartNoAxesCombined]]],
+  ['Workflow', [['import', 'Ingest', UploadCloud], ['pipelines', 'Pipelines', Workflow], ['mining', 'Launchpad', Pickaxe], ['batches', 'Selection Batches', Layers], ['history', 'Runs', History], ['comparison', 'Strategy Comparison', ChartNoAxesCombined]]],
   ['Workspace', [['settings', 'Settings', Settings], ['system', 'System', Monitor], ['onboarding', 'Onboarding', BookOpen]]],
 ];
 export const allPages = groups.flatMap(([, items]) => items);
