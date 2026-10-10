@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Menu, PanelLeftClose, PanelLeftOpen, Search, Sun, Moon, Bell, ChevronDown, X, Check, Command, FlaskConical } from 'lucide-react';
 import { CommandPalette } from './components/CommandPalette.jsx';
 import { PipelineDefinitions, initialPipelineDefinitions } from './PipelineDefinitions.jsx';
+import { BatchWorkspace } from './BatchWorkspace.jsx';
 import { Button, Modal } from './components/UI.jsx';
 import { groups, allPages, initialDatasets, initialRuns, initialPools, initialSelectionBatches, runners as initialRunners, modelRegistry as initialModels, strategies as initialAlgorithms } from './data.js';
 import { Pools, Datasets, Explorer, ImportData, Mining, SelectionBatches, History, StrategyComparison, SettingsPage, SystemPage, Onboarding } from './Pages.jsx';
@@ -75,9 +76,9 @@ export default function App() {
   const navigate = (target, dataset) => {
     const raw = target.startsWith('/') ? target.slice(1) : target;
     const next = raw.split('?')[0];
-    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs|pipelines)\/[^/]+$/.test(next) && next !== 'runs') return;
+    if (!allPages.some(([id]) => id === next) && !/^(datasets|pools|runs|pipelines|batches)\/[^/]+$/.test(next) && next !== 'runs') return;
     if (dataset) setContextDataset(dataset);
-    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next.startsWith('pipelines/')?'pipelines':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
+    window.history.pushState({}, '', `/${raw}`); setRoutePath(`/${raw}`); setPage(next.startsWith('datasets/')?'datasets':next.startsWith('pools/')?'pools':next.startsWith('pipelines/')?'pipelines':next.startsWith('batches/')?'batches':next==='runs'||next.startsWith('runs/')?'history':next); setMobileOpen(false); setCommandOpen(false); setAccountOpen(false); window.scrollTo(0, 0);
   };
   useEffect(() => { const handler = () => {setPage(currentPage());setRoutePath(window.location.pathname + window.location.search);}; window.addEventListener('popstate', handler); return () => window.removeEventListener('popstate', handler); }, []);
   useEffect(() => { document.title = `RoadSift · ${title}`; }, [title]);
@@ -112,7 +113,7 @@ export default function App() {
     return()=>clearTimeout(timer);
   },[runs,setRuns,setSelectionBatches]);
   const shared = { navigate, notify, routePath, datasets, setDatasets, pools, setPools, selectionBatches, setSelectionBatches, runs, setRuns, definitions, setDefinitions, runnerRegistry, setRunnerRegistry, modelRegistryState, setModelRegistryState, algorithmRegistry, setAlgorithmRegistry, contextDataset, language, setLanguage };
-  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, pipelines: PipelineDefinitions, mining: Mining, batches: SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
+  const pages = { pools: Pools, datasets: Datasets, 'data-explorer': Explorer, import: ImportData, pipelines: PipelineDefinitions, mining: Mining, batches: routePath.startsWith('/batches/')?BatchWorkspace:SelectionBatches, history: History, comparison: StrategyComparison, system: SystemPage, onboarding: Onboarding };
   const Page = pages[page];
   return <div className={`app ${collapsed ? 'app--collapsed' : ''} ${preferences.compact ? 'app--compact' : ''} ${preferences.animations ? '' : 'app--no-motion'}`}>
     <a href="#main-content" className="skip-link">Skip to content</a>
