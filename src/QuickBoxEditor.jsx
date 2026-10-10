@@ -1,4 +1,4 @@
-import React, {useRef,useState} from 'react';
+import React, {useEffect,useRef,useState} from 'react';
 import {MousePointer2, Square, Trash2, Undo2, Redo2, Save, ZoomIn, ZoomOut} from 'lucide-react';
 import {SampleMedia} from './SampleMedia.jsx';
 import './quick-box-editor.css';
@@ -8,7 +8,7 @@ function at(evt,element){
   const r=element.getBoundingClientRect();
   return {x:clamp((evt.clientX-r.left)/r.width*1000,0,1000),y:clamp((evt.clientY-r.top)/r.height*562,0,562)};
 }
-export function QuickBoxEditor({sample,initialBoxes=[],onSave,onToolChange=()=>{},editable=true}){
+export function QuickBoxEditor({sample,initialBoxes=[],onSave,onToolChange=()=>{},onDirtyChange=()=>{},editable=true}){
   const [boxes,setBoxes]=useState(initialBoxes);
   const [selected,setSelected]=useState(null);
   const [tool,setTool]=useState('select');
@@ -16,6 +16,7 @@ export function QuickBoxEditor({sample,initialBoxes=[],onSave,onToolChange=()=>{
   const [undoStack,setUndoStack]=useState([]),[redoStack,setRedoStack]=useState([]);
   const [dirty,setDirty]=useState(false),[zoom,setZoom]=useState(1);
   const gesture=useRef(null),canvas=useRef(null);
+  useEffect(()=>onDirtyChange(dirty),[dirty,onDirtyChange]);
   const keep=()=>{setUndoStack(old=>[...old,boxes.map(b=>({...b}))].slice(-30));setRedoStack([]);};
   const point=evt=>at(evt,canvas.current);
   const onStart=(evt,boxId=null,handle=null)=>{
