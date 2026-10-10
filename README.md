@@ -46,6 +46,14 @@ The RoadSift Dark appearance uses shared semantic tokens in `src/styles.css`, wi
   - **Focus Review & Quick Edit**: CVAT-inspired vertical tool rail, center 2D canvas, object list, bounding box draw/move/resize/relabel, delete and undo/redo, plus separate Approve/Reject/Defer decisions. Draft edits survive page refresh in local mock state and warn before navigating with unsaved edits.
   - **Finalize & Handoff**: Validate → Configure → Freeze version → Export. Configure annotation/training purpose, manifest/ZIP/verified-label format, local download or future R2 destination, requested curated name/version label, export job name, notes, and included media/metadata/audit records. Freeze validates membership, review, privacy and shortfall policy; export separately validates the frozen version, artifact integrity, annotations and destination. Both actions are disabled without backend evidence. Downloading the preview JSON creates no curated version or export job.
 
+### Strategy Comparison v2
+
+The Strategy Comparison page uses a **table-first, evidence-aware** layout. Scope, strategy arms, baseline, checkpoint and preflight protocol checks lead; charts are supporting evidence. The fixture contains two paired arms (Entropy/Hybrid), nine checkpoints and a deliberately incompatible cross-domain experiment. The UI does not invent approval rates, diversity, redundancy, sample-overlap or coverage counts where source records lack those fields. Downstream mAP/recall values are explicitly synthetic, with no verified winners, statistical confidence intervals or measured improvement claims.
+
+### Handoff readiness UX
+
+Handoff now shows a short human-facing summary: recorded review progress, eligible membership verification and privacy clearance. Technical preflight (including EXACT-N policy) and post-freeze export verification remain mandatory but are under a collapsed disclosure. Freeze validates eligible membership and policy; Export separately checks the frozen version, bytes, annotations and destination. Both actions remain disabled until backend evidence is available.
+
 ### Important demo and trust limitations
 
 The current gallery contains **fixture sample images, not verified members** of the selected immutable batch. The local `reviewWorkspace.decisions` and `reviewWorkspace.edits` maps persist in browser state only; they are **not counted** in server-verified batch aggregate review totals, and box drafts are **not ground-truth annotations**. Privacy verification, sample membership and content-hashed artifacts require a backend. Therefore the Handoff view does **not** claim to create an immutable Curated Batch or export a real ZIP from fixture data: Finalize is disabled until those checks can be performed. The Download handoff plan action exports preview JSON marked `notAnExport: true`.
