@@ -30,7 +30,7 @@ export function BatchRegistry({selectionBatches=[],pools=[],navigate}){
   const results=selectionBatches.filter(b=>(tab==='all'||bucket(b)===tab)
     &&(strategy==='All'||b.strategy===strategy)
     &&(b.name+' '+b.id+' '+b.runId+' '+b.strategy).toLowerCase().includes(search.toLowerCase()));
-  const open=(b,view='grid')=>navigate('/batches/'+encodeURIComponent(b.id)+'?view='+view);
+  const open=(b,view='grid')=>navigate('/batches/'+encodeURIComponent(b.id)+'?view='+view+(view==='handoff'&&b.review?.finalizedAt?'&preview=version':''));
   const poolName=b=>pools.find(p=>p.id===b.sourcePoolId)?.name||b.sourcePoolId||'—';
   return <div className="page br-page">
     <header className="br-heading"><div><span className="br-eyebrow">CURATION / BATCH REGISTRY</span><h1>Selection Batches</h1><p>Review and track selection outputs from mining runs through handoff.</p></div>
@@ -59,11 +59,11 @@ export function BatchRegistry({selectionBatches=[],pools=[],navigate}){
           <td><div className="br-annotation"><strong>{b.annotationReturn?.status||'Not started'}</strong><small>{b.annotationReturn?.validation==='Warning'?'Reconciliation needed':b.annotationReturn?.returned?count(b.annotationReturn.returned)+' returned':'—'}</small></div></td>
           <td><span className={'br-phase is-'+step.variant}>{step.title}</span><small>{step.hint}</small></td>
           <td className="br-date">{b.updatedAt?date(b.updatedAt):'—'}</td>
-          <td><div className="br-row-actions"><button className="br-action-primary" onClick={()=>open(b,b.status==='In review'?'grid':'handoff')}>{b.status==='In review'?'Review':'Inspect'}<ArrowRight size={14}/></button><button className="br-action-secondary" onClick={()=>open(b,'handoff')} title="Check handoff readiness">Handoff</button></div></td>
+          <td><div className="br-row-actions"><button className="br-action-primary" onClick={()=>open(b,b.status==='In review'?'grid':'handoff')}>{b.status==='In review'?'Review':'View version'}<ArrowRight size={14}/></button><button className="br-action-secondary" onClick={()=>open(b,'handoff')} title="Open Curated Batch release">Curated</button></div></td>
         </tr>})}</tbody></table>
         {!results.length&&<div className="br-empty">No batches match your filters. Try another status or strategy.</div>}
       </div>
-      <div className="br-foot"><span>{results.length} matching batches</span><span>Only recorded batch states are shown; readiness requires validation inside Handoff.</span></div>
+      <div className="br-foot"><span>{results.length} matching batches</span><span>Only recorded batch states are shown; finalize and delivery require authoritative backend validation.</span></div>
     </section>
   </div>;
 }
